@@ -81,7 +81,7 @@ typedef enum timeseries_backend_id
     /** Highest numbered timeseries backend ID */
     TIMESERIES_BACKEND_MAX          = TIMESERIES_BACKEND_ASCII,
 
-  } timeseries_provider_id_t;
+  } timeseries_backend_id_t;
 
 /** @} */
 
@@ -132,12 +132,12 @@ timeseries_backend_t *timeseries_get_backend_by_id(timeseries_t *timeseries,
 
 /** Retrieve the backend id for the given backend name
  *
- * @param timeseries    Timeseries object to retrieve the backend ID from
+ * @param timeseries    Timeseries object to retrieve the backend from
  * @param name          The backend name to retrieve
  * @return the backend id for the given name, 0 if there are no matches
  */
-timeseries_backend_id_t timeseries_get_backend_by_name(timeseries_t *timeseries,
-						       const char *name);
+timeseries_backend_t *timeseries_get_backend_by_name(timeseries_t *timeseries,
+						     const char *name);
 
 /** Check if the given backend is enabled already
  *
@@ -218,9 +218,31 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key);
  * @param key           Index of the key (as returned by kp_add_key) to
  *                      set the value for
  * @param value         Value to set the key to
- * @return 0 if the value was successfully set, -1 otherwise
  */
-int timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value);
+void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value);
+
+/** Flush the current values in the given Key Package to the database
+ *
+ * @param backend       Pointer to the backend to flush values to
+ * @param kp            Pointer to the KP to flush values for
+ * @param time          The timestamp to associate the values with in the DB
+ * @return 0 if the data was written successfully, -1 otherwise.
+ */
+int timeseries_kp_flush(timeseries_backend_t *backend,
+			timeseries_kp_t *kp, uint32_t time);
+
+/** Write the value for a single key to the DBATS database
+ *
+ * @param backend       Pointer to the backend to write value to
+ * @param key           String key name
+ * @param value         Value to set the key to
+ * @param time          The time slot to set the key's value for
+ *
+ * @warning this function will perform much worse than using the Key Package
+ * functions above, use with caution
+ */
+int timeseries_set_single(timeseries_backend_t *backend, const char *key,
+			  uint64_t value, uint32_t time);
 
 /**
  * @name Logging functions

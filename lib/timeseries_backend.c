@@ -58,7 +58,6 @@ typedef timeseries_backend_t* (*backend_alloc_func_t)();
 static const backend_alloc_func_t backend_alloc_functions[] = {
   NULL,
   timeseries_backend_ascii_alloc,
-  timeseries_backend_dbats_alloc
 };
 
 /* --- Public functions below here -- */
@@ -84,7 +83,7 @@ int timeseries_backend_alloc_all(timeseries_t *timeseries)
       /* get the core backend details (id, name) from the backend plugin */
       memcpy(backend,
 	     backend_alloc_functions[i](),
-	     sizeof(timeseries_ds_t));
+	     sizeof(timeseries_backend_t));
 
       /* poke it into timeseries */
       timeseries->backends[i-1] = backend;

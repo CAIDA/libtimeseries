@@ -60,6 +60,22 @@ struct timeseries
 
 };
 
+/** Structure which holds state for a Key Package */
+struct timeseries_kp
+{
+  /** Dynamically allocated array of dynamically allocated key name strings */
+  char **keys;
+
+  /** Number of keys in the Key Package */
+  int keys_cnt;
+
+  /** Dynamically allocated array of values, one per key */
+  uint64_t *values;
+
+  /** Should the values be explicitly reset after a flush? */
+  int reset;
+};
+
 /** @} */
 
 #endif /* __LIBTIMESERIES_INT_H */

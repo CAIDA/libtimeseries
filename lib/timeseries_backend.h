@@ -53,7 +53,8 @@
   int timeseries_backend_##provname##_init(timeseries_backend_t *ds,	\
 					   int argc, char **argv);	\
   void timeseries_backend_##provname##_free(timeseries_backend_t *ds);	\
-  int timeseries_backend_##provname##_kp_flush(timeseries_kp_t *kp,	\
+  int timeseries_backend_##provname##_kp_flush(timeseries_backend_t *backend, \
+					       timeseries_kp_t *kp,	\
 					       uint32_t time);		\
   int timeseries_backend_##provname##_set_single(timeseries_backend_t *backend,	\
 						 const char *key,	\
@@ -122,15 +123,17 @@ struct timeseries_backend
 
   /** Flush the current values in the given Key Package to the database
    *
+   * @param backend       Pointer to a backend instance to flush to
    * @param kp            Pointer to the KP to flush values for
    * @param time          The timestamp to associate the values with in the DB
    * @return 0 if the data was written successfully, -1 otherwise.
    */
-  int (kp_flush)(timeseries_kp_t *kp, uint32_t time);
+  int (*kp_flush)(timeseries_backend_t *backend,
+		  timeseries_kp_t *kp, uint32_t time);
 
   /** Write the value for a single key to the database
    *
-   * @param backend     Pointer to a backend instance
+   * @param backend     Pointer to a backend instance to write to
    * @param key         String key name
    * @param value       Value to set the key to
    * @param time        The time slot to set the key's value for
@@ -138,8 +141,8 @@ struct timeseries_backend
    * @warning this function will perform much worse than using the Key Package
    * functions above, use with caution
    */
-  int (set_single)(timeseries_backend_t *backend, const char *key,
-		   uint64_t value, uint32_t time);
+  int (*set_single)(timeseries_backend_t *backend, const char *key,
+		    uint64_t value, uint32_t time);
 
   /** }@ */
 

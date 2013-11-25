@@ -35,8 +35,7 @@
 #include "utils.h"
 
 #include "libtimeseries_int.h"
-#include "timeseries_ds.h"
-#include "timeseries_provider.h"
+#include "timeseries_backend.h"
 
 #define MAXOPTS 1024
 
@@ -103,8 +102,7 @@ int timeseries_enable_backend(timeseries_t *timeseries,
     }
 
   /* we just need to pass this along to the backend framework */
-  rc = timeseries_backend_init(timeseries, backend, ds_id,
-			       process_argc, process_argv, set_default);
+  rc = timeseries_backend_init(timeseries, backend, process_argc, process_argv);
 
   if(local_args != NULL)
     {
@@ -147,7 +145,8 @@ inline int timeseries_is_backend_enabled(timeseries_backend_t *backend)
   return backend->enabled;
 }
 
-inline int timeseries_get_backend_id(timeseries_backend_t *backend)
+inline timeseries_backend_id_t timeseries_get_backend_id(
+					      timeseries_backend_t *backend)
 {
   assert(backend != NULL);
 
@@ -166,4 +165,114 @@ timeseries_backend_t **timeseries_get_all_backends(timeseries_t *timeseries)
   return timeseries->backends;
 }
 
-/* ========== put actual timeseries API funcs here... ========== */
+timeseries_kp_t *timeseries_kp_init(int reset)
+{
+  timeseries_kp_t *kp = NULL;
+
+  /* we only need to malloc the struct, space for keys will be malloc'd on the
+     fly */
+  if((kp = malloc_zero(sizeof(timeseries_kp_t))) == NULL)
+    {
+      timeseries_log(__func__, "could not malloc key package");
+      return NULL;
+    }
+
+  /* set the reset flag */
+  kp->reset = reset;
+
+  return kp;
+}
+
+void timeseries_kp_free(timeseries_kp_t *kp)
+{
+  int i;
+
+  if(kp != NULL)
+    {
+      /* free each of the key strings */
+      for(i = 0; i < kp->keys_cnt; i++)
+	{
+	  if(kp->keys[i] != NULL)
+	    {
+	      free(kp->keys[i]);
+	      kp->keys[i] = NULL;
+	    }
+	}
+      kp->keys_cnt = 0;
+
+      /* free the array of pointers */
+      if(kp->keys != NULL)
+	{
+	  free(kp->keys);
+	  kp->keys = NULL;
+	}
+    }
+
+  return;
+}
+
+int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
+{
+  assert(kp != NULL);
+  assert(key != NULL);
+
+  /* first we need to realloc the array of keys */
+  if((kp->keys = realloc(kp->keys, sizeof(char*) * (kp->keys_cnt+1))) == NULL)
+    {
+      timeseries_log(__func__, "could not realloc key package (keys)");
+      return -1;
+    }
+
+  /* now we need to realloc the array of values */
+  if((kp->values =
+      realloc(kp->values, sizeof(uint64_t) * (kp->keys_cnt+1))) == NULL)
+    {
+      timeseries_log(__func__, "could not realloc key package (values)");
+      return -1;
+    }
+
+  /* we promised we would zero the values */
+  kp->values[kp->keys_cnt] = 0;
+
+  /* now add the key (and increment the count) */
+  kp->keys[kp->keys_cnt++] = strdup(key);
+
+  return -1;
+}
+
+void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value)
+{
+  assert(kp != NULL);
+  assert(key < kp->keys_cnt);
+
+  kp->values[key] = value;
+}
+
+int timeseries_kp_flush(timeseries_backend_t *backend,
+			timeseries_kp_t *kp, uint32_t time)
+{
+  int rc, i;
+  assert(backend != NULL && backend->enabled != 0);
+
+  rc = backend->kp_flush(backend, kp, time);
+
+  if(rc == 0 && kp->reset != 0)
+    {
+      for(i = 0; i < kp->keys_cnt; i++)
+	{
+	  kp->values[i] = 0;
+	}
+    }
+  return rc;
+}
+
+int timeseries_set_single(timeseries_backend_t *backend, const char *key,
+			  uint64_t value, uint32_t time)
+{
+  assert(backend != NULL && backend->enabled != 0);
+
+  return backend->set_single(backend, key, value, time);
+}
+
+
+

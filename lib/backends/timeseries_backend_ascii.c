@@ -27,6 +27,7 @@
 #include "libtimeseries_int.h"
 
 #include <assert.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
@@ -145,13 +146,14 @@ int timeseries_backend_ascii_init(timeseries_backend_t *backend,
   /* parse the command line args */
   if(parse_args(backend, argc, argv) != 0)
     {
+      usage(backend);
       return -1;
     }
 
   /* if specified, open the output file */
   if(state->ascii_file != NULL &&
      (state->outfile =
-      wandio_create(state->ascii_file,
+      wandio_wcreate(state->ascii_file,
 		    wandio_detect_compression_type(state->ascii_file),
 		    state->compress_level,
 		    O_CREAT)) == NULL)
@@ -164,14 +166,6 @@ int timeseries_backend_ascii_init(timeseries_backend_t *backend,
   /* ready to rock n roll */
 
   return 0;
-
- err:
-  if(file != NULL)
-    {
-      wandio_destroy(file);
-    }
-  usage(backend);
-  return -1;
 }
 
 void timeseries_backend_ascii_free(timeseries_backend_t *backend)
@@ -187,7 +181,7 @@ void timeseries_backend_ascii_free(timeseries_backend_t *backend)
 
       if(state->outfile != NULL)
 	{
-	  wandio_wdestroy(outfile);
+	  wandio_wdestroy(state->outfile);
 	  state->outfile = NULL;
 	}
 
@@ -196,3 +190,45 @@ void timeseries_backend_ascii_free(timeseries_backend_t *backend)
   return;
 }
 
+#define PRINT_METRIC(func, file, key, value, time)		\
+  do {								\
+    func(file, "%s %"PRIu64" %"PRIu32"\n", key, value, time);	\
+  } while(0)
+
+#define DUMP_METRIC(state, key, value, time)				\
+  do {									\
+  if(state->outfile != NULL)						\
+    {									\
+      PRINT_METRIC(wandio_printf, state->outfile, key, value, time);	\
+    }									\
+  else									\
+    {									\
+      PRINT_METRIC(fprintf, stdout, key, value, time);			\
+    }									\
+  } while(0)
+
+
+int timeseries_backend_ascii_kp_flush(timeseries_backend_t *backend,
+				      timeseries_kp_t *kp,
+				      uint32_t time)
+{
+  timeseries_backend_ascii_state_t *state = STATE(backend);
+  int i;
+
+  for(i = 0; i < kp->keys_cnt; i++)
+    {
+      DUMP_METRIC(state, kp->keys[i], kp->values[i], time);
+    }
+
+  return 0;
+}
+
+int timeseries_backend_ascii_set_single(timeseries_backend_t *backend,
+					const char *key,
+					uint64_t value,
+					uint32_t time)
+{
+  timeseries_backend_ascii_state_t *state = STATE(backend);
+  DUMP_METRIC(state, key, value, time);
+  return 0;
+}
