@@ -143,6 +143,9 @@ int timeseries_backend_ascii_init(timeseries_backend_t *backend,
     }
   timeseries_backend_register_state(backend, state);
 
+  /* set initial default values (that can be overridden on the command line) */
+  state->compress_level = DEFAULT_COMPRESS_LEVEL;
+
   /* parse the command line args */
   if(parse_args(backend, argc, argv) != 0)
     {
