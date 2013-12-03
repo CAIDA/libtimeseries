@@ -72,6 +72,12 @@ struct timeseries_kp
   /** Dynamically allocated array of values, one per key */
   uint64_t *values;
 
+  /** Dynamically allocated array of backend IDs */
+  uint32_t *backend_ids;
+
+  /** Number of IDs in the backend_ids array */
+  int backend_ids_cnt;
+
   /** Should the values be explicitly reset after a flush? */
   int reset;
 };
