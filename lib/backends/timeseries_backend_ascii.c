@@ -149,7 +149,6 @@ int timeseries_backend_ascii_init(timeseries_backend_t *backend,
   /* parse the command line args */
   if(parse_args(backend, argc, argv) != 0)
     {
-      usage(backend);
       return -1;
     }
 
