@@ -79,7 +79,7 @@ typedef enum timeseries_backend_id
     TIMESERIES_BACKEND_DBATS  =  2,
 
     /** Highest numbered timeseries backend ID */
-    TIMESERIES_BACKEND_MAX          = TIMESERIES_BACKEND_ASCII,
+    TIMESERIES_BACKEND_MAX          = TIMESERIES_BACKEND_DBATS,
 
   } timeseries_backend_id_t;
 

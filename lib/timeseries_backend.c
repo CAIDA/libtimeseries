@@ -42,10 +42,8 @@
 /* ascii */
 #include "timeseries_backend_ascii.h"
 
-#if 0
 /* DBATS */
 #include "timeseries_backend_dbats.h"
-#endif
 
 /** Convenience typedef for the backend alloc function type */
 typedef timeseries_backend_t* (*backend_alloc_func_t)();
@@ -58,6 +56,7 @@ typedef timeseries_backend_t* (*backend_alloc_func_t)();
 static const backend_alloc_func_t backend_alloc_functions[] = {
   NULL,
   timeseries_backend_ascii_alloc,
+  timeseries_backend_dbats_alloc,
 };
 
 /* --- Public functions below here -- */
