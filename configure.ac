@@ -96,6 +96,13 @@ AC_SEARCH_LIBS([wandio_create], [wandio trace], ,[AC_MSG_ERROR(
 		 [libwandio required (included with libtrace since 3.0.15)]
 		 )])
 
+AC_CHECK_LIB([dbats], [dbats_open], ,[AC_MSG_ERROR(
+		[libdbats missing. use --without-dbats to disable DBATS support]
+		)])
+AC_CHECK_DECLS([DB_LOCK_DEADLOCK], , AC_MSG_ERROR(
+				   [db.h is missing DB_LOCK_DEADLOCK]
+				   ), [[#include <db.h>]])
+
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h inttypes.h limits.h math.h stdlib.h string.h \
 			      time.h sys/time.h])
