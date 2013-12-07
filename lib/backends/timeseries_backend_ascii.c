@@ -195,7 +195,7 @@ void timeseries_backend_ascii_free(timeseries_backend_t *backend)
 
 #define PRINT_METRIC(func, file, key, value, time)		\
   do {								\
-    func(file, "%s %"PRIu64" %"PRIu32"\n", key, value, time);	\
+    func(file, "%s %"PRIu64" %s\n", key, value, time);	\
   } while(0)
 
 #define DUMP_METRIC(state, key, value, time)				\
@@ -218,9 +218,16 @@ int timeseries_backend_ascii_kp_flush(timeseries_backend_t *backend,
   timeseries_backend_ascii_state_t *state = STATE(backend);
   int i;
 
+  /* there are at most 10 digits in a 32bit unix time value, plus the nul */
+#define TIME_BUFFER_LEN 11
+  char time_buffer[TIME_BUFFER_LEN];
+
+  /* we really only need to convert the time value to a string once */
+  snprintf(time_buffer, TIME_BUFFER_LEN, "%"PRIu32, time);
+
   for(i = 0; i < kp->keys_cnt; i++)
     {
-      DUMP_METRIC(state, kp->keys[i], kp->values[i], time);
+      DUMP_METRIC(state, kp->keys[i], kp->values[i], time_buffer);
     }
 
   return 0;
@@ -232,6 +239,14 @@ int timeseries_backend_ascii_set_single(timeseries_backend_t *backend,
 					uint32_t time)
 {
   timeseries_backend_ascii_state_t *state = STATE(backend);
-  DUMP_METRIC(state, key, value, time);
+
+  /* there are at most 10 digits in a 32bit unix time value, plus the nul */
+#define TIME_BUFFER_LEN 11
+  char time_buffer[TIME_BUFFER_LEN];
+
+  /* we really only need to convert the time value to a string once */
+  snprintf(time_buffer, TIME_BUFFER_LEN, "%"PRIu32, time);
+
+  DUMP_METRIC(state, key, value, time_buffer);
   return 0;
 }
