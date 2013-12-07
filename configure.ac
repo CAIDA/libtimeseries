@@ -97,7 +97,7 @@ AC_SEARCH_LIBS([wandio_create], [wandio trace], ,[AC_MSG_ERROR(
 		 )])
 
 AC_CHECK_LIB([dbats], [dbats_open], ,[AC_MSG_ERROR(
-		[libdbats missing. use --without-dbats to disable DBATS support]
+		[libdbats is required.]
 		)])
 AC_CHECK_DECLS([DB_LOCK_DEADLOCK], , AC_MSG_ERROR(
 				   [db.h is missing DB_LOCK_DEADLOCK]
