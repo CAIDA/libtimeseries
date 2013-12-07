@@ -29,8 +29,6 @@
 
 #include <inttypes.h>
 
-#include "khash.h"
-
 #include "libtimeseries.h"
 
 /** @file

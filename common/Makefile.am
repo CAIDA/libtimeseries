@@ -33,8 +33,6 @@ CONDITIONAL_LIBS=
 libtimeseriescommon_la_SOURCES = \
 	utils.c \
 	utils.h \
-	khash.h \
-	ksort.h \
 	parse_cmd.c \
 	parse_cmd.h
 
