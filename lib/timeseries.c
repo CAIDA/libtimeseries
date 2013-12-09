@@ -206,6 +206,21 @@ void timeseries_kp_free(timeseries_kp_t *kp)
 	  free(kp->keys);
 	  kp->keys = NULL;
 	}
+
+      /* free the values array */
+      if(kp->values != NULL)
+	{
+	  free(kp->values);
+	  kp->values = NULL;
+	}
+
+      /* free the backend ID array */
+      if(kp->backend_ids != NULL)
+	{
+	  free(kp->backend_ids);
+	  kp->backend_ids = NULL;
+	}
+      kp->backend_ids_cnt = 0;
     }
 
   return;
