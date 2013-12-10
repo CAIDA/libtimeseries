@@ -72,7 +72,7 @@ void timeseries_free(timeseries_t *timeseries)
   assert(timeseries != NULL);
 
   /* loop across all backends and free each one */
-  for(i = 0; i < TIMESERIES_BACKEND_MAX; i++)
+  for(i = 0; i < TIMESERIES_BACKEND_ID_LAST; i++)
     {
       timeseries_backend_free(timeseries, timeseries->backends[i]);
     }
@@ -117,7 +117,10 @@ inline timeseries_backend_t *timeseries_get_backend_by_id(
 					     timeseries_backend_id_t id)
 {
   assert(timeseries != NULL);
-  assert(id > 0 && id <= TIMESERIES_BACKEND_MAX);
+  if(id < TIMESERIES_BACKEND_ID_FIRST || id > TIMESERIES_BACKEND_ID_LAST)
+    {
+      return NULL;
+    }
   return timeseries->backends[id - 1];
 }
 
@@ -127,7 +130,7 @@ timeseries_backend_t *timeseries_get_backend_by_name(timeseries_t *timeseries,
   timeseries_backend_t *backend;
   int i;
 
-  for(i = 1; i <= TIMESERIES_BACKEND_MAX; i++)
+  for(i = TIMESERIES_BACKEND_ID_FIRST; i <= TIMESERIES_BACKEND_ID_LAST; i++)
     {
       if((backend = timeseries_get_backend_by_id(timeseries, i)) != NULL &&
 	 strncasecmp(backend->name, name, strlen(backend->name)) == 0)

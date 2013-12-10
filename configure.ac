@@ -96,12 +96,27 @@ AC_SEARCH_LIBS([wandio_create], [wandio trace], ,[AC_MSG_ERROR(
 		 [libwandio required (included with libtrace since 3.0.15)]
 		 )])
 
+
+# shall we build with the dbats backend?
+# -- installing DBATS is not trivial, so we don't want to make it required
+AC_MSG_CHECKING([whether to build the DBATS backend])
+AC_ARG_WITH([dbats],
+	[AS_HELP_STRING([--without-dbats],
+	  [do not compile the DBATS backend])],
+	  [],
+	  [with_dbats=yes])
+AC_MSG_RESULT([$with_dbats])
+
+if test x"$with_dbats" = xyes; then
 AC_CHECK_LIB([dbats], [dbats_open], ,[AC_MSG_ERROR(
-		[libdbats is required.]
+		[libdbats is required by DBATS (--without-dbats to disable)]
 		)])
 AC_CHECK_DECLS([DB_LOCK_DEADLOCK], , AC_MSG_ERROR(
 				   [db.h is missing DB_LOCK_DEADLOCK]
 				   ), [[#include <db.h>]])
+
+AC_DEFINE([WITH_DBATS],[1],[Building with DBATS backend])
+fi
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h inttypes.h limits.h math.h stdlib.h string.h \

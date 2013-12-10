@@ -43,7 +43,9 @@
 #include "timeseries_backend_ascii.h"
 
 /* DBATS */
+#ifdef WITH_DBATS
 #include "timeseries_backend_dbats.h"
+#endif
 
 /** Convenience typedef for the backend alloc function type */
 typedef timeseries_backend_t* (*backend_alloc_func_t)();
@@ -54,9 +56,17 @@ typedef timeseries_backend_t* (*backend_alloc_func_t)();
  * timeseries_backend_id_t. The element at index 0 MUST be NULL.
  */
 static const backend_alloc_func_t backend_alloc_functions[] = {
-  NULL,
+  /** Pointer to ASCII backend alloc function */
   timeseries_backend_ascii_alloc,
+
+  /** If we are building with DBATS support, point to the dbats alloc function,
+      otherwise a NULL pointer to indicate the backend is unavailable */
+#ifdef WITH_DBATS
   timeseries_backend_dbats_alloc,
+#else
+  NULL,
+#endif
+
 };
 
 /* --- Public functions below here -- */
@@ -64,13 +74,18 @@ static const backend_alloc_func_t backend_alloc_functions[] = {
 int timeseries_backend_alloc_all(timeseries_t *timeseries)
 {
   assert(timeseries != NULL);
-  assert(ARR_CNT(backend_alloc_functions) == TIMESERIES_BACKEND_MAX + 1);
+  assert(ARR_CNT(backend_alloc_functions) == TIMESERIES_BACKEND_ID_LAST);
 
   int i;
 
   /* loop across all backends and alloc each one */
-  for(i = 1; i <= TIMESERIES_BACKEND_MAX; i++)
+  for(i = TIMESERIES_BACKEND_ID_FIRST; i <= TIMESERIES_BACKEND_ID_LAST; i++)
     {
+      if(backend_alloc_functions[i-1] == NULL)
+	{
+	  continue;
+	}
+
       timeseries_backend_t *backend;
       /* first, create the struct */
       if((backend = malloc_zero(sizeof(timeseries_backend_t))) == NULL)
@@ -81,7 +96,7 @@ int timeseries_backend_alloc_all(timeseries_t *timeseries)
 
       /* get the core backend details (id, name) from the backend plugin */
       memcpy(backend,
-	     backend_alloc_functions[i](),
+	     backend_alloc_functions[i-1](),
 	     sizeof(timeseries_backend_t));
 
       /* poke it into timeseries */
@@ -123,10 +138,14 @@ int timeseries_backend_init(timeseries_t *timeseries,
 
 
 void timeseries_backend_free(timeseries_t *timeseries,
-			  timeseries_backend_t *backend)
+			     timeseries_backend_t *backend)
 {
   assert(timeseries != NULL);
-  assert(backend != NULL);
+
+  if(backend == NULL)
+    {
+      return;
+    }
 
   /* only free everything if we were enabled */
   if(backend->enabled != 0)

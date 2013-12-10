@@ -49,7 +49,7 @@
 
 /** The basic fields that every instance of this backend have in common */
 static timeseries_backend_t timeseries_backend_ascii = {
-  TIMESERIES_BACKEND_ASCII,
+  TIMESERIES_BACKEND_ID_ASCII,
   BACKEND_NAME,
   TIMESERIES_BACKEND_GENERATE_PTRS(ascii)
 };

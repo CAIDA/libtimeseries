@@ -54,7 +54,7 @@ struct timeseries
   /** Array of backends
    * @note index of backend is given by (timeseries_backend_id_t - 1)
    */
-  struct timeseries_backend *backends[TIMESERIES_BACKEND_MAX];
+  struct timeseries_backend *backends[TIMESERIES_BACKEND_ID_LAST];
 
 };
 

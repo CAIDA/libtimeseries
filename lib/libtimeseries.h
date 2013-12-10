@@ -73,13 +73,15 @@ typedef enum timeseries_backend_id
   {
     /** Writes timeseries metrics out in ASCII format (either to stdout or to
 	file) */
-    TIMESERIES_BACKEND_ASCII      =  1,
+    TIMESERIES_BACKEND_ID_ASCII      =  1,
 
     /** Write timeseries metrics into a DBATS database */
-    TIMESERIES_BACKEND_DBATS  =  2,
+    TIMESERIES_BACKEND_ID_DBATS      =  2,
 
+    /** Lowest numbered timeseries backend ID */
+    TIMESERIES_BACKEND_ID_FIRST      = TIMESERIES_BACKEND_ID_ASCII,
     /** Highest numbered timeseries backend ID */
-    TIMESERIES_BACKEND_MAX          = TIMESERIES_BACKEND_DBATS,
+    TIMESERIES_BACKEND_ID_LAST       = TIMESERIES_BACKEND_ID_DBATS,
 
   } timeseries_backend_id_t;
 
@@ -166,9 +168,11 @@ const char *timeseries_get_backend_name(timeseries_backend_t *backend);
  * @return an array of backend objects
  *
  * @note the number of elements in the array will be exactly
- * TIMESERIES_BACKEND_MAX.
- * @note not all backends in the list may be enabled. use
- * timeseries_is_backend_enabled to check.
+ * TIMESERIES_BACKEND_ID_LAST.
+ *
+ * @note not all backends in the list may be present * (i.e. there may be null
+ * pointers), or some may not be enabled. use * timeseries_is_backend_enabled to
+ * check.
  */
 timeseries_backend_t **timeseries_get_all_backends(timeseries_t *timeseries);
 

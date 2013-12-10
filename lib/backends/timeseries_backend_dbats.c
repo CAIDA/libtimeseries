@@ -22,9 +22,11 @@
  * along with libtimeseries.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
 #include "config.h"
 #include "libtimeseries_int.h"
+
+/** only bother building this file if we are building with DBATS */
+#ifdef WITH_DBATS
 
 #include <assert.h>
 #include <fcntl.h>
@@ -54,7 +56,7 @@
 
 /** The basic fields that every instance of this backend have in common */
 static timeseries_backend_t timeseries_backend_dbats = {
-  TIMESERIES_BACKEND_DBATS,
+  TIMESERIES_BACKEND_ID_DBATS,
   BACKEND_NAME,
   TIMESERIES_BACKEND_GENERATE_PTRS(dbats)
 };
@@ -353,3 +355,5 @@ int timeseries_backend_dbats_set_single(timeseries_backend_t *backend,
 
   return 0;
 }
+
+#endif /** WITH_DBATS */
