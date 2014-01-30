@@ -224,6 +224,9 @@ void timeseries_kp_free(timeseries_kp_t *kp)
 	  kp->backend_ids = NULL;
 	}
       kp->backend_ids_cnt = 0;
+
+      /* free the actual key package structure */
+      free(kp);
     }
 
   return;
