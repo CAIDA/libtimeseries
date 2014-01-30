@@ -268,7 +268,7 @@ int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
 
       /* ask dbats for the key ids */
       if(dbats_bulk_get_key_id(state->dbats_handler, snapshot,
-			       kp->keys_cnt, (const char * const *)kp->keys,
+			       &kp->keys_cnt, (const char * const *)kp->keys,
 			       kp->backend_ids, DBATS_CREATE) != 0)
 	{
 	  timeseries_log(__func__, "dbats_bulk_get_key_id failed");
