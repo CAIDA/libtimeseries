@@ -65,7 +65,7 @@ struct timeseries_kp
   char **keys;
 
   /** Number of keys in the Key Package */
-  int keys_cnt;
+  uint32_t keys_cnt;
 
   /** Dynamically allocated array of values, one per key */
   uint64_t *values;
