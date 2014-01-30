@@ -24,11 +24,16 @@
 
 AC_PREREQ([2.68])
 
-AC_INIT([libtimeseries], [0.0.0], [corsaro-info@caida.org])
+AC_INIT([libtimeseries], [0.1.0], [corsaro-info@caida.org])
 
 LIBTIMESERIES_MAJOR_VERSION=0
-LIBTIMESERIES_MID_VERSION=0
+LIBTIMESERIES_MID_VERSION=1
 LIBTIMESERIES_MINOR_VERSION=0
+
+# since libtimeseries is only a library, the version numbers are only used to
+# set the libtool library verson numbers. This means that the numbering is
+# slightly different than semantic versioning. For more info, see
+# https://www.sourceware.org/autobook/autobook/autobook_91.html
 
 AC_DEFINE_UNQUOTED([LIBTIMESERIES_MAJOR_VERSION],$LIBTIMESERIES_MAJOR_VERSION,
 	[libtimeseries major version])

@@ -42,7 +42,7 @@ libtimeseries_la_SOURCES = 		\
 libtimeseries_la_LIBADD = $(top_builddir)/common/libtimeseriescommon.la \
 	$(top_builddir)/lib/backends/libtimeseries_backends.la
 
-libtimeseries_la_LDFLAGS = -version-info @LIBTIMESERIES_MAJOR_VERSION@:@LIBTIMESERIES_MINOR_VERSION@:@LIBTIMESERIES_MID_VERSION@
+libtimeseries_la_LDFLAGS = -version-info @LIBTIMESERIES_MAJOR_VERSION@:@LIBTIMESERIES_MID_VERSION@:@LIBTIMESERIES_MINOR_VERSION@
 
 ACLOCAL_AMFLAGS = -I m4
 
