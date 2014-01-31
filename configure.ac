@@ -140,6 +140,8 @@ AC_HEADER_ASSERT
 
 AC_CONFIG_FILES([Makefile
 		common/Makefile
+		common/libcsv/Makefile
+		common/libpatricia/Makefile
 		lib/Makefile
 		lib/backends/Makefile
 		tools/Makefile

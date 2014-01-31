@@ -40,6 +40,7 @@
 #include <dbats.h>
 
 #include "utils.h"
+#include "wandio_utils.h"
 
 #include "timeseries_backend_dbats.h"
 

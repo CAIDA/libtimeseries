@@ -39,7 +39,7 @@ libtimeseries_la_SOURCES = 		\
 	timeseries_backend.c		\
 	timeseries_backend.h
 
-libtimeseries_la_LIBADD = $(top_builddir)/common/libtimeseriescommon.la \
+libtimeseries_la_LIBADD = $(top_builddir)/common/libcccommon.la \
 	$(top_builddir)/lib/backends/libtimeseries_backends.la
 
 libtimeseries_la_LDFLAGS = -version-info @LIBTIMESERIES_MAJOR_VERSION@:@LIBTIMESERIES_MID_VERSION@:@LIBTIMESERIES_MINOR_VERSION@
