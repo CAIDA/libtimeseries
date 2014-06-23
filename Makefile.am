@@ -30,9 +30,12 @@ lib_LTLIBRARIES = libtsmq.la
 include_HEADERS = tsmq.h
 
 libtsmq_la_SOURCES = 		\
-	tsmq.c 			\
+	tsmq_int.h		\
 	tsmq.h			\
-	tsmq_int.h
+	tsmq.c			\
+	tsmq_md_server.c	\
+	tsmq_md_broker.c	\
+	tsmq_md_client.c
 
 libtsmq_la_LIBADD = $(top_builddir)/common/libcccommon.la
 

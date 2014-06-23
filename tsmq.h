@@ -37,12 +37,45 @@
  *
  */
 
+#define TSMQ_GET_ERR_PROTO(type)			\
+  tsmq_err_t tsmq_##type##_get_err(tsmq_##type##_t *t);
+
+#define TSMQ_IS_ERR_PROTO(type)				\
+  int tsmq_##type##_is_err(tsmq_##type##_t *t);
+
+#define TSMQ_PERR_PROTO(type)				\
+  void tsmq_##type##_perr(tsmq_##type##_t *t);
+
+#define TSMQ_ERR_PROTOS(type)			\
+  TSMQ_GET_ERR_PROTO(type)			\
+  TSMQ_IS_ERR_PROTO(type)			\
+  TSMQ_PERR_PROTO(type)
+
+/**
+ * @name Public Constants
+ *
+ * @{ */
+
+#define TSMQ_MD_SERVER_URI_DEFAULT "tcp://127.0.0.1:7400"
+
+#define TSMQ_MD_BROKER_CLIENT_URI_DEFAULT "tcp://*:7300"
+#define TSMQ_MD_BROKER_SERVER_URI_DEFAULT "tcp://*:7400"
+
+/** @} */
+
 /**
  * @name Public Opaque Data Structures
  *
  * @{ */
 
-typedef struct tsmq tsmq_t;
+/** tsmq metadata server */
+typedef struct tsmq_md_server tsmq_md_server_t;
+
+/** tsmq metadata broker */
+typedef struct tsmq_md_broker tsmq_md_broker_t;
+
+/** tsmq metadata client */
+typedef struct tsmq_md_client tsmq_md_client_t;
 
 /** @} */
 
@@ -51,7 +84,14 @@ typedef struct tsmq tsmq_t;
  *
  * @{ */
 
+/** tsmq error information */
+typedef struct tsmq_err {
+  /** Error code */
+  int err_num;
 
+  /** String representation of the error that occurred */
+  char problem[255];
+} tsmq_err_t;
 
 /** @} */
 
@@ -60,21 +100,141 @@ typedef struct tsmq tsmq_t;
  *
  * @{ */
 
+/** Enumeration of error codes
+ *
+ * @note these error codes MUST be <= 0
+ */
+typedef enum {
 
+  /** No error has occured */
+  TSMQ_ERR_NONE         = 0,
+
+  /** tsmq failed to initialize */
+  TSMQ_ERR_INIT_FAILED  = -1,
+
+  /** tsmq failed to start */
+  TSMQ_ERR_START_FAILED = -2,
+
+  /** tsmq was interrupted */
+  TSMQ_ERR_INTERRUPT    = -3,
+
+} tsmq_err_code_t;
 
 /** @} */
 
-/** Initialize a new instance of tsmq
+/**
+ * @name Public Metadata Server API
  *
- * @return a pointer to a tsmq structure if successful, NULL if an error
- * occurred
- */
-tsmq_t *tsmq_init();
+ * @{ */
 
-/** Free a tsmq instance
+/** Initialize a new instance of a tsmq metadata server
  *
- * @param tsmq          pointer to a tsmq instance to free
+ * @return a pointer to a tsmq md server structure if successful, NULL if an
+ * error occurred
  */
-void tsmq_free(tsmq_t *tsmq);
+tsmq_md_server_t *tsmq_md_server_init();
+
+/** Start a given tsmq metadata server
+ *
+ * @param server        pointer to the server instance to start
+ * @return 0 if the server was started successfully, -1 otherwise
+ */
+int tsmq_md_server_start(tsmq_md_server_t *server);
+
+/** Free a tsmq md server instance
+ *
+ * @param server        pointer to a tsmq md server instance to free
+ */
+void tsmq_md_server_free(tsmq_md_server_t *server);
+
+/** Set the URI for the server to connect to the broker on
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param uri           pointer to a uri string
+ */
+void tsmq_md_server_set_broker_uri(tsmq_md_server_t *server, const char *uri);
+
+/** Publish the error API for the metadata server */
+TSMQ_ERR_PROTOS(md_server)
+
+/** @} */
+
+
+
+/**
+ * @name Public Metadata Broker API
+ *
+ * @{ */
+
+/** Initialize a new instance of a tsmq metadata broker
+ *
+ * @return a pointer to a tsmq md broker structure if successful, NULL if an
+ * error occurred
+ */
+tsmq_md_broker_t *tsmq_md_broker_init();
+
+/** Start a given tsmq metadata broker
+ *
+ * @param broker        pointer to the broker instance to start
+ * @return 0 if the broker was started successfully, -1 otherwise
+ */
+int tsmq_md_broker_start(tsmq_md_broker_t *broker);
+
+/** Free a tsmq md broker instance
+ *
+ * @param broker        pointer to a tsmq md broker instance to free
+ */
+void tsmq_md_broker_free(tsmq_md_broker_t *broker);
+
+/** Set the URI for the server to listen for client connections on
+ *
+ * @param server        pointer to a tsmq md broker instance to update
+ * @param uri           pointer to a uri string
+ */
+void tsmq_md_broker_set_client_uri(tsmq_md_broker_t *broker, const char *uri);
+
+/** Set the URI for the server to listen for server connections on
+ *
+ * @param server        pointer to a tsmq md broker instance to update
+ * @param uri           pointer to a uri string
+ */
+void tsmq_md_broker_set_server_uri(tsmq_md_broker_t *broker, const char *uri);
+
+/** Publish the error API for the metadata broker */
+TSMQ_ERR_PROTOS(md_broker)
+
+/** @} */
+
+
+
+/**
+ * @name Public Metadata Client API
+ *
+ * @{ */
+
+/** Initialize a new instance of a tsmq metadata client
+ *
+ * @return a pointer to a tsmq md client structure if successful, NULL if an
+ * error occurred
+ */
+tsmq_md_client_t *tsmq_md_client_init();
+
+/** Start a given tsmq metadata client
+ *
+ * @param client        pointer to the client instance to start
+ * @return 0 if the client was started successfully, -1 otherwise
+ */
+int tsmq_md_client_start(tsmq_md_client_t *client);
+
+/** Free a tsmq md client instance
+ *
+ * @param client        pointer to a tsmq md client instance to free
+ */
+void tsmq_md_client_free(tsmq_md_client_t *client);
+
+/** Publish the error API for the metadata client */
+TSMQ_ERR_PROTOS(md_client)
+
+/** @} */
 
 #endif /* __TSMQ_H */
