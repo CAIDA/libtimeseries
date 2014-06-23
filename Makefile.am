@@ -26,12 +26,12 @@ AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common -I$(top_srcdir)/lib
 
 dist_bin_SCRIPTS =
 
-bin_PROGRAMS = tsmq-md-server
+bin_PROGRAMS = tsmq-md-broker
 
-tsmq_md_server_SOURCES = \
-	tsmq-md-server.c
-tsmq_md_server_LDADD = -ltsmq
-tsmq_md_server_LDFLAGS = -L$(top_builddir)/lib
+tsmq_md_broker_SOURCES = \
+	tsmq-md-broker.c
+tsmq_md_broker_LDADD = -ltsmq
+tsmq_md_broker_LDFLAGS = -L$(top_builddir)/lib
 
 ACLOCAL_AMFLAGS = -I m4
 

@@ -28,42 +28,40 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 /* include tsmq's public interface */
 /* @@ never include the _int.h file from tools. */
 #include "tsmq.h"
 
-#define COUNT_DEFAULT 1
-#define COUNT_MIN     0
-#define COUNT_MAX     100
-
 static void usage(const char *name)
 {
   fprintf(stderr,
-	  "usage: %s [-c count] name\n"
-	  "       -c <count>    the number of times to repeat (default: %d)\n",
+	  "usage: %s -c client-uri -s server-uri\n"
+	  "       -c <client-uri>    0MQ-style URI to listen for clients on\n"
+	  "                          (default: %s)\n"
+	  "       -s <server-uri>    0MQ-style URI to listen for servers on\n"
+	  "                          (default: %s)\n",
 	  name,
-	  COUNT_DEFAULT);
+	  TSMQ_MD_BROKER_CLIENT_URI_DEFAULT,
+	  TSMQ_MD_BROKER_SERVER_URI_DEFAULT);
 }
 
 int main(int argc, char **argv)
 {
   /* for option parsing */
   int opt;
-  int lastopt;
   int prevoptind;
 
   /* to store command line argument values */
-  int count = COUNT_DEFAULT;
-  const char *name;
+  const char *client_uri = NULL;
+  const char *server_uri = NULL;
 
-  int i;
-
-  tsmq_t *tsmq;
+  tsmq_md_broker_t *broker;
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":c:?")) >= 0)
+	(opt = getopt(argc, argv, ":c:s:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -71,14 +69,18 @@ int main(int argc, char **argv)
       }
       switch(opt)
 	{
-	case 'c':
-	  count = atoi(optarg);
-	  break;
-
 	case ':':
 	  fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
 	  usage(argv[0]);
 	  return -1;
+	  break;
+
+	case 'c':
+	  client_uri = optarg;
+	  break;
+
+	case 's':
+	  server_uri = optarg;
 	  break;
 
 	case '?':
@@ -98,32 +100,42 @@ int main(int argc, char **argv)
 	}
     }
 
-  if(count < COUNT_MIN || count > COUNT_MAX)
+  /* NB: once getopt completes, optind points to the first non-option
+     argument */
+
+  if((broker = tsmq_md_broker_init()) == NULL)
     {
-      fprintf(stderr, "ERROR: -c argument must be between %d and %d (%d given)\n",
-	      COUNT_MIN, COUNT_MAX, count);
-      return -1;
+      fprintf(stderr, "ERROR: could not initialize tsmq metadata broker\n");
+      goto err;
     }
 
-  /* once getopt completes, optind points to the first non-option argument */
-  if(optind >= argc)
+  if(client_uri != NULL)
     {
-      fprintf(stderr, "ERROR: a name must be given\n");
-      usage(argv[0]);
-      return -1;
+      tsmq_md_broker_set_client_uri(broker, client_uri);
     }
 
-  name = argv[optind];
-
-  for(i = 0; i < count; i++)
+  if(server_uri != NULL)
     {
-      if((tsmq = tsmq_init()) == NULL)
-	{
-	  fprintf(stderr, "ERROR: could not initialize tsmq\n");
-	  return -1;
-	}
+      tsmq_md_broker_set_server_uri(broker, server_uri);
     }
+
+  /* do work */
+  if(tsmq_md_broker_start(broker) != 0)
+    {
+      fprintf(stderr, "INFO: Broker is exiting\n");
+      tsmq_md_broker_perr(broker);
+      goto err;
+    }
+
+  /* cleanup */
+  tsmq_md_broker_free(broker);
 
   /* complete successfully */
   return 0;
+
+ err:
+  if(broker != NULL) {
+    tsmq_md_broker_free(broker);
+  }
+  return -1;
 }
