@@ -120,12 +120,11 @@ int main(int argc, char **argv)
     }
 
   /* do work */
-  if(tsmq_md_broker_start(broker) != 0)
-    {
-      fprintf(stderr, "INFO: Broker is exiting\n");
-      tsmq_md_broker_perr(broker);
-      goto err;
-    }
+  /* this function will block until the broker shuts down */
+  tsmq_md_broker_start(broker);
+
+  /* this will always be set, normally to a SIGINT-caught message */
+  tsmq_md_broker_perr(broker);
 
   /* cleanup */
   tsmq_md_broker_free(broker);
