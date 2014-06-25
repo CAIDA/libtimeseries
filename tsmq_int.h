@@ -28,6 +28,8 @@
 
 #include <czmq.h>
 
+#include "klist.h"
+
 /* always include our public header so that internal users don't need to */
 #include "tsmq.h"
 
@@ -70,6 +72,41 @@
 /** @} */
 
 /**
+ * @name Internal Enums
+ *
+ * @{ */
+
+/** Enumeration of tsmq message types
+ *
+ * @note these will be cast to a uint8_t, so be sure that there are fewer than
+ * 2^8 values
+ *
+ * @todo ensure that these names still make sense when we implement the ts
+ * classes
+ */
+typedef enum {
+  /** Invalid message */
+  TSMQ_MSG_TYPE_UNKNOWN      = 0,
+
+  /** Server is ready to do work */
+  TSMQ_MSG_TYPE_READY     = 1,
+
+  /** Server is still alive */
+  TSMQ_MSG_TYPE_HEARTBEAT = 2,
+
+  /** A request for a server to process */
+  TSMQ_MSG_TYPE_REQUEST   = 3,
+
+  /** Server is sending a response to a client */
+  TSMQ_MSG_TYPE_REPLY     = 4,
+
+  /** Highest message number in use */
+  TSMQ_MSG_TYPE_MAX      = TSMQ_MSG_TYPE_REPLY,
+} tsmq_msg_type_t;
+
+/** @} */
+
+/**
  * @name Internal Datastructures
  *
  * These datastructures are internal to tsmq. Some may be exposed as opaque
@@ -96,16 +133,6 @@ struct tsmq_md_server {
   char *uri;
 };
 
-struct tsmq_md_broker {
-  /** Common tsmq state */
-  tsmq_t *tsmq;
-
-  /** URI to listen for clients on */
-  char *client_uri;
-
-  /** URI to listen for servers on */
-  char *server_uri;
-};
 
 struct tsmq_md_client {
   /** Common tsmq state */
@@ -165,6 +192,15 @@ int tsmq_is_err(tsmq_t *tsmq);
  * @param tsmq          pointer to tsmq object to print error for
  */
 void tsmq_perr(tsmq_t *tsmq);
+
+/** Decodes the message type for the given message
+ *
+ * @param msg           zmsg object to inspect
+ * @return the type of the message, or -1 if an error occurred
+ *
+ * This function will pop the type frame from the beginning of the message
+ */
+int tsmq_msg_type(zmsg_t *msg);
 
 /** @} */
 

@@ -61,6 +61,12 @@
 #define TSMQ_MD_BROKER_CLIENT_URI_DEFAULT "tcp://*:7300"
 #define TSMQ_MD_BROKER_SERVER_URI_DEFAULT "tcp://*:7400"
 
+/** Default the worker/server heartbeat interval to 1 second */
+#define TSMQ_MD_BROKER_HEARTBEAT_INTERVAL_DEFAULT 1000
+
+/** Default the worker/server heartbeat liveness to 3 beats */
+#define TSMQ_MD_BROKER_HEARTBEAT_LIVENESS_DEFAULT 3
+
 /** @} */
 
 /**
@@ -117,6 +123,12 @@ typedef enum {
 
   /** tsmq was interrupted */
   TSMQ_ERR_INTERRUPT    = -3,
+
+  /** unhandled error */
+  TSMQ_ERR_UNHANDLED    = -4,
+
+  /** protocol error */
+  TSMQ_ERR_PROTOCOL     = -5,
 
 } tsmq_err_code_t;
 
@@ -186,19 +198,33 @@ int tsmq_md_broker_start(tsmq_md_broker_t *broker);
  */
 void tsmq_md_broker_free(tsmq_md_broker_t *broker);
 
-/** Set the URI for the server to listen for client connections on
+/** Set the URI for the broker to listen for client connections on
  *
  * @param server        pointer to a tsmq md broker instance to update
  * @param uri           pointer to a uri string
+ *
+ * @note defaults to TSMQ_MD_BROKER_CLIENT_URI_DEFAULT
  */
 void tsmq_md_broker_set_client_uri(tsmq_md_broker_t *broker, const char *uri);
 
-/** Set the URI for the server to listen for server connections on
+/** Set the URI for the broker to listen for server connections on
  *
  * @param server        pointer to a tsmq md broker instance to update
  * @param uri           pointer to a uri string
+ *
+ * @note defaults to TSMQ_MD_BROKER_SERVER_URI_DEFAULT
  */
 void tsmq_md_broker_set_server_uri(tsmq_md_broker_t *broker, const char *uri);
+
+/** Set the heartbeat interval
+ *
+ * @param broker        pointer to a tsmq md broker instance to update
+ * @param interval_ms   time in ms between heartbeats
+ *
+ * @note defaults to TSMQ_MD_BROKER_HEARTBEAT_INTERVAL
+ */
+void tsmq_md_broker_set_heartbeat_interval(tsmq_md_broker_t *broker,
+					   uint64_t interval_ms);
 
 /** Publish the error API for the metadata broker */
 TSMQ_ERR_PROTOS(md_broker)

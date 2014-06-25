@@ -110,3 +110,22 @@ void tsmq_perr(tsmq_t *tsmq)
   tsmq->err.err_num = 0; /* "OK" */
   tsmq->err.problem[0]='\0';
 }
+
+int tsmq_msg_type(zmsg_t *msg)
+{
+  zframe_t *frame;
+  uint8_t type;
+
+  /* first frame should be our type */
+  if((frame = zmsg_pop(msg)) == NULL)
+    {
+      return -1;
+    }
+
+  if((type = *zframe_data(frame)) > TSMQ_MSG_TYPE_MAX)
+    {
+      return -1;
+    }
+
+  return type;
+}

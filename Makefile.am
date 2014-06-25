@@ -35,6 +35,7 @@ libtsmq_la_SOURCES = 		\
 	tsmq.c			\
 	tsmq_md_server.c	\
 	tsmq_md_broker.c	\
+	tsmq_md_broker.h	\
 	tsmq_md_client.c
 
 libtsmq_la_LIBADD = $(top_builddir)/common/libcccommon.la
