@@ -38,13 +38,19 @@
 static void usage(const char *name)
 {
   fprintf(stderr,
-	  "usage: %s -c client-uri -s server-uri\n"
+	  "usage: %s [<options>]\n"
 	  "       -c <client-uri>    0MQ-style URI to listen for clients on\n"
 	  "                          (default: %s)\n"
+	  "       -i <interval-ms>   Time in ms between heartbeats to servers\n"
+	  "                          (default: %d)\n"
+	  "       -l <beats>         Number of heartbeats that can go by before \n"
+	  "                          a server is declared dead (default: %d)\n"
 	  "       -s <server-uri>    0MQ-style URI to listen for servers on\n"
 	  "                          (default: %s)\n",
 	  name,
 	  TSMQ_MD_BROKER_CLIENT_URI_DEFAULT,
+	  TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT,
+	  TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT,
 	  TSMQ_MD_BROKER_SERVER_URI_DEFAULT);
 }
 
@@ -58,10 +64,13 @@ int main(int argc, char **argv)
   const char *client_uri = NULL;
   const char *server_uri = NULL;
 
+  uint64_t heartbeat_interval = TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT;
+  int heartbeat_liveness      = TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT;
+
   tsmq_md_broker_t *broker;
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":c:s:v?")) >= 0)
+	(opt = getopt(argc, argv, ":c:i:l:s:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -77,6 +86,14 @@ int main(int argc, char **argv)
 
 	case 'c':
 	  client_uri = optarg;
+	  break;
+
+	case 'i':
+	  heartbeat_interval = atoi(optarg);
+	  break;
+
+	case 'l':
+	  heartbeat_liveness = atoi(optarg);
 	  break;
 
 	case 's':
@@ -118,6 +135,10 @@ int main(int argc, char **argv)
     {
       tsmq_md_broker_set_server_uri(broker, server_uri);
     }
+
+  tsmq_md_broker_set_heartbeat_interval(broker, heartbeat_interval);
+
+  tsmq_md_broker_set_heartbeat_liveness(broker, heartbeat_liveness);
 
   /* do work */
   /* this function will block until the broker shuts down */
