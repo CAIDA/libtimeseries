@@ -56,16 +56,30 @@
  *
  * @{ */
 
-#define TSMQ_MD_SERVER_URI_DEFAULT "tcp://127.0.0.1:7400"
+/** Default URI for the server -> broker connection */
+#define TSMQ_MD_SERVER_BROKER_URI_DEFAULT "tcp://127.0.0.1:7400"
 
+/** Default URI for the client -> broker connection */
+#define TSMQ_MD_CLIENT_BROKER_URI_DEFAULT "tcp://127.0.0.1:7300"
+
+/** Default URI for the broker to listen for client requests on */
 #define TSMQ_MD_BROKER_CLIENT_URI_DEFAULT "tcp://*:7300"
+
+/** Default URI for the broker to listen for server connections on */
 #define TSMQ_MD_BROKER_SERVER_URI_DEFAULT "tcp://*:7400"
 
-/** Default the worker/server heartbeat interval to 1 second */
-#define TSMQ_MD_BROKER_HEARTBEAT_INTERVAL_DEFAULT 1000
+/** Default the broker/server heartbeat interval to 1 second */
+#define TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT 1000
 
-/** Default the worker/server heartbeat liveness to 3 beats */
-#define TSMQ_MD_BROKER_HEARTBEAT_LIVENESS_DEFAULT 3
+/** Default the broker/server heartbeat liveness to 3 beats */
+#define TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT 3
+
+/** Default the server reconnect minimum interval to 1 second */
+#define TSMQ_MD_RECONNECT_INTERVAL_MIN 1000
+
+/** Default the server reconnect maximum interval to 32 seconds */
+#define TSMQ_MD_RECONNECT_INTERVAL_MAX 32000
+
 
 /** @} */
 
@@ -130,6 +144,9 @@ typedef enum {
   /** protocol error */
   TSMQ_ERR_PROTOCOL     = -5,
 
+  /** malloc error */
+  TSMQ_ERR_MALLOC       = -6,
+
 } tsmq_err_code_t;
 
 /** @} */
@@ -165,6 +182,47 @@ void tsmq_md_server_free(tsmq_md_server_t *server);
  * @param uri           pointer to a uri string
  */
 void tsmq_md_server_set_broker_uri(tsmq_md_server_t *server, const char *uri);
+
+/** Set the heartbeat interval
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param interval_ms   time in ms between heartbeats
+ *
+ * @note defaults to TSMQ_MD_HEARTBEAT_INTERVAL
+ */
+void tsmq_md_server_set_heartbeat_interval(tsmq_md_server_t *server,
+					   uint64_t interval_ms);
+
+/** Set the heartbeat liveness
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param beats         number of heartbeats that can go by before a server is
+ *                      declared dead
+ *
+ * @note defaults to TSMQ_MD_HEARTBEAT_LIVENESS
+ */
+void tsmq_md_server_set_heartbeat_liveness(tsmq_md_server_t *server,
+					   int beats);
+
+/** Set the minimum reconnect time
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param time          min time in ms to wait before reconnecting to broker
+ *
+ * @note defaults to TSMQ_MD_RECONNECT_INTERVAL_MIN
+ */
+void tsmq_md_server_set_reconnect_interval_min(tsmq_md_server_t *server,
+					       uint64_t reconnect_interval_min);
+
+/** Set the maximum reconnect time
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param time          max time in ms to wait before reconnecting to broker
+ *
+ * @note defaults to TSMQ_MD_RECONNECT_INTERVAL_MAX
+ */
+void tsmq_md_server_set_reconnect_interval_max(tsmq_md_server_t *server,
+					       uint64_t reconnect_interval_max);
 
 /** Publish the error API for the metadata server */
 TSMQ_ERR_PROTOS(md_server)
@@ -221,10 +279,21 @@ void tsmq_md_broker_set_server_uri(tsmq_md_broker_t *broker, const char *uri);
  * @param broker        pointer to a tsmq md broker instance to update
  * @param interval_ms   time in ms between heartbeats
  *
- * @note defaults to TSMQ_MD_BROKER_HEARTBEAT_INTERVAL
+ * @note defaults to TSMQ_MD_HEARTBEAT_INTERVAL
  */
 void tsmq_md_broker_set_heartbeat_interval(tsmq_md_broker_t *broker,
 					   uint64_t interval_ms);
+
+/** Set the heartbeat liveness
+ *
+ * @param broker        pointer to a tsmq md broker instance to update
+ * @param beats         number of heartbeats that can go by before a server is
+ *                      declared dead
+ *
+ * @note defaults to TSMQ_MD_HEARTBEAT_LIVENESS
+ */
+void tsmq_md_broker_set_heartbeat_liveness(tsmq_md_broker_t *broker,
+					   int beats);
 
 /** Publish the error API for the metadata broker */
 TSMQ_ERR_PROTOS(md_broker)

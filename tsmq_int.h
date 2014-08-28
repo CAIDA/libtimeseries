@@ -86,7 +86,7 @@
  */
 typedef enum {
   /** Invalid message */
-  TSMQ_MSG_TYPE_UNKNOWN      = 0,
+  TSMQ_MSG_TYPE_UNKNOWN   = 0,
 
   /** Server is ready to do work */
   TSMQ_MSG_TYPE_READY     = 1,
@@ -124,15 +124,6 @@ typedef struct tsmq {
   struct tsmq_err err;
 
 } tsmq_t;
-
-struct tsmq_md_server {
-  /** Common tsmq state */
-  tsmq_t *tsmq;
-
-  /** URI to connect to broker on */
-  char *uri;
-};
-
 
 struct tsmq_md_client {
   /** Common tsmq state */
@@ -196,11 +187,11 @@ void tsmq_perr(tsmq_t *tsmq);
 /** Decodes the message type for the given message
  *
  * @param msg           zmsg object to inspect
- * @return the type of the message, or -1 if an error occurred
+ * @return the type of the message, or TSMQ_MSG_TYPE_UNKNOWN if an error occurred
  *
  * This function will pop the type frame from the beginning of the message
  */
-int tsmq_msg_type(zmsg_t *msg);
+tsmq_msg_type_t tsmq_msg_type(zmsg_t *msg);
 
 /** @} */
 
