@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef __TSMQ_MD_SERVER_H
-#define __TSMQ_MD_SERVER_H
+#ifndef __TSMQ_MD_CLIENT_H
+#define __TSMQ_MD_CLIENT_H
 
 #include "tsmq_int.h"
 
@@ -33,13 +33,13 @@
 /** @file
  *
  * @brief Header file that contains the private components of the tsmq metadata
- * server.
+ * client.
  *
  * @author Alistair King
  *
  */
 
-struct tsmq_md_server {
+struct tsmq_md_client {
   /** Common tsmq state */
   tsmq_t *tsmq;
 
@@ -49,29 +49,45 @@ struct tsmq_md_server {
   /** Socket used to connect to the broker */
   void *broker_socket;
 
-  /** Time (in ms) between heartbeats sent to the broker */
-  uint64_t heartbeat_interval;
+  /** Request sequence number */
+  uint64_t sequence_num;
 
-  /** Time (in ms) to send the next heartbeat to broker */
-  uint64_t heartbeat_next;
+  /** Request timeout in msec */
+  uint64_t request_timeout;
 
-  /** The number of heartbeats that can go by before the broker is declared
-      dead */
-  int heartbeat_liveness;
-
-  /** The number of beats before the broker is declared dead */
-  int heartbeat_liveness_remaining;
-
-  /** The minimum time (in ms) after a broker disconnect before we try to
-      reconnect */
-  uint64_t reconnect_interval_min;
-
-  /** The maximum time (in ms) after a broker disconnect before we try to
-      reconnect (after exponential back-off) */
-  uint64_t reconnect_interval_max;
-
-  /** The time before we will next attempt to reconnect */
-  uint64_t reconnect_interval_next;
+  /** Request retries */
+  int request_retries;
 };
 
-#endif /* __TSMQ_MD_SERVER_H */
+/** Structure that represents a single metric key.
+ * It contains information about which backend issued the key id to allow for
+ * subsequent writes
+ */
+struct tsmq_md_client_key {
+  /** Byte array of the key 'name' */
+  uint8_t *key;
+  /** Length of the key array */
+  size_t key_len;
+
+  /** Backend server ID */
+  uint8_t *server_id;
+  /** Length of the server id */
+  size_t server_id_len;
+
+  /** Backend key ID
+   * FYI: for dbats this will be a uint64, for 'ascii' this will be a copy
+   * of the string key
+   * @note this is only unique in combination with the server id
+   */
+  uint8_t *server_key_id;
+  /** Length of the backend key id */
+  size_t server_key_id_len;
+};
+
+#endif /* __TSMQ_MD_CLIENT_H */
+
+
+
+
+
+

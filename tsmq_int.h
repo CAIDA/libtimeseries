@@ -104,6 +104,17 @@ typedef enum {
   TSMQ_MSG_TYPE_MAX      = TSMQ_MSG_TYPE_REPLY,
 } tsmq_msg_type_t;
 
+typedef enum {
+  /** Invalid request type */
+  TSMQ_REQUEST_MSG_TYPE_UNKNOWN    = 0,
+
+  /** Key lookup request */
+  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP = 1,
+
+  /** Highest request type in use */
+  TSMQ_REQUEST_MSG_TYPE_MAX = TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP,
+} tsmq_request_msg_type_t;
+
 /** @} */
 
 /**
@@ -124,11 +135,6 @@ typedef struct tsmq {
   struct tsmq_err err;
 
 } tsmq_t;
-
-struct tsmq_md_client {
-  /** Common tsmq state */
-  tsmq_t *tsmq;
-};
 
 /** @} */
 
@@ -192,6 +198,15 @@ void tsmq_perr(tsmq_t *tsmq);
  * This function will pop the type frame from the beginning of the message
  */
 tsmq_msg_type_t tsmq_msg_type(zmsg_t *msg);
+
+/** Decodes the request type for the given message
+ *
+ * @param msg           zmsg object to inspect
+ * @return the type of the message, or TSMQ_MSG_TYPE_UNKNOWN if an error occurred
+ *
+ * This function will pop the type frame from the beginning of the message
+ */
+tsmq_request_msg_type_t tsmq_request_msg_type(zmsg_t *msg);
 
 /** @} */
 

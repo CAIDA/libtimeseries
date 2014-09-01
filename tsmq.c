@@ -129,3 +129,22 @@ tsmq_msg_type_t tsmq_msg_type(zmsg_t *msg)
 
   return (tsmq_msg_type_t)type;
 }
+
+tsmq_request_msg_type_t tsmq_request_type(zmsg_t *msg)
+{
+  zframe_t *frame;
+  uint8_t type;
+
+  /* first frame should be our type */
+  if((frame = zmsg_pop(msg)) == NULL)
+    {
+      return TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
+    }
+
+  if((type = *zframe_data(frame)) > TSMQ_REQUEST_MSG_TYPE_MAX)
+    {
+      return TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
+    }
+
+  return (tsmq_request_msg_type_t)type;
+}

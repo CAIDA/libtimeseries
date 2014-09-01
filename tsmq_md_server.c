@@ -46,7 +46,7 @@ static int server_connect(tsmq_md_server_t *server)
   uint8_t msg_type_p;
   zframe_t *frame;
 
-  /* connect to server socket */
+  /* connect to broker socket */
   if((server->broker_socket = zsocket_new(CTX, ZMQ_DEALER)) == NULL)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_START_FAILED,
@@ -291,6 +291,8 @@ void tsmq_md_server_free(tsmq_md_server_t *server)
 void tsmq_md_server_set_broker_uri(tsmq_md_server_t *server, const char *uri)
 {
   assert(server != NULL);
+
+  free(server->broker_uri);
 
   server->broker_uri = strdup(uri);
 }

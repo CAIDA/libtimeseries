@@ -68,6 +68,12 @@
 /** Default URI for the broker to listen for server connections on */
 #define TSMQ_MD_BROKER_SERVER_URI_DEFAULT "tcp://*:7400"
 
+/** Default the client request timeout to 2.5 seconds */
+#define TSMQ_MD_CLIENT_REQUEST_TIMEOUT 2500
+
+/** Default the client request retry count to 3 */
+#define TSMQ_MD_CLIENT_REQUEST_RETRIES 3
+
 /** Default the broker/server heartbeat interval to 1 second */
 #define TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT 1000
 
@@ -96,6 +102,9 @@ typedef struct tsmq_md_broker tsmq_md_broker_t;
 
 /** tsmq metadata client */
 typedef struct tsmq_md_client tsmq_md_client_t;
+
+/** tsmq metadata key */
+typedef struct tsmq_md_client_key tsmq_md_client_key_t;
 
 /** @} */
 
@@ -326,6 +335,48 @@ int tsmq_md_client_start(tsmq_md_client_t *client);
  * @param client        pointer to a tsmq md client instance to free
  */
 void tsmq_md_client_free(tsmq_md_client_t *client);
+
+/** Set the URI for the client to connect to the broker on
+ *
+ * @param client        pointer to a tsmq md client instance to update
+ * @param uri           pointer to a uri string
+ */
+void tsmq_md_client_set_broker_uri(tsmq_md_client_t *client, const char *uri);
+
+/** Set the request timeout
+ *
+ * @param client        pointer to a tsmq md client instance to update
+ * @param timeout_ms    time in ms before request is retried
+ *
+ * @note defaults to TSMQ_MD_CLIENT_REQUEST_TIMEOUT
+ */
+void tsmq_md_client_set_request_timeout(tsmq_md_client_t *client,
+					uint64_t timeout_ms);
+
+/** Set the number of request retries before a request is abandoned
+ *
+ * @param client        pointer to a tsmq md client instance to update
+ * @param retry_cnt     number of times to retry a request before giving up
+ *
+ * @note defaults to TSMQ_MD_CLIENT_REQUEST_RETRIES
+ */
+void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
+					int retry_cnt);
+
+/** Given an array of bytes that represent a metric key (probably a string),
+ *  issue a request to find the appropriate server and corresponding key id.
+ *
+ * @param client        pointer to a tsmq md client instance to query
+ * @param key           pointer to a byte array
+ * @param len           length of the byte array
+ * @return a pointer to a key info structure if successful, NULL otherwise
+ *
+ * @note this key info structure must be used when issuing subsequent write
+ * requests. The broker will batch write requests into a single write for each
+ * backend server based on the backend id in this structure.
+ */
+tsmq_md_client_key_t *tsmq_md_client_lookup_key(tsmq_md_client_t *client,
+						uint8_t *key, size_t len);
 
 /** Publish the error API for the metadata client */
 TSMQ_ERR_PROTOS(md_client)
