@@ -138,11 +138,13 @@ int main(int argc, char **argv)
   size_t len = strlen(key);
   tsmq_md_client_key_t *response;
 
-  if((response = tsmq_md_client_lookup_key(client, (uint8_t*)key, len)) == NULL)
+  if((response = tsmq_md_client_key_lookup(client, (uint8_t*)key, len)) == NULL)
     {
       tsmq_md_client_perr(client);
       return -1;
     }
+
+  tsmq_md_client_key_free(response);
 
   fprintf(stderr, "weeeeha!\n");
 
@@ -153,8 +155,9 @@ int main(int argc, char **argv)
   return 0;
 
  err:
-  if(client != NULL) {
-  tsmq_md_client_free(client);
-  }
+  if(client != NULL)
+    {
+      tsmq_md_client_free(client);
+    }
   return -1;
 }
