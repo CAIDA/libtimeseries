@@ -27,7 +27,8 @@
 #define __TSMQ_H
 
 #include <stdint.h>
-#include <wandio.h>
+
+#include <libtimeseries.h>
 
 /** @file
  *
@@ -167,19 +168,16 @@ typedef enum {
 
 /** Initialize a new instance of a tsmq metadata server
  *
- * @param id            pointer to an id byte array
- * @paran id_len        length of the id byte array
+ * @param ts_backend    string containing the timeseries backend name, and,
+ *                      optionally any arguments to pass to the backend
  * @return a pointer to a tsmq md server structure if successful, NULL if an
  * error occurred
  *
- * @note The id must be globally unique amongst servers. The broker will not
- * accept connections from duplicate ids.
- * @note The id will be used by the broker to route metrics to the appropriate
- * server. The server with the longest match to the beginning of a key will be
- * routed a metric.
- * @todo figure out how to have a catch-all server
+ * @note Currently we will only consider one timeseries backend for writing.  If
+ * more than one is provided, the one with the lowest id will be used. As of the
+ * time of writing this, this would be the ASCII backend.
  */
-tsmq_md_server_t *tsmq_md_server_init();
+tsmq_md_server_t *tsmq_md_server_init(const char *ts_backend);
 
 /** Start a given tsmq metadata server
  *
