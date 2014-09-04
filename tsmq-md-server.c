@@ -31,9 +31,39 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <libtimeseries.h>
+
 /* include tsmq's public interface */
 /* @@ never include the _int.h file from tools. */
 #include "tsmq.h"
+
+timeseries_t *timeseries = NULL;
+timeseries_backend_t *backend = NULL;
+
+static void backend_usage()
+{
+  assert(timeseries != NULL);
+  timeseries_backend_t **backends = NULL;
+  int i;
+
+  /* get the available backends from libtimeseries */
+  backends = timeseries_get_all_backends(timeseries);
+
+  fprintf(stderr,
+	  "                            available backends:\n");
+  for(i = 0; i < TIMESERIES_BACKEND_ID_LAST; i++)
+    {
+      /* skip unavailable backends */
+      if(backends[i] == NULL)
+	{
+	  continue;
+	}
+
+      assert(timeseries_get_backend_name(backends[i]));
+      fprintf(stderr, "                      - %s\n",
+	      timeseries_get_backend_name(backends[i]));
+    }
+}
 
 static void usage(const char *name)
 {
@@ -56,6 +86,64 @@ static void usage(const char *name)
 	  TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT,
 	  TSMQ_MD_RECONNECT_INTERVAL_MIN,
 	  TSMQ_MD_RECONNECT_INTERVAL_MAX);
+  backend_usage();
+}
+
+static int init_timeseries(const char *ts_backend)
+{
+  char *strcpy = NULL;
+  char *args = NULL;
+
+  if((timeseries = timeseries_init()) == NULL)
+    {
+      goto err;
+    }
+
+  /* shortcut for help */
+  if(ts_backend[0] == '?')
+    {
+      return -1;
+    }
+
+  if((strcpy = strdup(ts_backend)) == NULL)
+    {
+      goto err;
+    }
+
+  if((args = strchr(ts_backend, ' ')) != NULL)
+    {
+      /* set the space to a nul, which allows ts_backend to be used
+	 for the backend name, and then increment args ptr to
+	 point to the next character, which will be the start of the
+	 arg string (or at worst case, the terminating \0 */
+      *args = '\0';
+      args++;
+    }
+
+  if((backend = timeseries_get_backend_by_name(timeseries, ts_backend)) == NULL)
+    {
+      fprintf(stderr, "ERROR: Invalid backend name (%s)\n",
+	      ts_backend);
+      goto err;
+    }
+
+  if(timeseries_enable_backend(timeseries, backend, args) != 0)
+    {
+      fprintf(stderr, "ERROR: Failed to initialized backend (%s)",
+	      ts_backend);
+      goto err;
+    }
+
+  free(strcpy);
+
+  return 0;
+
+ err:
+  if(strcpy != NULL)
+    {
+      free(strcpy);
+    }
+  return -1;
 }
 
 int main(int argc, char **argv)
@@ -73,7 +161,7 @@ int main(int argc, char **argv)
   uint64_t reconnect_interval_min = TSMQ_MD_RECONNECT_INTERVAL_MIN;
   uint64_t reconnect_interval_max = TSMQ_MD_RECONNECT_INTERVAL_MAX;
 
-  tsmq_md_server_t *server;
+  tsmq_md_server_t *server = NULL;
 
   while(prevoptind = optind,
 	(opt = getopt(argc, argv, ":b:i:l:r:R:t:v?")) >= 0)
@@ -143,9 +231,16 @@ int main(int argc, char **argv)
       return -1;
     }
 
-  if((server = tsmq_md_server_init(ts_backend)) == NULL)
+  if(init_timeseries(ts_backend) != 0)
     {
-      fprintf(stderr, "ERROR: could not initialize tsmq metadata server\n");
+      usage(argv[0]);
+      goto err;
+    }
+  assert(timeseries != NULL && backend != NULL);
+
+  if((server = tsmq_md_server_init()) == NULL)
+    {
+      fprintf(stderr, "ERROR: could not initialize tsmq server\n");
       usage(argv[0]);
       goto err;
     }
@@ -165,6 +260,8 @@ int main(int argc, char **argv)
 
   /* do work */
   /* this function will block until the broker shuts down */
+  /* @todo add a structure of callback functions for the server to call when
+     messages are received */
   tsmq_md_server_start(server);
 
   /* this will always be set, normally to a SIGINT-caught message */
