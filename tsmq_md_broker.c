@@ -488,7 +488,7 @@ void tsmq_md_broker_set_client_uri(tsmq_md_broker_t *broker, const char *uri)
   assert(broker != NULL);
 
   /* remember, we set one by default */
-  assert(broker->cient_uri != NULL);
+  assert(broker->client_uri != NULL);
   free(broker->client_uri);
 
   broker->client_uri = strdup(uri);
