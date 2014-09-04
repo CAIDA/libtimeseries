@@ -356,101 +356,11 @@ static int run_server(tsmq_md_server_t *server)
   return -1;
 }
 
-static void backend_usage(tsmq_md_server_t *server)
-{
-  assert(server->timeseries != NULL);
-  timeseries_backend_t **backends = NULL;
-  int i;
-
-  /* get the available backends from libtimeseries */
-  backends = timeseries_get_all_backends(server->timeseries);
-
-  fprintf(stderr, "Available backends:\n");
-
-  for(i = 0; i < TIMESERIES_BACKEND_ID_LAST; i++)
-    {
-      /* skip unavailable backends */
-      if(backends[i] == NULL)
-	{
-	  continue;
-	}
-
-      assert(timeseries_get_backend_name(backends[i]));
-      fprintf(stderr, "                      - %s\n",
-	      timeseries_get_backend_name(backends[i]));
-    }
-}
-
-static int init_timeseries(tsmq_md_server_t *server,
-			   const char *ts_backend)
-{
-  char *strcpy = NULL;
-  char *args = NULL;
-
-  if((server->timeseries = timeseries_init()) == NULL)
-    {
-      goto err;
-    }
-
-  /* shortcut for help */
-  if(ts_backend[0] == '?')
-    {
-      backend_usage(server);
-      return -1;
-    }
-
-  if((strcpy = strdup(ts_backend)) == NULL)
-    {
-      goto err;
-    }
-
-  if((args = strchr(ts_backend, ' ')) != NULL)
-    {
-      /* set the space to a nul, which allows ts_backend to be used
-	 for the backend name, and then increment args ptr to
-	 point to the next character, which will be the start of the
-	 arg string (or at worst case, the terminating \0 */
-      *args = '\0';
-      args++;
-    }
-
-  if((server->backend =
-      timeseries_get_backend_by_name(server->timeseries,
-				     ts_backend)) == NULL)
-    {
-      fprintf(stderr, "ERROR: Invalid backend name (%s)\n",
-	      ts_backend);
-      backend_usage(server);
-      goto err;
-    }
-
-  if(timeseries_enable_backend(server->timeseries, server->backend, args) != 0)
-    {
-      fprintf(stderr, "ERROR: Failed to initialized backend (%s)",
-	      ts_backend);
-      backend_usage(server);
-      goto err;
-    }
-
-  free(strcpy);
-
-  return 0;
-
- err:
-  if(strcpy != NULL)
-    {
-      free(strcpy);
-    }
-  tsmq_set_err(server->tsmq, TSMQ_ERR_INIT_FAILED,
-	       "Could not intialize libtimeseries");
-  return -1;
-}
-
 /* ---------- PUBLIC FUNCTIONS BELOW HERE ---------- */
 
 TSMQ_ERR_FUNCS(md_server)
 
-tsmq_md_server_t *tsmq_md_server_init(const char *ts_backend)
+tsmq_md_server_t *tsmq_md_server_init()
 {
   tsmq_md_server_t *server;
   if((server = malloc_zero(sizeof(tsmq_md_server_t))) == NULL)
@@ -466,13 +376,6 @@ tsmq_md_server_t *tsmq_md_server_init(const char *ts_backend)
     }
 
   /* now we are ready to set errors... */
-  assert(ts_backend != NULL);
-
-  if(init_timeseries(server, ts_backend) != 0)
-    {
-      return NULL;
-    }
-  assert(server->timeseries != NULL && server->backend != NULL);
 
   server->broker_uri = strdup(TSMQ_MD_SERVER_BROKER_URI_DEFAULT);
 

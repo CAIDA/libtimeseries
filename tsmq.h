@@ -28,8 +28,6 @@
 
 #include <stdint.h>
 
-#include <libtimeseries.h>
-
 /** @file
  *
  * @brief Header file that exposes the public interface of tsmq.
@@ -168,8 +166,7 @@ typedef enum {
 
 /** Initialize a new instance of a tsmq metadata server
  *
- * @param ts_backend    string containing the timeseries backend name, and,
- *                      optionally any arguments to pass to the backend
+ * @todo add callback structure here
  * @return a pointer to a tsmq md server structure if successful, NULL if an
  * error occurred
  *
@@ -177,7 +174,7 @@ typedef enum {
  * more than one is provided, the one with the lowest id will be used. As of the
  * time of writing this, this would be the ASCII backend.
  */
-tsmq_md_server_t *tsmq_md_server_init(const char *ts_backend);
+tsmq_md_server_t *tsmq_md_server_init();
 
 /** Start a given tsmq metadata server
  *

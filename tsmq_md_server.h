@@ -43,12 +43,6 @@ struct tsmq_md_server {
   /** Common tsmq state */
   tsmq_t *tsmq;
 
-  /** libtimeseries instance to manage timeseries writes */
-  timeseries_t *timeseries;
-
-  /** the timeseries backend that we are using to write */
-  timeseries_backend_t *backend;
-
   /** URI to connect to the broker on */
   char *broker_uri;
 
