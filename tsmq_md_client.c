@@ -56,6 +56,7 @@ static int broker_connect(tsmq_md_client_t *client)
 }
 
 /* the caller no longer owns the request_body msg */
+/* but they *will* own the returned msg */
 static zmsg_t *execute_request(tsmq_md_client_t *client,
 			       tsmq_request_msg_type_t type,
 			       zmsg_t *request_body)
@@ -244,7 +245,7 @@ tsmq_md_client_t *tsmq_md_client_init()
 
   /* now we are ready to set errors... */
 
-  client->broker_uri = TSMQ_MD_CLIENT_BROKER_URI_DEFAULT;
+  client->broker_uri = strdup(TSMQ_MD_CLIENT_BROKER_URI_DEFAULT);
 
   client->request_timeout = TSMQ_MD_CLIENT_REQUEST_TIMEOUT;
 
@@ -258,8 +259,8 @@ int tsmq_md_client_start(tsmq_md_client_t *client)
   return broker_connect(client);
 }
 
-tsmq_md_client_key_t *tsmq_md_client_lookup_key(tsmq_md_client_t *client,
-						uint8_t *key, size_t len)
+tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
+						const uint8_t *key, size_t len)
 {
   zmsg_t *msg;
   zframe_t*frame;
@@ -280,11 +281,11 @@ tsmq_md_client_key_t *tsmq_md_client_lookup_key(tsmq_md_client_t *client,
       return NULL;
     }
 
-  fprintf(stderr, "DEBUG: Sending request!\n");
+  /*fprintf(stderr, "DEBUG: Sending request!\n");*/
   /* now hand our message to the execute_request function which will return us a
      message with the response from the appropriate server */
-  if((msg = execute_request(client, TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP, msg)) ==
-     NULL)
+  if((msg =
+      execute_request(client, TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP, msg)) == NULL)
     {
       /* err will already be set */
       return NULL;
@@ -299,7 +300,15 @@ tsmq_md_client_key_t *tsmq_md_client_lookup_key(tsmq_md_client_t *client,
     }
 
   /* poke in the key and length info that our caller gave us */
-  response->key = key;
+  if((response->key = malloc(len)) == NULL)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+		   "Failed to malloc key");
+      tsmq_md_client_key_free(response);
+      zmsg_destroy(&msg);
+      return NULL;
+    }
+  memcpy(response->key, key, len);
   response->key_len = len;
 
   /* decode the message into a new tsmq_md_client_key_t message */
@@ -318,19 +327,20 @@ tsmq_md_client_key_t *tsmq_md_client_lookup_key(tsmq_md_client_t *client,
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		   "Failed to malloc server id");
-      free(response);
+      tsmq_md_client_key_free(response);
       zframe_destroy(&frame);
       zmsg_destroy(&msg);
       return NULL;
     }
   memcpy(response->server_id, zframe_data(frame), response->server_id_len);
+  zframe_destroy(&frame);
 
   /* now there should be one more frame with the key id */
   if((frame = zmsg_pop(msg)) == NULL)
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
 		   "Malformed request response (missing key id)");
-      free(response);
+      tsmq_md_client_key_free(response);
       zmsg_destroy(&msg);
       return NULL;
     }
@@ -340,15 +350,49 @@ tsmq_md_client_key_t *tsmq_md_client_lookup_key(tsmq_md_client_t *client,
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		   "Failed to malloc server key id");
-      free(response);
+      tsmq_md_client_key_free(response);
       zframe_destroy(&frame);
       zmsg_destroy(&msg);
       return NULL;
     }
   memcpy(response->server_key_id, zframe_data(frame),
 	 response->server_key_id_len);
+  zframe_destroy(&frame);
+
+  zmsg_destroy(&msg);
 
   return response;
+}
+
+void tsmq_md_client_key_free(tsmq_md_client_key_t *key)
+{
+  if(key == NULL)
+    {
+      return;
+    }
+
+  if(key->key != NULL)
+    {
+      free(key->key);
+      key->key = NULL;
+    }
+  key->key_len = 0;
+
+  if(key->server_id != NULL)
+    {
+      free(key->server_id);
+      key->server_id = NULL;
+    }
+  key->server_id_len = 0;
+
+  if(key->server_key_id != NULL)
+    {
+      free(key->server_key_id);
+      key->server_key_id = NULL;
+    }
+  key->server_key_id_len = 0;
+
+  free(key);
 }
 
 void tsmq_md_client_free(tsmq_md_client_t *client)
@@ -379,6 +423,7 @@ void tsmq_md_client_set_broker_uri(tsmq_md_client_t *client, const char *uri)
   free(client->broker_uri);
 
   client->broker_uri = strdup(uri);
+  assert(client->broker_uri != NULL);
 }
 
 void tsmq_md_client_set_request_timeout(tsmq_md_client_t *client,

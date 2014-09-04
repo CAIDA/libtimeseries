@@ -36,6 +36,11 @@
 
 #define CTX server->tsmq->ctx
 
+/* @todo: make this configurable, and generate a sane default. should be
+   constant across restarts and define an instance of a timeseries
+   backend. e.g. a dbats db, or a whisper store */
+#define SERVER_ID "darknet.ucsd-nt"
+
 enum {
   POLL_ITEM_BROKER = 0,
   POLL_ITEM_CNT    = 1,
@@ -80,18 +85,95 @@ static int server_connect(tsmq_md_server_t *server)
   return 0;
 }
 
+/** Parse the given message for a request type and then do the right thing.
+ *
+ * @param server        pointer to a tsmq md server instance
+ * @param msg           pointer to the message containing the request
+ * @param reply         pointer to a reply message to append frames to
+ * @return pointer to the completed reply message if successful, NULL otherwise
+ *
+ * @note the msg object contains only the request information, no framing info.
+ *       if framing information is needed, the reply message can be parsed
+ *
+ * @note reply must be in the following format:
+ *       [01][TSMQ_MSG_TYPE_REPLY]
+ *       [XX][CLIENT-ID]
+ *       [00][EMPTY]
+ *       [08][SEQUENCE-NUMBER]
+ *       [01][TSMQ_REQUEST_MSG_TYPE_XX]
+ *       -----------------------^ (pre-populated in reply)
+ *       <response payload>
+ *       -----------------------^ (responsibility of this function)
+ *
+ * @note the payload must be one of the following:
+ *       for TSMQ_MSG_REQUEST_TYPE_KEY_LOOKUP:
+ *         [XX][SERVER-ID] <-- globally unique id for this server
+ *                             (will be used as prefix for metric routing)
+ *         [XX][KEY-ID]    <-- server-unique byte string representing the metric
+ */
+static zmsg_t *handle_request(tsmq_md_server_t *server,
+			      tsmq_request_msg_type_t req_type,
+			      zmsg_t *msg, zmsg_t *reply)
+{
+  zframe_t *frame;
+
+  /* we only know what to do with a key lookup request (atm) */
+  if(req_type != TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP)
+    {
+      return NULL;
+    }
+
+  /* fprintf(stderr, "======================================\n"); */
+  /* fprintf(stderr, "DEBUG: Processing:\n"); */
+  /* zmsg_print(msg); */
+  /* fprintf(stderr, "DEBUG: Populating:\n"); */
+  /* zmsg_print(reply); */
+
+  /* append our server id */
+  if(zmsg_addmem(reply, SERVER_ID, strlen(SERVER_ID)) != 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+		   "Failed to add server id to reply message");
+      return NULL;
+    }
+
+  /* simulate the ascii backend and simply echo the key back to them */
+  if((frame = zmsg_pop(msg)) == NULL)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+		   "Malformed request (missing key)");
+      return NULL;
+    }
+
+  if(zmsg_append(reply, &frame) != 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+		   "Could not append key frame to reply\n");
+      return NULL;
+    }
+
+  /* TODO: actually parse the request and lookup the metadata */
+  /* ... we should be given a libtimeseries instance to use for lookups */
+
+  return reply;
+}
+
 static int run_server(tsmq_md_server_t *server)
 {
   zmq_pollitem_t poll_items[] = {
     {server->broker_socket, 0, ZMQ_POLLIN, 0}, /* POLL_ITEM_BROKER */
   };
-  int rc;
+  int i, rc;
 
   zmsg_t *msg;
+  zmsg_t *reply;
   zframe_t *frame;
 
   tsmq_msg_type_t msg_type;
+  uint8_t req_type;
   uint8_t msg_type_p;
+
+  uint8_t msg_type_reply = TSMQ_MSG_TYPE_REPLY;
 
   /*fprintf(stderr, "DEBUG: Beginning loop cycle\n");*/
 
@@ -112,25 +194,84 @@ static int run_server(tsmq_md_server_t *server)
 	  goto interrupt;
 	}
 
-      if(zmsg_size(msg) == 3)
+      if(zmsg_size(msg) >= 3)
 	{
-	  fprintf(stderr, "DEBUG: Got request from client (via broker)\n");
+	  /* fprintf(stderr, "DEBUG: Got request from client (via broker)\n"); */
 
 	  server->heartbeat_liveness_remaining = server->heartbeat_liveness;
 
-	  fprintf(stderr, "DEBUG: Pretending to do some work\n");
-	  sleep(1);
-	  /* TODO: actually parse the request and lookup the metadata */
-	  /* ... we should be given a libtimeseries instance to use for lookups */
+	  /* create our reply message */
+	  if((reply = zmsg_new()) == NULL)
+	    {
+	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+			   "Could not allocate reply message");
+	      return -1;
+	    }
 
-	  /* send the reply back */
-	  /* broker expects [id+empty(+response)] */
-	  if(zmsg_send(&msg, server->broker_socket) == -1)
+	  /* first we push on a message type indicating a reply */
+	  if(zmsg_addmem(reply, &msg_type_reply, sizeof(uint8_t)) != 0)
+	    {
+	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+			   "Could not add reply type to message");
+	      return -1;
+	    }
+
+	  /* we need to pop off the client id, the empty frame and the sequence
+	     number and append them to our reply */
+	  for(i=0; i<3; i++)
+	    {
+	      /* <client-id>, <empty>, <seq no> */
+	      if((frame = zmsg_pop(msg)) == NULL)
+		{
+		  tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+			       "Invalid request from broker (missing frame %d)",
+			       i);
+		  return -1;
+		}
+
+	      if(zmsg_append(reply, &frame) != 0)
+		{
+		  tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+			       "Could not append frame (%d) to reply\n",
+			       i);
+		  return -1;
+		}
+	    }
+
+	  /* now we grab the request type */
+	  if((req_type =
+	      tsmq_request_msg_type(msg)) == TSMQ_REQUEST_MSG_TYPE_UNKNOWN)
+	    {
+	      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+			   "Invalid request type received (%d)\n",
+			   req_type);
+	    }
+
+	  /* now we push it onto the reply */
+	  if(zmsg_addmem(reply, &req_type, sizeof(uint8_t)) != 0)
+	    {
+	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+			   "Could not add reply type to message");
+	      return -1;
+	    }
+
+	  if((reply = handle_request(server, req_type, msg, reply)) == NULL)
+	    {
+	      return -1;
+	    }
+
+	  /* fprintf(stderr, "DEBUG: Sending reply to client (via broker)\n"); */
+	  /* zmsg_dump(reply); */
+
+	  if(zmsg_send(&reply, server->broker_socket) == -1)
 	    {
 	      tsmq_set_err(server->tsmq, errno,
 			   "Could not send reply to broker");
 	      return -1;
 	    }
+
+	  /* safe to destroy message now */
+	  zmsg_destroy(&msg);
 
 	  if(zctx_interrupted != 0)
 	    {
@@ -187,7 +328,7 @@ static int run_server(tsmq_md_server_t *server)
   if(zclock_time () > server->heartbeat_next)
     {
       server->heartbeat_next = zclock_time() + server->heartbeat_interval;
-      fprintf(stderr, "DEBUG: Sending heartbeat to broker\n");
+      /*fprintf(stderr, "DEBUG: Sending heartbeat to broker\n");*/
 
       msg_type_p = TSMQ_MSG_TYPE_HEARTBEAT;
       if((frame = zframe_new(&msg_type_p, 1)) == NULL)

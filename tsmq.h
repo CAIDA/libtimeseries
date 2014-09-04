@@ -167,8 +167,17 @@ typedef enum {
 
 /** Initialize a new instance of a tsmq metadata server
  *
+ * @param id            pointer to an id byte array
+ * @paran id_len        length of the id byte array
  * @return a pointer to a tsmq md server structure if successful, NULL if an
  * error occurred
+ *
+ * @note The id must be globally unique amongst servers. The broker will not
+ * accept connections from duplicate ids.
+ * @note The id will be used by the broker to route metrics to the appropriate
+ * server. The server with the longest match to the beginning of a key will be
+ * routed a metric.
+ * @todo figure out how to have a catch-all server
  */
 tsmq_md_server_t *tsmq_md_server_init();
 
@@ -375,8 +384,14 @@ void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
  * requests. The broker will batch write requests into a single write for each
  * backend server based on the backend id in this structure.
  */
-tsmq_md_client_key_t *tsmq_md_client_lookup_key(tsmq_md_client_t *client,
-						uint8_t *key, size_t len);
+tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
+						const uint8_t *key, size_t len);
+
+/** Free a key info structure
+ *
+ * @param key           pointer to the key info structure to free
+ */
+void tsmq_md_client_key_free(tsmq_md_client_key_t *key);
 
 /** Publish the error API for the metadata client */
 TSMQ_ERR_PROTOS(md_client)

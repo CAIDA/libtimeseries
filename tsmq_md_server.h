@@ -40,6 +40,12 @@
  */
 
 struct tsmq_md_server {
+  /** Globally unique id (used to match against metric keys for routing) */
+  uint8_t *id;
+
+  /** Length of the id array */
+  size_t id_len;
+
   /** Common tsmq state */
   tsmq_t *tsmq;
 

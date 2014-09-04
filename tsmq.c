@@ -61,6 +61,15 @@ int tsmq_start(tsmq_t *tsmq)
 
 void tsmq_free(tsmq_t *tsmq)
 {
+  assert(tsmq != NULL);
+
+  if(tsmq->ctx != NULL)
+    {
+      zctx_destroy(&tsmq->ctx);
+    }
+
+  free(tsmq);
+
   return;
 }
 
@@ -124,13 +133,16 @@ tsmq_msg_type_t tsmq_msg_type(zmsg_t *msg)
 
   if((type = *zframe_data(frame)) > TSMQ_MSG_TYPE_MAX)
     {
+      zframe_destroy(&frame);
       return TSMQ_MSG_TYPE_UNKNOWN;
     }
+
+  zframe_destroy(&frame);
 
   return (tsmq_msg_type_t)type;
 }
 
-tsmq_request_msg_type_t tsmq_request_type(zmsg_t *msg)
+tsmq_request_msg_type_t tsmq_request_msg_type(zmsg_t *msg)
 {
   zframe_t *frame;
   uint8_t type;
@@ -143,8 +155,11 @@ tsmq_request_msg_type_t tsmq_request_type(zmsg_t *msg)
 
   if((type = *zframe_data(frame)) > TSMQ_REQUEST_MSG_TYPE_MAX)
     {
+      zframe_destroy(&frame);
       return TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
     }
+
+  zframe_destroy(&frame);
 
   return (tsmq_request_msg_type_t)type;
 }
