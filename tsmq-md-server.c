@@ -38,7 +38,7 @@
 static void usage(const char *name)
 {
   fprintf(stderr,
-	  "usage: %s [<options>]\n"
+	  "usage: %s [<options>] -t <ts-backend>\n"
 	  "       -b <broker-uri>    0MQ-style URI to connect to broker on\n"
 	  "                          (default: %s)\n"
 	  "       -i <interval-ms>   Time in ms between heartbeats to broker\n"
@@ -48,7 +48,8 @@ static void usage(const char *name)
 	  "       -r <retry-min>     Min time in ms to wait before reconnecting to broker\n"
 	  "                          (default: %d)\n"
 	  "       -R <retry-max>     Max time in ms to wait before reconnecting to broker\n"
-	  "                          (default: %d)\n",
+	  "                          (default: %d)\n"
+	  "       -t <ts-backend>    Timeseries backend to use for writing\n",
 	  name,
 	  TSMQ_MD_SERVER_BROKER_URI_DEFAULT,
 	  TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT,
@@ -65,6 +66,7 @@ int main(int argc, char **argv)
 
   /* to store command line argument values */
   const char *broker_uri = NULL;
+  const char *ts_backend = NULL;
 
   uint64_t heartbeat_interval = TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT;
   int heartbeat_liveness      = TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT;
@@ -74,7 +76,7 @@ int main(int argc, char **argv)
   tsmq_md_server_t *server;
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":b:i:l:r:R:v?")) >= 0)
+	(opt = getopt(argc, argv, ":b:i:l:r:R:t:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -108,6 +110,10 @@ int main(int argc, char **argv)
 	  reconnect_interval_max = atoi(optarg);
 	  break;
 
+	case 't':
+	  ts_backend = optarg;
+	  break;
+
 	case '?':
 	case 'v':
 	  fprintf(stderr, "tsmq version %d.%d.%d\n",
@@ -128,9 +134,19 @@ int main(int argc, char **argv)
   /* NB: once getopt completes, optind points to the first non-option
      argument */
 
-  if((server = tsmq_md_server_init()) == NULL)
+  if(ts_backend == NULL)
+    {
+      fprintf(stderr,
+	      "Timeseries backend must be specified "
+	      "(use `-t ?` to get a list)\n");
+      usage(argv[0]);
+      return -1;
+    }
+
+  if((server = tsmq_md_server_init(ts_backend)) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize tsmq metadata server\n");
+      usage(argv[0]);
       goto err;
     }
 
