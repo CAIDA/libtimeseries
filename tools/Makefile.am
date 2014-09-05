@@ -27,7 +27,16 @@ AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common -I$(top_srcdir)/lib \
 
 dist_bin_SCRIPTS =
 
-bin_PROGRAMS =
+bin_PROGRAMS = 
+
+if WITH_TSMQ
+bin_PROGRAMS += tsmq-md-server
+
+tsmq_md_server_SOURCES = \
+	tsmq-md-server.c
+tsmq_md_server_LDADD = -ltimeseries
+tsmq_md_server_LDFLAGS = -L$(top_builddir)/lib
+endif
 
 ACLOCAL_AMFLAGS = -I m4
 

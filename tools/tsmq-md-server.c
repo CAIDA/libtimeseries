@@ -31,11 +31,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <tsmq.h>
+
 #include <libtimeseries.h>
 
-/* include tsmq's public interface */
-/* @@ never include the _int.h file from tools. */
-#include "tsmq.h"
+#include "config.h"
 
 timeseries_t *timeseries = NULL;
 timeseries_backend_t *backend = NULL;
@@ -60,7 +60,8 @@ static void backend_usage()
 	}
 
       assert(timeseries_get_backend_name(backends[i]));
-      fprintf(stderr, "                      - %s\n",
+      fprintf(stderr,
+	      "                            - %s\n",
 	      timeseries_get_backend_name(backends[i]));
     }
 }
@@ -76,6 +77,7 @@ static void usage(const char *name)
 	  "       -l <beats>         Number of heartbeats that can go by before \n"
 	  "                          the broker is declared dead (default: %d)\n"
 	  "       -r <retry-min>     Min time in ms to wait before reconnecting to broker\n"
+
 	  "                          (default: %d)\n"
 	  "       -R <retry-max>     Max time in ms to wait before reconnecting to broker\n"
 	  "                          (default: %d)\n"
@@ -93,17 +95,6 @@ static int init_timeseries(const char *ts_backend)
 {
   char *strcpy = NULL;
   char *args = NULL;
-
-  if((timeseries = timeseries_init()) == NULL)
-    {
-      goto err;
-    }
-
-  /* shortcut for help */
-  if(ts_backend[0] == '?')
-    {
-      return -1;
-    }
 
   if((strcpy = strdup(ts_backend)) == NULL)
     {
@@ -129,7 +120,7 @@ static int init_timeseries(const char *ts_backend)
 
   if(timeseries_enable_backend(timeseries, backend, args) != 0)
     {
-      fprintf(stderr, "ERROR: Failed to initialized backend (%s)",
+      fprintf(stderr, "ERROR: Failed to initialized backend (%s)\n",
 	      ts_backend);
       goto err;
     }
@@ -204,10 +195,10 @@ int main(int argc, char **argv)
 
 	case '?':
 	case 'v':
-	  fprintf(stderr, "tsmq version %d.%d.%d\n",
-		  TSMQ_MAJOR_VERSION,
-		  TSMQ_MID_VERSION,
-		  TSMQ_MINOR_VERSION);
+	  fprintf(stderr, "libtimeseries version %d.%d.%d\n",
+		  LIBTIMESERIES_MAJOR_VERSION,
+		  LIBTIMESERIES_MID_VERSION,
+		  LIBTIMESERIES_MINOR_VERSION);
 	  usage(argv[0]);
 	  return 0;
 	  break;
@@ -222,11 +213,18 @@ int main(int argc, char **argv)
   /* NB: once getopt completes, optind points to the first non-option
      argument */
 
+  /* better just grab a pointer to lts before anybody goes crazy and starts
+     dumping usage strings */
+  if((timeseries = timeseries_init()) == NULL)
+    {
+      fprintf(stderr, "ERROR: Could not initialize libtimeseries\n");
+      return -1;
+    }
+
   if(ts_backend == NULL)
     {
       fprintf(stderr,
-	      "Timeseries backend must be specified "
-	      "(use `-t ?` to get a list)\n");
+	      "ERROR: Timeseries backend must be specified\n");
       usage(argv[0]);
       return -1;
     }

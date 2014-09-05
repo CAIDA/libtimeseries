@@ -134,6 +134,8 @@ AC_ARG_WITH([tsmq],
 	  [with_tsmq=yes])
 AC_MSG_RESULT([$with_tsmq])
 
+AM_CONDITIONAL([WITH_TSMQ], [test "x$with_tsmq" != xno])
+
 if test x"$with_tsmq" = xyes; then
 AC_CHECK_LIB([tsmq], [tsmq_md_server_init], ,[AC_MSG_ERROR(
 		[libtsmq is required for tsmq support (--without-tsmq to disable)]

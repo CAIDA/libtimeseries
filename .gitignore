@@ -22,6 +22,7 @@ TAGS
 # Compiled programs
 *.tar.gz
 ChangeLog
+tools/tsmq-md-server
 
 # Autotools files
 # http://www.gnu.org/software/automake
