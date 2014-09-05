@@ -33,9 +33,13 @@ include_HEADERS =
 
 libtimeseries_backends_la_SOURCES = \
 	timeseries_backend_ascii.c \
-	timeseries_backend_ascii.h \
+	timeseries_backend_ascii.h
+
+if WITH_DBATS
+libtimeseries_backends_la_SOURCES += \
 	timeseries_backend_dbats.c \
 	timeseries_backend_dbats.h
+endif
 
 libtimeseries_backends_la_LIBADD =
 

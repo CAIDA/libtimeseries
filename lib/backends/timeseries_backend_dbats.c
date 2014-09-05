@@ -25,9 +25,6 @@
 #include "config.h"
 #include "libtimeseries_int.h"
 
-/** only bother building this file if we are building with DBATS */
-#ifdef WITH_DBATS
-
 #include <assert.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -356,5 +353,3 @@ int timeseries_backend_dbats_set_single(timeseries_backend_t *backend,
 
   return 0;
 }
-
-#endif /** WITH_DBATS */

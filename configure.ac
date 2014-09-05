@@ -111,6 +111,8 @@ AC_ARG_WITH([dbats],
 	  [with_dbats=yes])
 AC_MSG_RESULT([$with_dbats])
 
+AM_CONDITIONAL([WITH_DBATS], [test "x$with_dbats" != xno])
+
 if test x"$with_dbats" = xyes; then
 AC_CHECK_LIB([dbats], [dbats_open], ,[AC_MSG_ERROR(
 		[libdbats is required by DBATS (--without-dbats to disable)]
