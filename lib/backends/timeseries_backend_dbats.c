@@ -76,7 +76,7 @@ typedef struct timeseries_backend_dbats_state {
 static void usage(timeseries_backend_t *backend)
 {
   fprintf(stderr,
-	  "backend usage: %s [-f flag [-f flag]] [-p path]\n"
+	  "backend usage: %s [-f flag [-f flag]] -p path\n"
 	  "       -f <flag>     flag(s) to use when opening database\n"
 	  "                       - "FLAG_UNCOMPRESSED"\n"
 	  "                       - "FLAG_EXCLUSIVE"\n"
@@ -95,12 +95,6 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
   int opt;
 
   assert(argc > 0 && argv != NULL);
-
-  if(argc == 1)
-    {
-      usage(backend);
-      return -1;
-    }
 
   /* NB: remember to reset optind to 1 before using getopt! */
   optind = 1;
@@ -148,6 +142,13 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 	  usage(backend);
 	  return -1;
 	}
+    }
+
+  if(state->dbats_path == NULL)
+    {
+      fprintf(stderr, "ERROR: DBATS path must be specified with -p\n");
+      usage(backend);
+      return -1;
     }
 
   return 0;

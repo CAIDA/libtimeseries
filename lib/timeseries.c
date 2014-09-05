@@ -100,6 +100,10 @@ int timeseries_enable_backend(timeseries_t *timeseries,
       parse_cmd(local_args, &process_argc, process_argv, MAXOPTS,
 		backend->name);
     }
+  else
+    {
+      process_argv[process_argc++] = (char*)backend->name;
+    }
 
   /* we just need to pass this along to the backend framework */
   rc = timeseries_backend_init(timeseries, backend, process_argc, process_argv);

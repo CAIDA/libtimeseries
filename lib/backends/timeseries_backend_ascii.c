@@ -88,12 +88,6 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
   assert(argc > 0 && argv != NULL);
 
-  if(argc == 1)
-    {
-      usage(backend);
-      return -1;
-    }
-
   /* NB: remember to reset optind to 1 before using getopt! */
   optind = 1;
 
@@ -103,7 +97,6 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
     {
       switch(opt)
 	{
-
 	case 'c':
 	  state->compress_level = atoi(optarg);
 	  break;
