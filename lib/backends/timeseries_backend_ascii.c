@@ -219,9 +219,9 @@ int timeseries_backend_ascii_kp_flush(timeseries_backend_t *backend,
   /* we really only need to convert the time value to a string once */
   snprintf(time_buffer, TIME_BUFFER_LEN, "%"PRIu32, time);
 
-  for(i = 0; i < kp->keys_cnt; i++)
+  for(i = 0; i < kp->kvs_cnt; i++)
     {
-      DUMP_METRIC(state, kp->keys[i], kp->values[i], time_buffer);
+      DUMP_METRIC(state, kp->kvs[i].key, kp->kvs[i].value, time_buffer);
     }
 
   return 0;

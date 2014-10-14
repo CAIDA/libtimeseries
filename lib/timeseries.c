@@ -208,29 +208,14 @@ void timeseries_kp_free(timeseries_kp_t *kp)
   if(kp != NULL)
     {
       /* free each of the key strings */
-      for(i = 0; i < kp->keys_cnt; i++)
+      for(i = 0; i < kp->kvs_cnt; i++)
 	{
-	  if(kp->keys[i] != NULL)
-	    {
-	      free(kp->keys[i]);
-	      kp->keys[i] = NULL;
-	    }
+          free(kp->kvs[i].key);
+          kp->kvs[i].key = NULL;
 	}
-      kp->keys_cnt = 0;
-
-      /* free the array of pointers */
-      if(kp->keys != NULL)
-	{
-	  free(kp->keys);
-	  kp->keys = NULL;
-	}
-
-      /* free the values array */
-      if(kp->values != NULL)
-	{
-	  free(kp->values);
-	  kp->values = NULL;
-	}
+      free(kp->kvs);
+      kp->kvs = NULL;
+      kp->kvs_cnt = 0;
 
       /* ask each backend that has data here to free it */
       timeseries_backend_kp_free(kp);
@@ -248,25 +233,22 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
   assert(key != NULL);
 
   /* first we need to realloc the array of keys */
-  if((kp->keys = realloc(kp->keys, sizeof(char*) * (kp->keys_cnt+1))) == NULL)
+  if((kp->kvs =
+      realloc(kp->kvs,
+              sizeof(timeseries_kp_kv_t) * (kp->kvs_cnt+1))) == NULL)
     {
       timeseries_log(__func__, "could not realloc key package (keys)");
       return -1;
     }
 
-  /* now we need to realloc the array of values */
-  if((kp->values =
-      realloc(kp->values, sizeof(uint64_t) * (kp->keys_cnt+1))) == NULL)
-    {
-      timeseries_log(__func__, "could not realloc key package (values)");
-      return -1;
-    }
-
   /* we promised we would zero the values on addition */
-  kp->values[kp->keys_cnt] = 0;
+  kp->kvs[kp->kvs_cnt].value = 0;
 
   /* now add the key (and increment the count) */
-  kp->keys[kp->keys_cnt++] = strdup(key);
+  if((kp->kvs[kp->kvs_cnt++].key = strdup(key)) == NULL)
+    {
+      return -1;
+    }
 
   /* mark the package as dirty so that the backend key ids are updated */
   kp->dirty = 1;
@@ -277,9 +259,9 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
 void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value)
 {
   assert(kp != NULL);
-  assert(key < kp->keys_cnt);
+  assert(key < kp->kvs_cnt);
 
-  kp->values[key] = value;
+  kp->kvs[key].value = value;
 }
 
 int timeseries_kp_flush(timeseries_backend_t *backend,
@@ -297,13 +279,13 @@ int timeseries_kp_flush(timeseries_backend_t *backend,
 
   rc = backend->kp_flush(backend, kp, time);
 
-  /* is this faster than a memset? probably they get optimized to the same
-     thing... */
+  /** @todo is there some way we could reset while flushing? pass the reset
+      param to the backend? hmm */
   if(rc == 0 && kp->reset != 0)
     {
-      for(i = 0; i < kp->keys_cnt; i++)
+      for(i = 0; i < kp->kvs_cnt; i++)
 	{
-	  kp->values[i] = 0;
+	  kp->kvs[i].value = 0;
 	}
     }
   return rc;

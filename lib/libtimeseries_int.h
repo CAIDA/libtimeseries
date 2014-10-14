@@ -58,20 +58,28 @@ struct timeseries
 
 };
 
+typedef struct timeseries_kp_kv
+{
+  /** Key string */
+  char *key;
+
+  /** Value */
+  uint64_t value;
+
+} timeseries_kp_kv_t;
+
 /** Structure which holds state for a Key Package */
 struct timeseries_kp
 {
   /** Timeseries instance that this key package is associated with */
   timeseries_t *timeseries;
 
-  /** Dynamically allocated array of dynamically allocated key name strings */
-  char **keys;
+  /** Dynamically allocated array of Key/Value pairs */
+  timeseries_kp_kv_t *kvs;
 
   /** Number of keys in the Key Package */
-  uint32_t keys_cnt;
+  uint32_t kvs_cnt;
 
-  /** Dynamically allocated array of values, one per key */
-  uint64_t *values;
 
   /** Per-backend state about this key package
 
