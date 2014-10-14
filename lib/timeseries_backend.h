@@ -53,6 +53,12 @@
   int timeseries_backend_##provname##_init(timeseries_backend_t *ds,	\
 					   int argc, char **argv);	\
   void timeseries_backend_##provname##_free(timeseries_backend_t *ds);	\
+  int timeseries_backend_##provname##_kp_init(timeseries_backend_t *backend, \
+					      timeseries_kp_t *kp,	\
+					      void **state);		\
+  void timeseries_backend_##provname##_kp_free(timeseries_backend_t *backend, \
+					       timeseries_kp_t *kp,	\
+					       void *state);		\
   int timeseries_backend_##provname##_kp_flush(timeseries_backend_t *backend, \
 					       timeseries_kp_t *kp,	\
 					       uint32_t time);		\
@@ -67,6 +73,8 @@
 #define TIMESERIES_BACKEND_GENERATE_PTRS(provname)	\
   timeseries_backend_##provname##_init,			\
     timeseries_backend_##provname##_free,		\
+    timeseries_backend_##provname##_kp_init,		\
+    timeseries_backend_##provname##_kp_free,		\
     timeseries_backend_##provname##_kp_flush,		\
     timeseries_backend_##provname##_set_single,		\
     0, NULL
@@ -120,6 +128,43 @@ struct timeseries_backend
    * will be free'd for them by the backend manager.
    */
   void (*free)(struct timeseries_backend *backend);
+
+  /** Allocate any backend-specific state in the given Key Package
+   *
+   * @param backend     Pointer to a backend instance
+   * @param kp          Pointer to the KP to free state for
+   * @param[out] state  Pointer to the state allocated, or NULL if no state is
+   *                    needed by the backend
+   */
+  int (*kp_init)(timeseries_backend_t *backend,
+		 timeseries_kp_t *kp,
+		 void **state);
+
+  /** Free the backend-specific state in the given Key Package
+   *
+   * @param backend     Pointer to a backend instance
+   * @param kp          Pointer to the KP to free state for
+   * @param state       Pointer to the state to free
+   */
+  void (*kp_free)(timeseries_backend_t *backend,
+		  timeseries_kp_t *kp,
+		  void *state);
+
+  /** Update the backend-specific state in the given Key Package
+   *
+   * @param backend     Pointer to a backend instance
+   * @param kp          Pointer to the KP to free state for
+   * @param state       Pointer to the state to update
+   *
+   * @note for example, the DBATS backend needs to ask DBATS what the internal
+   * key id is for each string key. The tsmq backend needs to send a query over
+   * the network to find the server and key ids for each key. This is only done
+   * once per flush, and only when a key has been added to the Key Package since
+   * the last flush
+   */
+  void (*kp_update)(timeseries_backend_t *backend,
+		    timeseries_kp_t *kp,
+		    void *state);
 
   /** Flush the current values in the given Key Package to the database
    *
@@ -199,6 +244,11 @@ int timeseries_backend_init(timeseries_t *timeseries,
  */
 void timeseries_backend_free(timeseries_t *timeseries,
 			     timeseries_backend_t *backend);
+
+/** Ask all backend providers to free their state for the given Key Package
+ *
+ * @param */
+void timeseries_backend_kp_free(timeseries_kp_t *kp);
 
 /** }@ */
 

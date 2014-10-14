@@ -172,8 +172,9 @@ timeseries_backend_t **timeseries_get_all_backends(timeseries_t *timeseries)
   return timeseries->backends;
 }
 
-timeseries_kp_t *timeseries_kp_init(int reset)
+timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset)
 {
+  assert(timeseries != NULL);
   timeseries_kp_t *kp = NULL;
 
   /* we only need to malloc the struct, space for keys will be malloc'd on the
@@ -183,6 +184,16 @@ timeseries_kp_t *timeseries_kp_init(int reset)
       timeseries_log(__func__, "could not malloc key package");
       return NULL;
     }
+
+  /* give the backends a chance to do any init they need */
+  if(timeseres_backend_kp_init(kp) != 0)
+    {
+      free(kp);
+      return NULL;
+    }
+
+  /* save the timeseries pointer */
+  kp->timeseries = timeseries;
 
   /* set the reset flag */
   kp->reset = reset;
@@ -221,13 +232,8 @@ void timeseries_kp_free(timeseries_kp_t *kp)
 	  kp->values = NULL;
 	}
 
-      /* free the backend ID array */
-      if(kp->backend_ids != NULL)
-	{
-	  free(kp->backend_ids);
-	  kp->backend_ids = NULL;
-	}
-      kp->backend_ids_cnt = 0;
+      /* ask each backend that has data here to free it */
+      timeseries_backend_kp_free(kp);
 
       /* free the actual key package structure */
       free(kp);
@@ -256,11 +262,14 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
       return -1;
     }
 
-  /* we promised we would zero the values */
+  /* we promised we would zero the values on addition */
   kp->values[kp->keys_cnt] = 0;
 
   /* now add the key (and increment the count) */
   kp->keys[kp->keys_cnt++] = strdup(key);
+
+  /* mark the package as dirty so that the backend key ids are updated */
+  kp->dirty = 1;
 
   return -1;
 }
@@ -279,8 +288,17 @@ int timeseries_kp_flush(timeseries_backend_t *backend,
   int rc, i;
   assert(backend != NULL && backend->enabled != 0);
 
+  /* if a key has been added since the last flush, then we invite the backends
+     to update their kp state */
+  if(kp->dirty != 0 && (timeseries_backend_kp_update(kp) != 0))
+    {
+      return -1;
+    }
+
   rc = backend->kp_flush(backend, kp, time);
 
+  /* is this faster than a memset? probably they get optimized to the same
+     thing... */
   if(rc == 0 && kp->reset != 0)
     {
       for(i = 0; i < kp->keys_cnt; i++)

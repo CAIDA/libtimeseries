@@ -61,6 +61,9 @@ struct timeseries
 /** Structure which holds state for a Key Package */
 struct timeseries_kp
 {
+  /** Timeseries instance that this key package is associated with */
+  timeseries_t *timeseries;
+
   /** Dynamically allocated array of dynamically allocated key name strings */
   char **keys;
 
@@ -70,11 +73,13 @@ struct timeseries_kp
   /** Dynamically allocated array of values, one per key */
   uint64_t *values;
 
-  /** Dynamically allocated array of backend IDs */
-  uint32_t *backend_ids;
+  /** Per-backend state about this key package
 
-  /** Number of IDs in the backend_ids array */
-  int backend_ids_cnt;
+   *  Backends may use this to store any information they require, but most
+   *  commonly it will be used to store an array of backend-specific id's that
+   *  correspond to the keys in the key package
+   */
+  void *backend_ids[TIMESERIES_BACKEND_ID_LAST];
 
   /** Should the values be explicitly reset after a flush? */
   int reset;
