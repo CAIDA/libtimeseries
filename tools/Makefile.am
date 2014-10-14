@@ -27,7 +27,12 @@ AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common -I$(top_srcdir)/lib \
 
 dist_bin_SCRIPTS =
 
-bin_PROGRAMS = 
+bin_PROGRAMS = timeseries-insert
+
+timeseries_insert_SOURCES = \
+	timeseries-insert.c
+timeseries_insert_LDADD = -ltimeseries
+timeseries_insert_LDFLAGS = -L$(top_builddir)/lib
 
 if WITH_TSMQ
 bin_PROGRAMS += tsmq-md-server
