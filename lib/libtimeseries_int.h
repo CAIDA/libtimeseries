@@ -80,6 +80,9 @@ struct timeseries_kp
   /** Number of keys in the Key Package */
   uint32_t kvs_cnt;
 
+  /** Flag marking the key package as dirty (i.e. a key has been added since the
+      last flush) */
+  int dirty;
 
   /** Per-backend state about this key package
 
@@ -87,7 +90,7 @@ struct timeseries_kp
    *  commonly it will be used to store an array of backend-specific id's that
    *  correspond to the keys in the key package
    */
-  void *backend_ids[TIMESERIES_BACKEND_ID_LAST];
+  void *backend_state[TIMESERIES_BACKEND_ID_LAST];
 
   /** Should the values be explicitly reset after a flush? */
   int reset;

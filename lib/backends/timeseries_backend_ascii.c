@@ -187,6 +187,32 @@ void timeseries_backend_ascii_free(timeseries_backend_t *backend)
   return;
 }
 
+int timeseries_backend_ascii_kp_init(timeseries_backend_t *backend,
+                                     timeseries_kp_t *kp,
+                                     void **state)
+{
+  /* we do not need any state */
+  assert(state != NULL);
+  *state = NULL;
+  return 0;
+}
+
+void timeseries_backend_ascii_kp_free(timeseries_backend_t *backend,
+                                      timeseries_kp_t *kp,
+                                      void *state)
+{
+  /* we did not allocate any state */
+  return;
+}
+
+int timeseries_backend_ascii_kp_update(timeseries_backend_t *backend,
+                                       timeseries_kp_t *kp,
+                                       void *state)
+{
+  /* we don't need to do anything */
+  return 0;
+}
+
 #define PRINT_METRIC(func, file, key, value, time)		\
   do {								\
     func(file, "%s %"PRIu64" %s\n", key, value, time);	\
@@ -203,7 +229,6 @@ void timeseries_backend_ascii_free(timeseries_backend_t *backend)
       PRINT_METRIC(fprintf, stdout, key, value, time);			\
     }									\
   } while(0)
-
 
 int timeseries_backend_ascii_kp_flush(timeseries_backend_t *backend,
 				      timeseries_kp_t *kp,

@@ -178,6 +178,8 @@ timeseries_backend_t **timeseries_get_all_backends(timeseries_t *timeseries);
 
 /** Initialize a Key Package
  *
+ * @param timeseries    Pointer to the timeseries instance to associate the key
+ *                      package with
  * @param reset         Should the values be reset upon a flush.
  * @return a pointer to a corsaro dbats key package structure, NULL if an error
  *         occurs
@@ -200,7 +202,7 @@ timeseries_backend_t **timeseries_get_all_backends(timeseries_t *timeseries);
  * corsaro_dbats_insert function can be used to insert the value for a single
  * arbitrary key.
  */
-timeseries_kp_t *timeseries_kp_init(int reset);
+timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset);
 
 /** Free a Key Package
  *

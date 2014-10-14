@@ -186,7 +186,7 @@ timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset)
     }
 
   /* give the backends a chance to do any init they need */
-  if(timeseres_backend_kp_init(kp) != 0)
+  if(timeseries_backend_kp_init(kp) != 0)
     {
       free(kp);
       return NULL;
