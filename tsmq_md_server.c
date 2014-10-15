@@ -153,7 +153,7 @@ static zmsg_t *handle_request(tsmq_md_server_t *server,
           server->callbacks.key_lookup(server,
                                        zframe_data(frame), zframe_size(frame),
                                        &server_key,
-                                       server->callbacks.user)) < 0)
+                                       server->callbacks.user)) == 0)
         {
           /* callback failed */
           tsmq_set_err(server->tsmq, TSMQ_ERR_CALLBACK,
