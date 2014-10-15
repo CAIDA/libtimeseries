@@ -338,7 +338,7 @@ int tsmq_md_client_start(tsmq_md_client_t *client);
  *
  * @param client        pointer to a tsmq md client instance to free
  */
-void tsmq_md_client_free(tsmq_md_client_t *client);
+void tsmq_md_client_free(tsmq_md_client_t **client_p);
 
 /** Set the URI for the client to connect to the broker on
  *

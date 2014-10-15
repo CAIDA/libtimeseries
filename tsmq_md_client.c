@@ -272,6 +272,57 @@ int tsmq_md_client_start(tsmq_md_client_t *client)
   return broker_connect(client);
 }
 
+void tsmq_md_client_free(tsmq_md_client_t **client_p)
+{
+  assert(client_p != NULL);
+  tsmq_md_client_t *client = *client_p;
+  if(client == NULL)
+    {
+      return;
+    }
+  assert(client->tsmq != NULL);
+
+  free(client->broker_uri);
+  client->broker_uri = NULL;
+
+  /* will call zctx_destroy which will destroy our sockets too */
+  tsmq_free(client->tsmq);
+
+  /* free'd by tsmq_free */
+  client->broker_socket = NULL;
+
+  free(client);
+
+  *client_p = NULL;
+  return;
+}
+
+void tsmq_md_client_set_broker_uri(tsmq_md_client_t *client, const char *uri)
+{
+  assert(client != NULL);
+
+  free(client->broker_uri);
+
+  client->broker_uri = strdup(uri);
+  assert(client->broker_uri != NULL);
+}
+
+void tsmq_md_client_set_request_timeout(tsmq_md_client_t *client,
+					uint64_t timeout_ms)
+{
+  assert(client != NULL);
+
+  client->request_timeout = timeout_ms;
+}
+
+void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
+					int retry_cnt)
+{
+  assert(client != NULL);
+
+  client->request_retries = retry_cnt;
+}
+
 tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
 						const uint8_t *key, size_t len)
 {
@@ -383,49 +434,3 @@ void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p)
   *key_p = NULL;
 }
 
-void tsmq_md_client_free(tsmq_md_client_t *client)
-{
-  assert(client != NULL);
-  assert(client->tsmq != NULL);
-
-  if(client->broker_uri != NULL)
-    {
-      free(client->broker_uri);
-      client->broker_uri = NULL;
-    }
-
-  /* free'd by tsmq_free */
-  client->broker_socket = NULL;
-
-  /* will call zctx_destroy which will destroy our sockets too */
-  tsmq_free(client->tsmq);
-  free(client);
-
-  return;
-}
-
-void tsmq_md_client_set_broker_uri(tsmq_md_client_t *client, const char *uri)
-{
-  assert(client != NULL);
-
-  free(client->broker_uri);
-
-  client->broker_uri = strdup(uri);
-  assert(client->broker_uri != NULL);
-}
-
-void tsmq_md_client_set_request_timeout(tsmq_md_client_t *client,
-					uint64_t timeout_ms)
-{
-  assert(client != NULL);
-
-  client->request_timeout = timeout_ms;
-}
-
-void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
-					int retry_cnt)
-{
-  assert(client != NULL);
-
-  client->request_retries = retry_cnt;
-}
