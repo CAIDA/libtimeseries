@@ -35,18 +35,22 @@
 /* @@ never include the _int.h file from tools. */
 #include "tsmq.h"
 
+#define KEY_LOOKUP_CNT 1
+
 static void usage(const char *name)
 {
   fprintf(stderr,
 	  "usage: %s [<options>]\n"
 	  "       -b <broker-uri>    0MQ-style URI to connect to broker on\n"
 	  "                          (default: %s)\n"
+          "       -n <key-cnt>       Number of keys to lookup and insert fake data for (default: %d)\n"
 	  "       -r <retries>       Number of times to resend a request\n"
 	  "                          (default: %d)\n"
 	  "       -t <timeout>       Time to wait before resending a request\n"
 	  "                          (default: %d)\n",
 	  name,
 	  TSMQ_MD_CLIENT_BROKER_URI_DEFAULT,
+          KEY_LOOKUP_CNT,
 	  TSMQ_MD_CLIENT_REQUEST_RETRIES,
 	  TSMQ_MD_CLIENT_REQUEST_TIMEOUT);
 }
@@ -63,10 +67,14 @@ int main(int argc, char **argv)
   int retries = TSMQ_MD_CLIENT_REQUEST_RETRIES;
   int timeout = TSMQ_MD_CLIENT_REQUEST_TIMEOUT;
 
+  int key_cnt = KEY_LOOKUP_CNT;
+
   tsmq_md_client_t *client;
 
+  int i;
+
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":b:r:t:v?")) >= 0)
+	(opt = getopt(argc, argv, ":b:n:r:t:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -83,6 +91,10 @@ int main(int argc, char **argv)
 	case 'b':
 	  broker_uri = optarg;
 	  break;
+
+        case 'n':
+          key_cnt = atoi(optarg);
+          break;
 
 	case 'r':
 	  retries = atoi(optarg);
@@ -138,15 +150,22 @@ int main(int argc, char **argv)
   size_t len = strlen(key);
   tsmq_md_client_key_t *response;
 
-  if((response = tsmq_md_client_key_lookup(client, (uint8_t*)key, len)) == NULL)
+  fprintf(stdout, "Resolving server id for %d keys (%s)\n",
+          KEY_LOOKUP_CNT, key);
+
+  for(i=0; i<key_cnt; i++)
     {
-      tsmq_md_client_perr(client);
-      return -1;
+      if((response =
+          tsmq_md_client_key_lookup(client, (uint8_t*)key, len)) == NULL)
+        {
+          tsmq_md_client_perr(client);
+          return -1;
+        }
+      tsmq_md_client_key_free(response);
     }
 
-  tsmq_md_client_key_free(response);
-
-  fprintf(stderr, "weeeeha!\n");
+  fprintf(stdout, "Key lookup successful for %d keys (%s)\n",
+          KEY_LOOKUP_CNT, key);
 
   /* cleanup */
   tsmq_md_client_free(client);
