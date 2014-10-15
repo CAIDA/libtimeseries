@@ -26,10 +26,6 @@
 #ifndef __TSMQ_MD_BROKER_H
 #define __TSMQ_MD_BROKER_H
 
-#include "tsmq_int.h"
-
-#include <czmq.h>
-
 /** @file
  *
  * @brief Header file that contains the public components of the tsmq metadata
