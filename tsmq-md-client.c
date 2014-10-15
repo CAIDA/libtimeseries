@@ -149,8 +149,10 @@ int main(int argc, char **argv)
   char *key = "a.test.key";
   size_t len = strlen(key);
   tsmq_md_client_key_t *response;
+  uint64_t value = 123456;
+  uint32_t time = 1404174060;
 
-  fprintf(stdout, "Resolving server id for %d keys (%s)\n", key_cnt, key);
+  fprintf(stdout, "Running lookup/set on %d keys (%s)\n", key_cnt, key);
 
   for(i=0; i<key_cnt; i++)
     {
@@ -158,12 +160,19 @@ int main(int argc, char **argv)
           tsmq_md_client_key_lookup(client, (uint8_t*)key, len)) == NULL)
         {
           tsmq_md_client_perr(client);
-          return -1;
+          goto err;
         }
+
+      if(tsmq_md_client_key_set_single(client, response, value, time) != 0)
+        {
+          tsmq_md_client_perr(client);
+          goto err;
+        }
+
       tsmq_md_client_key_free(&response);
     }
 
-  fprintf(stdout, "Key lookup successful for %d keys (%s)\n", key_cnt, key);
+  fprintf(stdout, "Lookup/set successful for %d keys (%s)\n", key_cnt, key);
 
   /* cleanup */
   tsmq_md_client_free(&client);
@@ -172,6 +181,7 @@ int main(int argc, char **argv)
   return 0;
 
  err:
+  tsmq_md_client_key_free(&response);
   tsmq_md_client_free(&client);
   return -1;
 }
