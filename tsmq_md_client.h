@@ -120,8 +120,7 @@ void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
  *  issue a request to find the appropriate server and corresponding key id.
  *
  * @param client        pointer to a tsmq md client instance to query
- * @param key           pointer to a byte array
- * @param len           length of the byte array
+ * @param key           pointer to a string key
  * @return a pointer to a key info structure if successful, NULL otherwise
  *
  * @note this key info structure must be used when issuing subsequent write
@@ -129,7 +128,7 @@ void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
  * backend server based on the backend id in this structure.
  */
 tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
-						const uint8_t *key, size_t len);
+						const char *key);
 
 /** Free a key info structure
  *

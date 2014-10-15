@@ -323,7 +323,7 @@ void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
 }
 
 tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
-						const uint8_t *key, size_t len)
+						const char *key)
 {
   zmsg_t *msg = NULL;
   zframe_t*frame = NULL;
@@ -336,7 +336,7 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
       return NULL;
     }
 
-  if(zmsg_addmem(msg, key, len) != 0)
+  if(zmsg_addstr(msg, key) != 0)
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		   "Failed to add key to lookup message");

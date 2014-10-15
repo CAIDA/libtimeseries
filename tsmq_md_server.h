@@ -63,13 +63,12 @@ typedef struct tsmq_md_server tsmq_md_server_t;
 /** Uses the timeseries API to resolve the given key to a backend-specific ID
  *
  * @param server          pointer to the server instance that received the request
- * @param key             pointer to a byte array
- * @param key_len         length of the byte array
+ * @param key             pointer to a string key
  * @param server_key[out] set to point to a byte array of the server key id
  * @return the length of the server_key array if successful, 0 otherwise
 */
 typedef size_t (tsmq_md_server_cb_key_lookup_t)(tsmq_md_server_t *server,
-                                                uint8_t *key, off_t key_len,
+                                                char *key,
                                                 uint8_t **server_key,
                                                 void *user);
 
