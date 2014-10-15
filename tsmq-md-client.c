@@ -150,8 +150,7 @@ int main(int argc, char **argv)
   size_t len = strlen(key);
   tsmq_md_client_key_t *response;
 
-  fprintf(stdout, "Resolving server id for %d keys (%s)\n",
-          KEY_LOOKUP_CNT, key);
+  fprintf(stdout, "Resolving server id for %d keys (%s)\n", key_cnt, key);
 
   for(i=0; i<key_cnt; i++)
     {
@@ -164,8 +163,7 @@ int main(int argc, char **argv)
       tsmq_md_client_key_free(&response);
     }
 
-  fprintf(stdout, "Key lookup successful for %d keys (%s)\n",
-          KEY_LOOKUP_CNT, key);
+  fprintf(stdout, "Key lookup successful for %d keys (%s)\n", key_cnt, key);
 
   /* cleanup */
   tsmq_md_client_free(client);
