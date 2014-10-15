@@ -29,8 +29,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <libtimeseries.h>
-
 #include "tsmq_int.h"
 #include "tsmq_md_server.h"
 
@@ -167,9 +165,9 @@ static int run_server(tsmq_md_server_t *server)
   };
   int i, rc;
 
-  zmsg_t *msg;
-  zmsg_t *reply;
-  zframe_t *frame;
+  zmsg_t *msg = NULL;
+  zmsg_t *reply = NULL;
+  zframe_t *frame = NULL;
 
   tsmq_msg_type_t msg_type;
   uint8_t req_type;
@@ -207,7 +205,7 @@ static int run_server(tsmq_md_server_t *server)
 	    {
 	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
 			   "Could not allocate reply message");
-	      return -1;
+              goto err;
 	    }
 
 	  /* first we push on a message type indicating a reply */
@@ -215,7 +213,7 @@ static int run_server(tsmq_md_server_t *server)
 	    {
 	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
 			   "Could not add reply type to message");
-	      return -1;
+              goto err;
 	    }
 
 	  /* we need to pop off the client id, the empty frame and the sequence
@@ -228,7 +226,7 @@ static int run_server(tsmq_md_server_t *server)
 		  tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
 			       "Invalid request from broker (missing frame %d)",
 			       i);
-		  return -1;
+                  goto err;
 		}
 
 	      if(zmsg_append(reply, &frame) != 0)
@@ -236,7 +234,7 @@ static int run_server(tsmq_md_server_t *server)
 		  tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
 			       "Could not append frame (%d) to reply\n",
 			       i);
-		  return -1;
+                  goto err;
 		}
 	    }
 
@@ -247,6 +245,7 @@ static int run_server(tsmq_md_server_t *server)
 	      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
 			   "Invalid request type received (%d)\n",
 			   req_type);
+              goto err;
 	    }
 
 	  /* now we push it onto the reply */
@@ -254,12 +253,12 @@ static int run_server(tsmq_md_server_t *server)
 	    {
 	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
 			   "Could not add reply type to message");
-	      return -1;
+              goto err;
 	    }
 
 	  if((reply = handle_request(server, req_type, msg, reply)) == NULL)
 	    {
-	      return -1;
+              goto err;
 	    }
 
 	  /* fprintf(stderr, "DEBUG: Sending reply to client (via broker)\n"); */
@@ -269,7 +268,7 @@ static int run_server(tsmq_md_server_t *server)
 	    {
 	      tsmq_set_err(server->tsmq, errno,
 			   "Could not send reply to broker");
-	      return -1;
+              goto err;
 	    }
 
 	  /* safe to destroy message now */
@@ -294,7 +293,7 @@ static int run_server(tsmq_md_server_t *server)
 	      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
 			   "Invalid message type received from broker (%d)",
 			   msg_type);
-	      return -1;
+              goto err;
 	    }
 	  zmsg_destroy(&msg);
 	}
@@ -302,7 +301,7 @@ static int run_server(tsmq_md_server_t *server)
 	{
 	  tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
 		       "Invalid message received from broker");
-	  return -1;
+          goto err;
 	}
       server->reconnect_interval_next =
 	server->reconnect_interval_min;
@@ -337,21 +336,33 @@ static int run_server(tsmq_md_server_t *server)
 	{
 	  tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
 		       "Could not create new heartbeat frame");
-	  return -1;
+          goto err;
 	}
 
       if(zframe_send(&frame, server->broker_socket, 0) == -1)
 	{
 	  tsmq_set_err(server->tsmq, errno,
 		       "Could not send heartbeat msg to broker");
-	  return -1;
+          goto err;
 	}
     }
 
+  zframe_destroy(&frame);
+  zmsg_destroy(&msg);
+  zmsg_destroy(&reply);
   return 0;
+
+ err:
+  zframe_destroy(&frame);
+  zmsg_destroy(&msg);
+  zmsg_destroy(&reply);
+  return -1;
 
  interrupt:
   /* we were interrupted */
+  zframe_destroy(&frame);
+  zmsg_destroy(&msg);
+  zmsg_destroy(&reply);
   tsmq_set_err(server->tsmq, TSMQ_ERR_INTERRUPT, "Caught interrupt");
   return -1;
 }
@@ -405,8 +416,10 @@ int tsmq_md_server_start(tsmq_md_server_t *server)
 
   /* start processing requests */
   while(run_server(server) == 0)
+    {
+      /* nothing here */
+    }
 
-  tsmq_set_err(server->tsmq, TSMQ_ERR_UNHANDLED, "Unhandled error");
   return -1;
 }
 
