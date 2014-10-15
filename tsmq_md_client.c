@@ -71,8 +71,8 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
   uint8_t type_b = type;
   int expect_reply = 1;
 
-  zmsg_t *msg;
-  zframe_t *frame;
+  zmsg_t *msg = NULL;
+  zframe_t *frame = NULL;
 
   uint64_t seq;
   tsmq_request_msg_type_t rtype;
@@ -434,3 +434,62 @@ void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p)
   *key_p = NULL;
 }
 
+int tsmq_md_client_key_set_single(tsmq_md_client_t *client,
+                                  tsmq_md_client_key_t *key,
+                                  tsmq_val_t value, tsmq_time_t time)
+{
+  zmsg_t *msg;
+
+  /* body structure will be:
+     TIME          (4)
+     SERVER_ID     (?)
+     SERVER_KEY_ID (?)
+     VALUE         (8)
+  */
+
+  /* for set multiple...
+     TIME
+     SERVER_ID
+     SERVER_KEY_ID
+     VALUE
+     SERVER_ID
+     SERVER_KEY_ID
+     VALUE
+     SERVER_ID
+     SERVER_KEY_ID
+     VALUE
+     ... */
+
+  if((msg = zmsg_new()) == NULL)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+		   "Failed to malloc set value message");
+      return -1;
+    }
+
+  /* add the time */
+  if(zmsg_addmem(msg, &time, sizeof(tsmq_time_t)) != 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+		   "Failed to add time to message");
+      goto err;
+    }
+
+  /*fprintf(stderr, "DEBUG: Sending request!\n");*/
+  if((msg = execute_request(client,
+                            TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE,
+                            &msg)) == NULL)
+    {
+      /* err will already be set */
+      goto err;
+    }
+
+  /* the message is empty. is it?? */
+  assert(zmsg_size(msg) == 0);
+  zmsg_destroy(&msg);
+  return 0;
+
+ err:
+  zmsg_destroy(&msg);
+  return -1;
+}

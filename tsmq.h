@@ -112,6 +112,12 @@ typedef struct tsmq_md_client_key tsmq_md_client_key_t;
  *
  * @{ */
 
+/** Type of a time value */
+typedef uint32_t tsmq_time_t;
+
+/** Type of a TS value */
+typedef uint64_t tsmq_val_t;
+
 /** tsmq error information */
 typedef struct tsmq_err {
   /** Error code */
@@ -387,6 +393,18 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
  * @param key           double pointer to the key info structure to free
  */
 void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p);
+
+/** Write the value for a single key to the database(s)
+ *
+ * @param client        pointer to a tsmq md client instance
+ * @param key           pointer to a key structure (returned by `_key_lookup`)
+ * @param value         value to set for the given key
+ * @param time          time slot to set value for
+ * @return 0 if the command was successfully queued, -1 otherwise
+ */
+int tsmq_md_client_key_set_single(tsmq_md_client_t *client,
+                                  tsmq_md_client_key_t *key,
+                                  tsmq_val_t value, tsmq_time_t time);
 
 /** Publish the error API for the metadata client */
 TSMQ_ERR_PROTOS(md_client)

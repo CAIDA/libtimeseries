@@ -111,8 +111,11 @@ typedef enum {
   /** Key lookup request */
   TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP = 1,
 
+  /** Key storage request */
+  TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE = 2,
+
   /** Highest request type in use */
-  TSMQ_REQUEST_MSG_TYPE_MAX = TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP,
+  TSMQ_REQUEST_MSG_TYPE_MAX = TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE,
 } tsmq_request_msg_type_t;
 
 /** @} */
