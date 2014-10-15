@@ -166,15 +166,12 @@ int main(int argc, char **argv)
   fprintf(stdout, "Key lookup successful for %d keys (%s)\n", key_cnt, key);
 
   /* cleanup */
-  tsmq_md_client_free(client);
+  tsmq_md_client_free(&client);
 
   /* complete successfully */
   return 0;
 
  err:
-  if(client != NULL)
-    {
-      tsmq_md_client_free(client);
-    }
+  tsmq_md_client_free(&client);
   return -1;
 }
