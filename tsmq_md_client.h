@@ -64,11 +64,6 @@ struct tsmq_md_client {
  * subsequent writes
  */
 struct tsmq_md_client_key {
-  /** Byte array of the key 'name' */
-  uint8_t *key;
-  /** Length of the key array */
-  size_t key_len;
-
   /** Backend server ID */
   uint8_t *server_id;
   /** Length of the server id */

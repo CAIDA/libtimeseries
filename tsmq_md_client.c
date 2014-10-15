@@ -299,18 +299,6 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
       zmsg_destroy(&msg);
     }
 
-  /* poke in the key and length info that our caller gave us */
-  if((response->key = malloc(len)) == NULL)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to malloc key");
-      tsmq_md_client_key_free(response);
-      zmsg_destroy(&msg);
-      return NULL;
-    }
-  memcpy(response->key, key, len);
-  response->key_len = len;
-
   /* decode the message into a new tsmq_md_client_key_t message */
   /* we expect two frames, one with the server id and one with the key id */
   if((frame = zmsg_pop(msg)) == NULL)
@@ -370,13 +358,6 @@ void tsmq_md_client_key_free(tsmq_md_client_key_t *key)
     {
       return;
     }
-
-  if(key->key != NULL)
-    {
-      free(key->key);
-      key->key = NULL;
-    }
-  key->key_len = 0;
 
   if(key->server_id != NULL)
     {
