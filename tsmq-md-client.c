@@ -147,27 +147,30 @@ int main(int argc, char **argv)
 
   /* debug !! */
   char *key = "a.test.key";
-  size_t len = strlen(key);
   tsmq_md_client_key_t *response;
+#if 0
   uint64_t value = 123456;
   uint32_t time = 1404174060;
+#endif
 
   fprintf(stdout, "Running lookup/set on %d keys (%s)\n", key_cnt, key);
 
   for(i=0; i<key_cnt; i++)
     {
       if((response =
-          tsmq_md_client_key_lookup(client, (uint8_t*)key, len)) == NULL)
+          tsmq_md_client_key_lookup(client, key)) == NULL)
         {
           tsmq_md_client_perr(client);
           goto err;
         }
 
+#if 0
       if(tsmq_md_client_key_set_single(client, response, value, time) != 0)
         {
           tsmq_md_client_perr(client);
           goto err;
         }
+#endif
 
       tsmq_md_client_key_free(&response);
     }
