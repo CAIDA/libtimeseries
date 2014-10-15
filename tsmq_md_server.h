@@ -56,6 +56,38 @@ typedef struct tsmq_md_server tsmq_md_server_t;
 /** @} */
 
 /**
+ * @name Server callback definitions and setter functions
+ *
+ * @{ */
+
+/** Uses the timeseries API to resolve the given key to a backend-specific ID
+ *
+ * @param server          pointer to the server instance that received the request
+ * @param key             pointer to a byte array
+ * @param key_len         length of the byte array
+ * @param server_key[out] set to point to a byte array of the server key id
+ * @return the length of the server_key array if successful, -1 otherwise
+*/
+typedef size_t (tsmq_md_server_cb_key_lookup_t)(tsmq_md_server_t *server,
+                                                uint8_t *key, off_t key_len,
+                                                uint8_t **server_key,
+                                                void *user);
+
+/** Register a function to be called to handle key lookups
+ *
+ * @param client        pointer to a client instance to set callback for
+ * @param cb            pointer to a handle_reply callback function
+ */
+void tsmq_md_server_set_cb_key_lookup(tsmq_md_server_t *server,
+                                      tsmq_md_server_cb_key_lookup_t *cb);
+
+/** Set the user data that will provided to each callback function */
+void tsmq_md_server_set_cb_userdata(tsmq_md_server_t *server,
+                                    void *user);
+
+/** @} */
+
+/**
  * @name Public Metadata Server API
  *
  * @{ */

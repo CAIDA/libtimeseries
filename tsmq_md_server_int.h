@@ -37,6 +37,17 @@
  *
  */
 
+typedef struct tsmq_md_server_callbacks {
+
+  tsmq_md_server_cb_key_lookup_t *key_lookup;
+
+  /** @todo add other callback funcs here */
+
+  /** pointer to user-provided data */
+  void *user;
+
+} tsmq_md_server_callbacks_t;
+
 struct tsmq_md_server {
   /** Common tsmq state */
   tsmq_t *tsmq;
@@ -70,6 +81,9 @@ struct tsmq_md_server {
 
   /** The time before we will next attempt to reconnect */
   uint64_t reconnect_interval_next;
+
+  /** Callback information */
+  tsmq_md_server_callbacks_t callbacks;
 };
 
 #endif /* __TSMQ_MD_SERVER_INT_H */

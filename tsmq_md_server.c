@@ -35,6 +35,15 @@
 
 #define CTX server->tsmq->ctx
 
+#define DO_CALLBACK(cbfunc, args...)					\
+  do {									\
+    if(server->callbacks.cbfunc != NULL)				\
+      {									\
+	server->callbacks.cbfunc(server, args,                          \
+				 server->callbacks.user);		\
+      }									\
+  } while(0)
+
 /* @todo: make this configurable, and generate a sane default. should be
    constant across restarts and define an instance of a timeseries
    backend. e.g. a dbats db, or a whisper store */
@@ -116,45 +125,65 @@ static zmsg_t *handle_request(tsmq_md_server_t *server,
 {
   zframe_t *frame;
 
-  /* we only know what to do with a key lookup request (atm) */
-  if(req_type != TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP)
-    {
-      return NULL;
-    }
+  uint8_t *server_key = NULL;
+  size_t server_key_len = 0;
 
-  /* fprintf(stderr, "======================================\n"); */
-  /* fprintf(stderr, "DEBUG: Processing:\n"); */
-  /* zmsg_print(msg); */
-  /* fprintf(stderr, "DEBUG: Populating:\n"); */
-  /* zmsg_print(reply); */
-
-  /* append our server id */
-  if(zmsg_addmem(reply, SERVER_ID, strlen(SERVER_ID)) != 0)
+  switch(req_type)
     {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to add server id to reply message");
-      return NULL;
-    }
+    case TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP:
+      /* append our server id */
+      if(zmsg_addmem(reply, SERVER_ID, strlen(SERVER_ID)) != 0)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                       "Failed to add server id to reply message");
+          return NULL;
+        }
 
-  /* simulate the ascii backend and simply echo the key back to them */
-  if((frame = zmsg_pop(msg)) == NULL)
-    {
+      /* simulate the ascii backend and simply echo the key back to them */
+      if((frame = zmsg_pop(msg)) == NULL)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Malformed request (missing key)");
+          return NULL;
+        }
+
+      /** @todo actually extract key and len, move to handle_key_lookup func */
+      if(server->callbacks.key_lookup != NULL &&
+         (server_key_len =
+          server->callbacks.key_lookup(server,
+                                       zframe_data(frame), zframe_size(frame),
+                                       &server_key,
+                                       server->callbacks.user)) < 0)
+        {
+          /* callback failed */
+          tsmq_set_err(server->tsmq, TSMQ_ERR_CALLBACK,
+                       "key lookup callback failed\n");
+          zframe_destroy(&frame);
+          return NULL;
+        }
+      zframe_destroy(&frame);
+
+      if(zmsg_addmem(reply, server_key, server_key_len) != 0)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                       "Failed to add server id to reply message");
+          free(server_key);
+          return NULL;
+        }
+      free(server_key);
+      server_key = NULL;
+      server_key_len = 0;
+
+      return reply;
+      break;
+
+    case TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE:
+    default:
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-		   "Malformed request (missing key)");
+                   "Unhandled request type (%d)", req_type);
       return NULL;
+      break;
     }
-
-  if(zmsg_append(reply, &frame) != 0)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-		   "Could not append key frame to reply\n");
-      return NULL;
-    }
-
-  /* TODO: actually parse the request and lookup the metadata */
-  /* ... we should be given a libtimeseries instance to use for lookups */
-
-  return reply;
 }
 
 static int run_server(tsmq_md_server_t *server)
@@ -482,4 +511,22 @@ void tsmq_md_server_set_reconnect_interval_max(tsmq_md_server_t *server,
   assert(server != NULL);
 
   server->reconnect_interval_max = reconnect_interval_max;
+}
+
+/* ========== Callback setter functions ========== */
+
+void tsmq_md_server_set_cb_key_lookup(tsmq_md_server_t *server,
+                                      tsmq_md_server_cb_key_lookup_t *cb)
+{
+  assert(server != NULL);
+
+  server->callbacks.key_lookup = cb;
+}
+
+void tsmq_md_server_set_cb_userdata(tsmq_md_server_t *server,
+                                    void *user)
+{
+  assert(server != NULL);
+
+  server->callbacks.user = user;
 }

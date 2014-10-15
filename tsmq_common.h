@@ -130,6 +130,9 @@ typedef enum {
   /** malloc error */
   TSMQ_ERR_MALLOC       = -6,
 
+  /** callback error */
+  TSMQ_ERR_CALLBACK     = -7,
+
 } tsmq_err_code_t;
 
 /** @} */
