@@ -161,7 +161,7 @@ int main(int argc, char **argv)
           tsmq_md_client_perr(client);
           return -1;
         }
-      tsmq_md_client_key_free(response);
+      tsmq_md_client_key_free(&response);
     }
 
   fprintf(stdout, "Key lookup successful for %d keys (%s)\n",
