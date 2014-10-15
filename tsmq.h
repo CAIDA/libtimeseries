@@ -384,9 +384,9 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
 
 /** Free a key info structure
  *
- * @param key           pointer to the key info structure to free
+ * @param key           double pointer to the key info structure to free
  */
-void tsmq_md_client_key_free(tsmq_md_client_key_t *key);
+void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p);
 
 /** Publish the error API for the metadata client */
 TSMQ_ERR_PROTOS(md_client)

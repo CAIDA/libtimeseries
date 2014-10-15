@@ -59,8 +59,11 @@ static int broker_connect(tsmq_md_client_t *client)
 /* but they *will* own the returned msg */
 static zmsg_t *execute_request(tsmq_md_client_t *client,
 			       tsmq_request_msg_type_t type,
-			       zmsg_t *request_body)
+			       zmsg_t **request_body_p)
 {
+  zmsg_t *request_body = *request_body_p;
+  *request_body_p = NULL;
+
   int retries_remaining = client->request_retries;
 
   zmsg_t *req_cpy;
@@ -88,7 +91,7 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 	{
 	  tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		       "Could not add request type to message");
-	  return NULL;
+          goto err;
 	}
 
       /* now prepend the sequence number */
@@ -97,7 +100,7 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 	{
 	  tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		       "Could not add sequence number to message");
-	  return NULL;
+          goto err;
 	}
 
       /* create a copy of the message in case we need to resend */
@@ -105,7 +108,7 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 	{
 	  tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		       "Could not duplicate request message");
-	  return NULL;
+          goto err;
 	}
 
       /* now fire off the request and wait for a reply */
@@ -113,7 +116,7 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 	{
 	  tsmq_set_err(client->tsmq, errno,
 		       "Could not send request to broker");
-	  return NULL;
+          goto err;
 	}
 
       while(expect_reply != 0)
@@ -145,8 +148,7 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 		{
 		  tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
 			       "Missing sequence number in reply");
-		  zmsg_destroy(&msg);
-		  return NULL;
+                  goto err;
 		}
 
 	      /* check the sequence number against what we have */
@@ -156,6 +158,7 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 			       "Invalid sequence number received."
 			       " Got %"PRIu64", expecting %"PRIu64,
 			       seq, client->sequence_num);
+                  goto err;
 		  zframe_destroy(&frame);
 		  zmsg_destroy(&msg);
 		  return NULL;
@@ -169,8 +172,8 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 			       "Invalid request type in response."
 			       " Got %d, expecting %d",
 			       rtype, type);
-		  zmsg_destroy(&msg);
-		  return NULL;
+                  goto err;
+
 		}
 
 	      /* call this an acceptable response */
@@ -183,7 +186,7 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 	      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
 			   "No response received after %d retries.",
 			   client->request_retries);
-	      return NULL;
+              goto err;
 	    }
 	  else
 	    {
@@ -195,14 +198,14 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 		{
 		  tsmq_set_err(client->tsmq, TSMQ_ERR_START_FAILED,
 			       "Failed to connect to broker");
-		  return NULL;
+                  goto err;
 		}
 	      /* create a copy of the message in case we need to resend */
 	      if((req_cpy = zmsg_dup(request_body)) == NULL)
 		{
 		  tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 			       "Could not duplicate request message");
-		  return NULL;
+                  goto err;
 		}
 
 	      fprintf(stderr, "DEBUG: Re-sending request to broker\n");
@@ -211,15 +214,25 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 		{
 		  tsmq_set_err(client->tsmq, errno,
 			       "Could not send request to broker");
-		  return NULL;
+                  goto err;
 		}
 	    }
 	}
     }
+
+  zframe_destroy(&frame);
+  zmsg_destroy(&msg);
+  return NULL;
+
+ err:
+  zframe_destroy(&frame);
+  zmsg_destroy(&msg);
   return NULL;
 
  interrupt:
   /* we were interrupted */
+  zframe_destroy(&frame);
+  zmsg_destroy(&msg);
   tsmq_set_err(client->tsmq, TSMQ_ERR_INTERRUPT, "Caught SIGINT");
   return NULL;
 }
@@ -262,9 +275,9 @@ int tsmq_md_client_start(tsmq_md_client_t *client)
 tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
 						const uint8_t *key, size_t len)
 {
-  zmsg_t *msg;
-  zframe_t*frame;
-  tsmq_md_client_key_t *response;
+  zmsg_t *msg = NULL;
+  zframe_t*frame = NULL;
+  tsmq_md_client_key_t *response = NULL;
 
   if((msg = zmsg_new()) == NULL)
     {
@@ -285,7 +298,7 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
   /* now hand our message to the execute_request function which will return us a
      message with the response from the appropriate server */
   if((msg =
-      execute_request(client, TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP, msg)) == NULL)
+      execute_request(client, TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP, &msg)) == NULL)
     {
       /* err will already be set */
       return NULL;
@@ -296,7 +309,7 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		   "Failed to malloc key response");
-      zmsg_destroy(&msg);
+      goto err;
     }
 
   /* decode the message into a new tsmq_md_client_key_t message */
@@ -305,9 +318,7 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
 		   "Malformed request response (missing server id)");
-      free(response);
-      zmsg_destroy(&msg);
-      return NULL;
+      goto err;
     }
 
   response->server_id_len = zframe_size(frame);
@@ -315,10 +326,7 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		   "Failed to malloc server id");
-      tsmq_md_client_key_free(response);
-      zframe_destroy(&frame);
-      zmsg_destroy(&msg);
-      return NULL;
+      goto err;
     }
   memcpy(response->server_id, zframe_data(frame), response->server_id_len);
   zframe_destroy(&frame);
@@ -328,9 +336,7 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
 		   "Malformed request response (missing key id)");
-      tsmq_md_client_key_free(response);
-      zmsg_destroy(&msg);
-      return NULL;
+      goto err;
     }
 
   response->server_key_id_len = zframe_size(frame);
@@ -338,42 +344,43 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		   "Failed to malloc server key id");
-      tsmq_md_client_key_free(response);
-      zframe_destroy(&frame);
-      zmsg_destroy(&msg);
-      return NULL;
+      goto err;
     }
   memcpy(response->server_key_id, zframe_data(frame),
 	 response->server_key_id_len);
-  zframe_destroy(&frame);
 
+  zframe_destroy(&frame);
   zmsg_destroy(&msg);
 
   return response;
+
+ err:
+  tsmq_md_client_key_free(&response);
+  zframe_destroy(&frame);
+  zmsg_destroy(&msg);
+  return NULL;
 }
 
-void tsmq_md_client_key_free(tsmq_md_client_key_t *key)
+void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p)
 {
+  tsmq_md_client_key_t *key = *key_p;
+
   if(key == NULL)
     {
       return;
     }
 
-  if(key->server_id != NULL)
-    {
-      free(key->server_id);
-      key->server_id = NULL;
-    }
+  free(key->server_id);
+  key->server_id = NULL;
   key->server_id_len = 0;
 
-  if(key->server_key_id != NULL)
-    {
-      free(key->server_key_id);
-      key->server_key_id = NULL;
-    }
+  free(key->server_key_id);
+  key->server_key_id = NULL;
   key->server_key_id_len = 0;
 
   free(key);
+
+  *key_p = NULL;
 }
 
 void tsmq_md_client_free(tsmq_md_client_t *client)
