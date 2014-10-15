@@ -32,40 +32,103 @@
 
 /** @file
  *
- * @brief Header file that contains the private components of tsmq.
+ * @brief Header file that contains the public components of the tsmq metadata
+ * broker
  *
  * @author Alistair King
  *
  */
 
-struct tsmq_md_broker {
-  /** Common tsmq state */
-  tsmq_t *tsmq;
+/**
+ * @name Public Constants
+ *
+ * @{ */
 
-  /** URI to listen for clients on */
-  char *client_uri;
+/** Default URI for the broker to listen for client requests on */
+#define TSMQ_MD_BROKER_CLIENT_URI_DEFAULT "tcp://*:7300"
 
-  /** Socket to bind to for client connections */
-  void *client_socket;
+/** Default URI for the broker to listen for server connections on */
+#define TSMQ_MD_BROKER_SERVER_URI_DEFAULT "tcp://*:7400"
 
-  /** URI to listen for servers on */
-  char *server_uri;
+/** @} */
 
-  /** Socket to bind to for client connections */
-  void *server_socket;
+/**
+ * @name Public Opaque Data Structures
+ *
+ * @{ */
 
-  /** List of servers that are connected */
-  zlist_t *servers;
+/** tsmq metadata broker */
+typedef struct tsmq_md_broker tsmq_md_broker_t;
 
-  /** Time (in ms) between heartbeats sent to servers */
-  uint64_t heartbeat_interval;
+/** @} */
 
-  /** Time (in ms) to send the next heartbeat to servers */
-  uint64_t heartbeat_next;
+/**
+ * @name Public Metadata Broker API
+ *
+ * @{ */
 
-  /** The number of heartbeats that can go by before a server is declared
-      dead */
-  int heartbeat_liveness;
-};
+/** Initialize a new instance of a tsmq metadata broker
+ *
+ * @return a pointer to a tsmq md broker structure if successful, NULL if an
+ * error occurred
+ */
+tsmq_md_broker_t *tsmq_md_broker_init();
+
+/** Start a given tsmq metadata broker
+ *
+ * @param broker        pointer to the broker instance to start
+ * @return 0 if the broker was started successfully, -1 otherwise
+ */
+int tsmq_md_broker_start(tsmq_md_broker_t *broker);
+
+/** Free a tsmq md broker instance
+ *
+ * @param broker        pointer to a tsmq md broker instance to free
+ */
+void tsmq_md_broker_free(tsmq_md_broker_t *broker);
+
+/** Set the URI for the broker to listen for client connections on
+ *
+ * @param server        pointer to a tsmq md broker instance to update
+ * @param uri           pointer to a uri string
+ *
+ * @note defaults to TSMQ_MD_BROKER_CLIENT_URI_DEFAULT
+ */
+void tsmq_md_broker_set_client_uri(tsmq_md_broker_t *broker, const char *uri);
+
+/** Set the URI for the broker to listen for server connections on
+ *
+ * @param server        pointer to a tsmq md broker instance to update
+ * @param uri           pointer to a uri string
+ *
+ * @note defaults to TSMQ_MD_BROKER_SERVER_URI_DEFAULT
+ */
+void tsmq_md_broker_set_server_uri(tsmq_md_broker_t *broker, const char *uri);
+
+/** Set the heartbeat interval
+ *
+ * @param broker        pointer to a tsmq md broker instance to update
+ * @param interval_ms   time in ms between heartbeats
+ *
+ * @note defaults to TSMQ_MD_HEARTBEAT_INTERVAL
+ */
+void tsmq_md_broker_set_heartbeat_interval(tsmq_md_broker_t *broker,
+					   uint64_t interval_ms);
+
+/** Set the heartbeat liveness
+ *
+ * @param broker        pointer to a tsmq md broker instance to update
+ * @param beats         number of heartbeats that can go by before a server is
+ *                      declared dead
+ *
+ * @note defaults to TSMQ_MD_HEARTBEAT_LIVENESS
+ */
+void tsmq_md_broker_set_heartbeat_liveness(tsmq_md_broker_t *broker,
+					   int beats);
+
+/** Publish the error API for the metadata broker */
+TSMQ_ERR_PROTOS(md_broker)
+
+/** @} */
 
 #endif /* __TSMQ_MD_BROKER_H */

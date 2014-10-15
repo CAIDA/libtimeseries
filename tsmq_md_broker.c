@@ -28,8 +28,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "tsmq_int.h"
-#include "tsmq_md_broker.h"
+#include "tsmq_md_broker_int.h"
 
 #include "utils.h"
 

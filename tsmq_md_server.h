@@ -26,52 +26,117 @@
 #ifndef __TSMQ_MD_SERVER_H
 #define __TSMQ_MD_SERVER_H
 
-#include "tsmq_int.h"
-
-#include <czmq.h>
-
 /** @file
  *
- * @brief Header file that contains the private components of the tsmq metadata
+ * @brief Header file that contains the public components of the tsmq metadata
  * server.
  *
  * @author Alistair King
  *
  */
 
-struct tsmq_md_server {
-  /** Common tsmq state */
-  tsmq_t *tsmq;
+/**
+ * @name Public Constants
+ *
+ * @{ */
 
-  /** URI to connect to the broker on */
-  char *broker_uri;
+/** Default URI for the server -> broker connection */
+#define TSMQ_MD_SERVER_BROKER_URI_DEFAULT "tcp://127.0.0.1:7400"
 
-  /** Socket used to connect to the broker */
-  void *broker_socket;
+/** @} */
 
-  /** Time (in ms) between heartbeats sent to the broker */
-  uint64_t heartbeat_interval;
+/**
+ * @name Public Opaque Data Structures
+ *
+ * @{ */
 
-  /** Time (in ms) to send the next heartbeat to broker */
-  uint64_t heartbeat_next;
+/** tsmq metadata server */
+typedef struct tsmq_md_server tsmq_md_server_t;
 
-  /** The number of heartbeats that can go by before the broker is declared
-      dead */
-  int heartbeat_liveness;
+/** @} */
 
-  /** The number of beats before the broker is declared dead */
-  int heartbeat_liveness_remaining;
+/**
+ * @name Public Metadata Server API
+ *
+ * @{ */
 
-  /** The minimum time (in ms) after a broker disconnect before we try to
-      reconnect */
-  uint64_t reconnect_interval_min;
+/** Initialize a new instance of a tsmq metadata server
+ *
+ * @todo add callback structure here
+ * @return a pointer to a tsmq md server structure if successful, NULL if an
+ * error occurred
+ *
+ * @note Currently we will only consider one timeseries backend for writing.  If
+ * more than one is provided, the one with the lowest id will be used. As of the
+ * time of writing this, this would be the ASCII backend.
+ */
+tsmq_md_server_t *tsmq_md_server_init();
 
-  /** The maximum time (in ms) after a broker disconnect before we try to
-      reconnect (after exponential back-off) */
-  uint64_t reconnect_interval_max;
+/** Start a given tsmq metadata server
+ *
+ * @param server        pointer to the server instance to start
+ * @return 0 if the server was started successfully, -1 otherwise
+ */
+int tsmq_md_server_start(tsmq_md_server_t *server);
 
-  /** The time before we will next attempt to reconnect */
-  uint64_t reconnect_interval_next;
-};
+/** Free a tsmq md server instance
+ *
+ * @param server        pointer to a tsmq md server instance to free
+ */
+void tsmq_md_server_free(tsmq_md_server_t *server);
+
+/** Set the URI for the server to connect to the broker on
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param uri           pointer to a uri string
+ */
+void tsmq_md_server_set_broker_uri(tsmq_md_server_t *server, const char *uri);
+
+/** Set the heartbeat interval
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param interval_ms   time in ms between heartbeats
+ *
+ * @note defaults to TSMQ_MD_HEARTBEAT_INTERVAL
+ */
+void tsmq_md_server_set_heartbeat_interval(tsmq_md_server_t *server,
+					   uint64_t interval_ms);
+
+/** Set the heartbeat liveness
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param beats         number of heartbeats that can go by before a server is
+ *                      declared dead
+ *
+ * @note defaults to TSMQ_MD_HEARTBEAT_LIVENESS
+ */
+void tsmq_md_server_set_heartbeat_liveness(tsmq_md_server_t *server,
+					   int beats);
+
+/** Set the minimum reconnect time
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param time          min time in ms to wait before reconnecting to broker
+ *
+ * @note defaults to TSMQ_MD_RECONNECT_INTERVAL_MIN
+ */
+void tsmq_md_server_set_reconnect_interval_min(tsmq_md_server_t *server,
+					       uint64_t reconnect_interval_min);
+
+/** Set the maximum reconnect time
+ *
+ * @param server        pointer to a tsmq md server instance to update
+ * @param time          max time in ms to wait before reconnecting to broker
+ *
+ * @note defaults to TSMQ_MD_RECONNECT_INTERVAL_MAX
+ */
+void tsmq_md_server_set_reconnect_interval_max(tsmq_md_server_t *server,
+					       uint64_t reconnect_interval_max);
+
+/** Publish the error API for the metadata server */
+TSMQ_ERR_PROTOS(md_server)
+
+/** @} */
+
 
 #endif /* __TSMQ_MD_SERVER_H */

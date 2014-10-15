@@ -29,8 +29,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "tsmq_int.h"
-#include "tsmq_md_server.h"
+#include "tsmq_md_server_int.h"
 
 #include "utils.h"
 
