@@ -47,6 +47,14 @@ static size_t handle_key_lookup(tsmq_md_server_t *server,
   return timeseries_resolve_key(backend, key, server_key);
 }
 
+static int handle_set_single(tsmq_md_server_t *server,
+                             uint8_t *id, size_t id_len,
+                             tsmq_val_t value, tsmq_time_t time,
+                             void *user)
+{
+  return timeseries_set_single_by_id(backend, id, id_len, value, time);
+}
+
 static void backend_usage()
 {
   assert(timeseries != NULL);
@@ -264,6 +272,8 @@ int main(int argc, char **argv)
   tsmq_md_server_set_reconnect_interval_max(server, reconnect_interval_max);
 
   tsmq_md_server_set_cb_key_lookup(server, handle_key_lookup);
+
+  tsmq_md_server_set_cb_set_single(server, handle_set_single);
 
   /* do work */
   /* this function will block until the broker shuts down */

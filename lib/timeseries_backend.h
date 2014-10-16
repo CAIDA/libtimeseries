@@ -69,6 +69,11 @@
 						 const char *key,	\
 						 uint64_t value,	\
 						 uint32_t time);        \
+  int timeseries_backend_##provname##_set_single_by_id(timeseries_backend_t *backend, \
+                                                       uint8_t *id,     \
+                                                       size_t id_len,   \
+                                                       uint64_t value,  \
+                                                       uint32_t time);  \
   size_t timeseries_backend_##provname##_resolve_key(timeseries_backend_t *backend, \
                                                      const char *key,   \
                                                      uint8_t **backend_key);
@@ -84,6 +89,7 @@
     timeseries_backend_##provname##_kp_update,          \
     timeseries_backend_##provname##_kp_flush,		\
     timeseries_backend_##provname##_set_single,		\
+    timeseries_backend_##provname##_set_single_by_id,   \
     timeseries_backend_##provname##_resolve_key,        \
     0, NULL
 
@@ -192,12 +198,27 @@ struct timeseries_backend
    * @param key         String key name
    * @param value       Value to set the key to
    * @param time        The time slot to set the key's value for
+   * @return 0 if the value was set successfully, -1 otherwise
    *
-   * @warning this function will perform much worse than using the Key Package
-   * functions above, use with caution
+   * @warning this function may perform much worse than using the Key Package
+   * functions above (or the set_single_by_id function below), use with caution
    */
   int (*set_single)(timeseries_backend_t *backend, const char *key,
 		    uint64_t value, uint32_t time);
+
+  /** Write the value for a single key ID (retrieved using resolve_key) to the
+   * database
+   *
+   * @param backend     Pointer to the backend instance to write to
+   * @param id          Pointer to the backend-specific key ID byte array
+   * @param id_len      Length of the key ID byte array
+   * @param value       Value to set
+   * @param time        The time slot to set the value for
+   * @return 0 if the value was set successfully, -1 otherwise
+   */
+  int (*set_single_by_id)(timeseries_backend_t *backend,
+                          uint8_t *id, size_t id_len,
+                          uint64_t value, uint32_t time);
 
   /** Resolve the given key into a backend-specific opaque ID.
    *

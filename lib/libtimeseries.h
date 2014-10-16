@@ -238,7 +238,7 @@ void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value);
 int timeseries_kp_flush(timeseries_backend_t *backend,
 			timeseries_kp_t *kp, uint32_t time);
 
-/** Write the value for a single key to the DBATS database
+/** Write the value for a single key to given backend
  *
  * @param backend       Pointer to the backend to write value to
  * @param key           String key name
@@ -250,6 +250,20 @@ int timeseries_kp_flush(timeseries_backend_t *backend,
  */
 int timeseries_set_single(timeseries_backend_t *backend, const char *key,
 			  uint64_t value, uint32_t time);
+
+/** Write the value for a single key ID (retrieved using resolve_key) to the
+ *   given backend
+ *
+ * @param backend     Pointer to the backend instance to write to
+ * @param id          Pointer to the backend-specific key ID byte array
+ * @param id_len      Length of the key ID byte array
+ * @param value       Value to set
+ * @param time        The time slot to set the value for
+ * @return 0 if the value was set successfully, -1 otherwise
+ */
+int timeseries_set_single_by_id(timeseries_backend_t *backend,
+                                uint8_t *id, size_t id_len,
+                                uint64_t value, uint32_t time);
 
 /** Resolve the given key into a backend-specific opaque ID.
  *

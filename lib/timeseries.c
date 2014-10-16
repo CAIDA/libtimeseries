@@ -299,6 +299,15 @@ int timeseries_set_single(timeseries_backend_t *backend, const char *key,
   return backend->set_single(backend, key, value, time);
 }
 
+int timeseries_set_single_by_id(timeseries_backend_t *backend,
+                                uint8_t *id, size_t id_len,
+                                uint64_t value, uint32_t time)
+{
+  assert(backend != NULL && backend->enabled != 0);
+
+  return backend->set_single_by_id(backend, id, id_len, value, time);
+}
+
 size_t timeseries_resolve_key(timeseries_backend_t *backend,
                               const char *key,
                               uint8_t **backend_key)

@@ -268,6 +268,14 @@ int timeseries_backend_ascii_set_single(timeseries_backend_t *backend,
   return 0;
 }
 
+int timeseries_backend_ascii_set_single_by_id(timeseries_backend_t *backend,
+                                              uint8_t *id, size_t id_len,
+                                              uint64_t value, uint32_t time)
+{
+  /* the ascii backend ID is just the key, decode and call set single */
+  return timeseries_backend_ascii_set_single(backend, (char*)id, value, time);
+}
+
 size_t timeseries_backend_ascii_resolve_key(timeseries_backend_t *backend,
                                             const char *key,
                                             uint8_t **backend_key)
@@ -276,5 +284,5 @@ size_t timeseries_backend_ascii_resolve_key(timeseries_backend_t *backend,
     {
       return 0;
     }
-  return strlen(key);
+  return strlen(key)+1;
 }
