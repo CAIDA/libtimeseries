@@ -40,6 +40,13 @@
 timeseries_t *timeseries = NULL;
 timeseries_backend_t *backend = NULL;
 
+static size_t handle_key_lookup(tsmq_md_server_t *server,
+                                char *key, uint8_t **server_key,
+                                void *user)
+{
+  return timeseries_resolve_key(backend, key, server_key);
+}
+
 static void backend_usage()
 {
   assert(timeseries != NULL);
@@ -255,6 +262,8 @@ int main(int argc, char **argv)
   tsmq_md_server_set_reconnect_interval_min(server, reconnect_interval_min);
 
   tsmq_md_server_set_reconnect_interval_max(server, reconnect_interval_max);
+
+  tsmq_md_server_set_cb_key_lookup(server, handle_key_lookup);
 
   /* do work */
   /* this function will block until the broker shuts down */

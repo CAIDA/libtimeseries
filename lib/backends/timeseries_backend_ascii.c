@@ -269,3 +269,14 @@ int timeseries_backend_ascii_set_single(timeseries_backend_t *backend,
   DUMP_METRIC(state, key, value, time_buffer);
   return 0;
 }
+
+size_t timeseries_backend_ascii_resolve_key(timeseries_backend_t *backend,
+                                            const char *key,
+                                            uint8_t **backend_key)
+{
+  if((*backend_key = (uint8_t*)strdup(key)) == NULL)
+    {
+      return 0;
+    }
+  return strlen(key);
+}

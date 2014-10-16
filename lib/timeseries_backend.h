@@ -68,7 +68,10 @@
   int timeseries_backend_##provname##_set_single(timeseries_backend_t *backend,	\
 						 const char *key,	\
 						 uint64_t value,	\
-						 uint32_t time);
+						 uint32_t time);        \
+  size_t timeseries_backend_##provname##_resolve_key(timeseries_backend_t *backend, \
+                                                     const char *key,   \
+                                                     uint8_t **backend_key);
 
 /** Convenience macro that defines all the function pointers for the timeseries
  * backend API
@@ -81,6 +84,7 @@
     timeseries_backend_##provname##_kp_update,          \
     timeseries_backend_##provname##_kp_flush,		\
     timeseries_backend_##provname##_set_single,		\
+    timeseries_backend_##provname##_resolve_key,        \
     0, NULL
 
 /** Structure which represents a metadata backend */
@@ -194,6 +198,20 @@ struct timeseries_backend
    */
   int (*set_single)(timeseries_backend_t *backend, const char *key,
 		    uint64_t value, uint32_t time);
+
+  /** Resolve the given key into a backend-specific opaque ID.
+   *
+   * @param backend           Pointer to the backend to resolve the key for
+   * @param key               String key name
+   * @param backend_key[out]  Set to a pointer to a byte array containing the
+   *                            backend key (memory owned by the caller)
+   * @return the number of bytes in the returned key, 0 if an error occurred
+   *
+   * @note if no key exists, the backend should dynamically create it and return
+   * the id.
+   */
+  size_t (*resolve_key)(timeseries_backend_t *backend, const char *key,
+                        uint8_t **backend_key);
 
   /** }@ */
 
