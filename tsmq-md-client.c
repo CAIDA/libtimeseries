@@ -148,36 +148,31 @@ int main(int argc, char **argv)
   /* debug !! */
   char *key = "a.test.key";
   tsmq_md_client_key_t *response;
-#if 0
   uint64_t value = 123456;
   uint32_t time = 1404174060;
-#endif
 
-  fprintf(stdout, "Running lookup/set on %d keys (%s)\n", key_cnt, key);
+  fprintf(stderr, "Looking up backend ID for %s... ", key);
+  if((response =
+      tsmq_md_client_key_lookup(client, key)) == NULL)
+    {
+      tsmq_md_client_perr(client);
+      goto err;
+    }
+  fprintf(stderr, "done\n");
 
+  fprintf(stderr, "Running set on %d keys (%s)... ", key_cnt, key);
   for(i=0; i<key_cnt; i++)
     {
-      if((response =
-          tsmq_md_client_key_lookup(client, key)) == NULL)
-        {
-          tsmq_md_client_perr(client);
-          goto err;
-        }
-
-#if 0
       if(tsmq_md_client_key_set_single(client, response, value, time) != 0)
         {
           tsmq_md_client_perr(client);
           goto err;
         }
-#endif
-
-      tsmq_md_client_key_free(&response);
     }
-
-  fprintf(stdout, "Lookup/set successful for %d keys (%s)\n", key_cnt, key);
+  fprintf(stderr, "done \n");
 
   /* cleanup */
+  tsmq_md_client_key_free(&response);
   tsmq_md_client_free(&client);
 
   /* complete successfully */
