@@ -147,6 +147,64 @@ static zmsg_t *handle_key_lookup(tsmq_md_server_t *server,
   return reply;
 }
 
+static zmsg_t *handle_set_single(tsmq_md_server_t *server,
+                                 zmsg_t *msg, zmsg_t *reply)
+{
+  zframe_t *frame = NULL;
+  tsmq_val_t value;
+  tsmq_time_t time;
+
+  /* get the time from the message */
+  if((frame = zmsg_pop(msg)) == NULL ||
+     zframe_size(frame) != sizeof(tsmq_time_t))
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed set single request (invalid time)");
+      goto err;
+    }
+  memcpy(&time, zframe_data(frame), sizeof(tsmq_time_t));
+  zframe_destroy(&frame);
+
+  /* get the value from the message */
+  if((frame = zmsg_pop(msg)) == NULL ||
+     zframe_size(frame) != sizeof(tsmq_val_t))
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed set single request (invalid value)");
+      goto err;
+    }
+  memcpy(&value, zframe_data(frame), sizeof(tsmq_val_t));
+  zframe_destroy(&frame);
+
+  /* grab the key from the message */
+  if((frame = zmsg_pop(msg)) == NULL)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed request (missing key id)");
+      goto err;
+    }
+
+  /* maybe call the lookup function */
+  if(server->callbacks.set_single != NULL &&
+     server->callbacks.set_single(server,
+                                  zframe_data(frame), zframe_size(frame),
+                                  value, time,
+                                  server->callbacks.user) != 0)
+    {
+      /* callback failed */
+      tsmq_set_err(server->tsmq, TSMQ_ERR_CALLBACK,
+                   "set single callback failed\n");
+      goto err;
+    }
+
+  zframe_destroy(&frame);
+  return reply;
+
+ err:
+  zframe_destroy(&frame);
+  return NULL;
+}
+
 /** Parse the given message for a request type and then do the right thing.
  *
  * @param server        pointer to a tsmq md server instance
@@ -184,6 +242,9 @@ static zmsg_t *handle_request(tsmq_md_server_t *server,
       break;
 
     case TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE:
+      return handle_set_single(server, msg, reply);
+      break;
+
     default:
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
                    "Unhandled request type (%d)", req_type);
@@ -527,6 +588,14 @@ void tsmq_md_server_set_cb_key_lookup(tsmq_md_server_t *server,
   assert(server != NULL);
 
   server->callbacks.key_lookup = cb;
+}
+
+void tsmq_md_server_set_cb_set_single(tsmq_md_server_t *server,
+                                      tsmq_md_server_cb_set_single_t *cb)
+{
+  assert(server != NULL);
+
+  server->callbacks.set_single = cb;
 }
 
 void tsmq_md_server_set_cb_userdata(tsmq_md_server_t *server,

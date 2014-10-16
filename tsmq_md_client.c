@@ -474,6 +474,22 @@ int tsmq_md_client_key_set_single(tsmq_md_client_t *client,
       goto err;
     }
 
+  /* add the value */
+  if(zmsg_addmem(msg, &value, sizeof(tsmq_val_t)) != 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+		   "Failed to add value to message");
+      goto err;
+    }
+
+  /* add the key */
+  if(zmsg_addmem(msg, key->server_key_id, key->server_key_id_len) != 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+		   "Failed to add key id to message");
+      goto err;
+    }
+
   /*fprintf(stderr, "DEBUG: Sending request!\n");*/
   if((msg = execute_request(client,
                             TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE,

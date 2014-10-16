@@ -41,6 +41,8 @@ typedef struct tsmq_md_server_callbacks {
 
   tsmq_md_server_cb_key_lookup_t *key_lookup;
 
+  tsmq_md_server_cb_set_single_t *set_single;
+
   /** @todo add other callback funcs here */
 
   /** pointer to user-provided data */

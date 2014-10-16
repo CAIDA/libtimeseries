@@ -72,6 +72,21 @@ typedef size_t (tsmq_md_server_cb_key_lookup_t)(tsmq_md_server_t *server,
                                                 uint8_t **server_key,
                                                 void *user);
 
+/** Uses the timeseries API to set the value for the given backend-specific ID
+ *
+ * @param server          pointer to the server instance that received the request
+ * @param id              pointer to a backend-specific byte array
+ * @param id_len          length of the ID byte array
+ * @param value           value to set
+ * @param time            time for which to set the value for
+ * @return 0 if the value was successfully set, -1 otherwise
+*/
+typedef int (tsmq_md_server_cb_set_single_t)(tsmq_md_server_t *server,
+                                             uint8_t *id, size_t id_len,
+                                             tsmq_val_t value,
+                                             tsmq_time_t time,
+                                             void *user);
+
 /** Register a function to be called to handle key lookups
  *
  * @param client        pointer to a client instance to set callback for
@@ -79,6 +94,14 @@ typedef size_t (tsmq_md_server_cb_key_lookup_t)(tsmq_md_server_t *server,
  */
 void tsmq_md_server_set_cb_key_lookup(tsmq_md_server_t *server,
                                       tsmq_md_server_cb_key_lookup_t *cb);
+
+/** Register a function to be called to handle insertion of single key/value
+ *
+ * @param client        pointer to a client instance to set callback for
+ * @param cb            pointer to a set_single callback function
+ */
+void tsmq_md_server_set_cb_set_single(tsmq_md_server_t *server,
+                                      tsmq_md_server_cb_set_single_t *cb);
 
 /** Set the user data that will provided to each callback function */
 void tsmq_md_server_set_cb_userdata(tsmq_md_server_t *server,
