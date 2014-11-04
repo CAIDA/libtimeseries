@@ -102,10 +102,10 @@ int main(int argc, char **argv)
 
 	case '?':
 	case 'v':
-	  fprintf(stderr, "tsmq version %d.%d.%d\n",
-		  TSMQ_MAJOR_VERSION,
-		  TSMQ_MID_VERSION,
-		  TSMQ_MINOR_VERSION);
+	  fprintf(stderr, "libtimeseries version %d.%d.%d\n",
+		  LIBTIMESERIES_MAJOR_VERSION,
+		  LIBTIMESERIES_MID_VERSION,
+		  LIBTIMESERIES_MINOR_VERSION);
 	  usage(argv[0]);
 	  return 0;
 	  break;

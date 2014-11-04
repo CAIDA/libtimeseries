@@ -22,6 +22,8 @@ TAGS
 # Compiled programs
 *.tar.gz
 ChangeLog
+tools/tsmq-md-client
+tools/tsmq-md-broker
 tools/tsmq-md-server
 
 # Autotools files

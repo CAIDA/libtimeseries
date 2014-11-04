@@ -24,8 +24,9 @@
 
 SUBDIRS = backends
 
-AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common 	\
-	-I$(top_srcdir)/lib/backends
+AM_CPPFLAGS = 	-I$(top_srcdir) 	\
+		-I$(top_srcdir)/common 	\
+		-I$(top_srcdir)/lib/backends
 
 lib_LTLIBRARIES = libtimeseries.la
 
@@ -39,7 +40,8 @@ libtimeseries_la_SOURCES = 		\
 	timeseries_backend.c		\
 	timeseries_backend.h
 
-libtimeseries_la_LIBADD = $(top_builddir)/common/libcccommon.la \
+libtimeseries_la_LIBADD = 			\
+	$(top_builddir)/common/libcccommon.la 	\
 	$(top_builddir)/lib/backends/libtimeseries_backends.la
 
 libtimeseries_la_LDFLAGS = -version-info @LIBTIMESERIES_MAJOR_VERSION@:@LIBTIMESERIES_MID_VERSION@:@LIBTIMESERIES_MINOR_VERSION@

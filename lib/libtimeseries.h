@@ -74,15 +74,18 @@ typedef enum timeseries_backend_id
   {
     /** Writes timeseries metrics out in ASCII format (either to stdout or to
 	file) */
-    TIMESERIES_BACKEND_ID_ASCII      =  1,
+    TIMESERIES_BACKEND_ID_ASCII      = 1,
 
     /** Write timeseries metrics into a DBATS database */
-    TIMESERIES_BACKEND_ID_DBATS      =  2,
+    TIMESERIES_BACKEND_ID_DBATS      = 2,
+
+    /** Write timeseries metrics to a remote libtimeseries database */
+    TIMESERIES_BACKEND_ID_TSMQ       = 3,
 
     /** Lowest numbered timeseries backend ID */
     TIMESERIES_BACKEND_ID_FIRST      = TIMESERIES_BACKEND_ID_ASCII,
     /** Highest numbered timeseries backend ID */
-    TIMESERIES_BACKEND_ID_LAST       = TIMESERIES_BACKEND_ID_DBATS,
+    TIMESERIES_BACKEND_ID_LAST       = TIMESERIES_BACKEND_ID_TSMQ,
 
   } timeseries_backend_id_t;
 

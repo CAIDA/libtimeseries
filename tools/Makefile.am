@@ -22,17 +22,23 @@
 # along with libtimeseries.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common -I$(top_srcdir)/lib \
-	-I$(top_srcdir)/lib/backends
+AM_CPPFLAGS = 	-I$(top_srcdir) 	\
+		-I$(top_srcdir)/common 	\
+		-I$(top_srcdir)/lib 	\
+		-I$(top_srcdir)/lib/backends
 
 dist_bin_SCRIPTS =
 
-bin_PROGRAMS = timeseries-insert tsmq-md-broker tsmq-md-client
+bin_PROGRAMS = timeseries-insert
 
 timeseries_insert_SOURCES = \
 	timeseries-insert.c
 timeseries_insert_LDADD = -ltimeseries
 timeseries_insert_LDFLAGS = -L$(top_builddir)/lib
+
+if WITH_TSMQ
+AM_CPPFLAGS += -I$(top_srcdir)/lib/backends/libtsmq
+bin_PROGRAMS += tsmq-md-server tsmq-md-broker tsmq-md-client
 
 tsmq_md_broker_SOURCES = \
 	tsmq-md-broker.c
@@ -43,9 +49,6 @@ tsmq_md_client_SOURCES = \
 	tsmq-md-client.c
 tsmq_md_client_LDADD = -ltimeseries
 tsmq_md_client_LDFLAGS = -L$(top_builddir)/lib
-
-if WITH_TSMQ
-bin_PROGRAMS += tsmq-md-server
 
 tsmq_md_server_SOURCES = \
 	tsmq-md-server.c

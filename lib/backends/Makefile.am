@@ -24,24 +24,42 @@
 
 SUBDIRS =
 
-AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common \
-	-I$(top_srcdir)/lib
+AM_CPPFLAGS = 	-I$(top_srcdir)		\
+		-I$(top_srcdir)/common 	\
+		-I$(top_srcdir)/lib
 
 noinst_LTLIBRARIES = libtimeseries_backends.la
 
 include_HEADERS =
 
-libtimeseries_backends_la_SOURCES = \
+BACKEND_SRCS=
+BACKEND_LIBS=
+
+# ASCII Backend
+BACKEND_SRCS += \
 	timeseries_backend_ascii.c \
 	timeseries_backend_ascii.h
 
+# DBATS Backend
 if WITH_DBATS
-libtimeseries_backends_la_SOURCES += \
+BACKEND_SRCS += \
 	timeseries_backend_dbats.c \
 	timeseries_backend_dbats.h
 endif
 
-libtimeseries_backends_la_LIBADD =
+# TSMQ Backend
+if WITH_TSMQ
+SUBDIRS += libtsmq
+AM_CPPFLAGS += -I$(top_srcdir)/lib/backends/libtsmq
+BACKEND_SRCS += \
+	timeseries_backend_tsmq.c \
+	timeseries_backend_tsmq.h
+BACKEND_LIBS += $(top_builddir)/lib/backends/libtsmq/libtsmq.la
+endif
+
+libtimeseries_backends_la_SOURCES = $(BACKEND_SRCS)
+
+libtimeseries_backends_la_LIBADD = $(BACKEND_LIBS)
 
 ACLOCAL_AMFLAGS = -I m4
 
