@@ -31,7 +31,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <tsmq.h>
+#include <tsmq_server.h>
 
 #include <libtimeseries.h>
 
@@ -40,14 +40,14 @@
 timeseries_t *timeseries = NULL;
 timeseries_backend_t *backend = NULL;
 
-static size_t handle_key_lookup(tsmq_md_server_t *server,
+static size_t handle_key_lookup(tsmq_server_t *server,
                                 char *key, uint8_t **server_key,
                                 void *user)
 {
   return timeseries_resolve_key(backend, key, server_key);
 }
 
-static int handle_set_single(tsmq_md_server_t *server,
+static int handle_set_single(tsmq_server_t *server,
                              uint8_t *id, size_t id_len,
                              tsmq_val_t value, tsmq_time_t time,
                              void *user)
@@ -98,11 +98,11 @@ static void usage(const char *name)
 	  "                          (default: %d)\n"
 	  "       -t <ts-backend>    Timeseries backend to use for writing\n",
 	  name,
-	  TSMQ_MD_SERVER_BROKER_URI_DEFAULT,
-	  TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT,
-	  TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT,
-	  TSMQ_MD_RECONNECT_INTERVAL_MIN,
-	  TSMQ_MD_RECONNECT_INTERVAL_MAX);
+	  TSMQ_SERVER_BROKER_URI_DEFAULT,
+	  TSMQ_HEARTBEAT_INTERVAL_DEFAULT,
+	  TSMQ_HEARTBEAT_LIVENESS_DEFAULT,
+	  TSMQ_RECONNECT_INTERVAL_MIN,
+	  TSMQ_RECONNECT_INTERVAL_MAX);
   backend_usage();
 }
 
@@ -162,12 +162,12 @@ int main(int argc, char **argv)
   const char *broker_uri = NULL;
   const char *ts_backend = NULL;
 
-  uint64_t heartbeat_interval = TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT;
-  int heartbeat_liveness      = TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT;
-  uint64_t reconnect_interval_min = TSMQ_MD_RECONNECT_INTERVAL_MIN;
-  uint64_t reconnect_interval_max = TSMQ_MD_RECONNECT_INTERVAL_MAX;
+  uint64_t heartbeat_interval = TSMQ_HEARTBEAT_INTERVAL_DEFAULT;
+  int heartbeat_liveness      = TSMQ_HEARTBEAT_LIVENESS_DEFAULT;
+  uint64_t reconnect_interval_min = TSMQ_RECONNECT_INTERVAL_MIN;
+  uint64_t reconnect_interval_max = TSMQ_RECONNECT_INTERVAL_MAX;
 
-  tsmq_md_server_t *server = NULL;
+  tsmq_server_t *server = NULL;
 
   while(prevoptind = optind,
 	(opt = getopt(argc, argv, ":b:i:l:r:R:t:v?")) >= 0)
@@ -251,7 +251,7 @@ int main(int argc, char **argv)
     }
   assert(timeseries != NULL && backend != NULL);
 
-  if((server = tsmq_md_server_init()) == NULL)
+  if((server = tsmq_server_init()) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize tsmq server\n");
       usage(argv[0]);
@@ -260,39 +260,39 @@ int main(int argc, char **argv)
 
   if(broker_uri != NULL)
     {
-      tsmq_md_server_set_broker_uri(server, broker_uri);
+      tsmq_server_set_broker_uri(server, broker_uri);
     }
 
-  tsmq_md_server_set_heartbeat_interval(server, heartbeat_interval);
+  tsmq_server_set_heartbeat_interval(server, heartbeat_interval);
 
-  tsmq_md_server_set_heartbeat_liveness(server, heartbeat_liveness);
+  tsmq_server_set_heartbeat_liveness(server, heartbeat_liveness);
 
-  tsmq_md_server_set_reconnect_interval_min(server, reconnect_interval_min);
+  tsmq_server_set_reconnect_interval_min(server, reconnect_interval_min);
 
-  tsmq_md_server_set_reconnect_interval_max(server, reconnect_interval_max);
+  tsmq_server_set_reconnect_interval_max(server, reconnect_interval_max);
 
-  tsmq_md_server_set_cb_key_lookup(server, handle_key_lookup);
+  tsmq_server_set_cb_key_lookup(server, handle_key_lookup);
 
-  tsmq_md_server_set_cb_set_single(server, handle_set_single);
+  tsmq_server_set_cb_set_single(server, handle_set_single);
 
   /* do work */
   /* this function will block until the broker shuts down */
   /* @todo add a structure of callback functions for the server to call when
      messages are received */
-  tsmq_md_server_start(server);
+  tsmq_server_start(server);
 
   /* this will always be set, normally to a SIGINT-caught message */
-  tsmq_md_server_perr(server);
+  tsmq_server_perr(server);
 
   /* cleanup */
-  tsmq_md_server_free(server);
+  tsmq_server_free(server);
 
   /* complete successfully */
   return 0;
 
  err:
   if(server != NULL) {
-    tsmq_md_server_free(server);
+    tsmq_server_free(server);
   }
   return -1;
 }

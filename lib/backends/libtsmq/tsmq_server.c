@@ -29,19 +29,19 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "tsmq_md_server_int.h"
+#include "tsmq_server_int.h"
 
 #include "utils.h"
 
 #define CTX server->tsmq->ctx
 
-#define DO_CALLBACK(cbfunc, args...)					\
-  do {									\
-    if(server->callbacks.cbfunc != NULL)				\
-      {									\
-	server->callbacks.cbfunc(server, args,                          \
-				 server->callbacks.user);		\
-      }									\
+#define DO_CALLBACK(cbfunc, args...)				\
+  do {								\
+    if(server->callbacks.cbfunc != NULL)			\
+      {								\
+	server->callbacks.cbfunc(server, args,			\
+				 server->callbacks.user);	\
+      }								\
   } while(0)
 
 /* @todo: make this configurable, and generate a sane default. should be
@@ -54,7 +54,7 @@ enum {
   POLL_ITEM_CNT    = 1,
 };
 
-static int server_connect(tsmq_md_server_t *server)
+static int server_connect(tsmq_server_t *server)
 {
   uint8_t msg_type_p;
   zframe_t *frame;
@@ -93,7 +93,7 @@ static int server_connect(tsmq_md_server_t *server)
   return 0;
 }
 
-static zmsg_t *handle_key_lookup(tsmq_md_server_t *server,
+static zmsg_t *handle_key_lookup(tsmq_server_t *server,
                                  zmsg_t *msg, zmsg_t *reply)
 {
   char *key = NULL;
@@ -147,7 +147,7 @@ static zmsg_t *handle_key_lookup(tsmq_md_server_t *server,
   return reply;
 }
 
-static zmsg_t *handle_set_single(tsmq_md_server_t *server,
+static zmsg_t *handle_set_single(tsmq_server_t *server,
                                  zmsg_t *msg, zmsg_t *reply)
 {
   zframe_t *frame = NULL;
@@ -231,7 +231,7 @@ static zmsg_t *handle_set_single(tsmq_md_server_t *server,
  *                             (will be used as prefix for metric routing)
  *         [XX][KEY-ID]    <-- server-unique byte string representing the metric
  */
-static zmsg_t *handle_request(tsmq_md_server_t *server,
+static zmsg_t *handle_request(tsmq_server_t *server,
 			      tsmq_request_msg_type_t req_type,
 			      zmsg_t *msg, zmsg_t *reply)
 {
@@ -253,7 +253,7 @@ static zmsg_t *handle_request(tsmq_md_server_t *server,
     }
 }
 
-static int run_server(tsmq_md_server_t *server)
+static int run_server(tsmq_server_t *server)
 {
   zmq_pollitem_t poll_items[] = {
     {server->broker_socket, 0, ZMQ_POLLIN, 0}, /* POLL_ITEM_BROKER */
@@ -464,12 +464,12 @@ static int run_server(tsmq_md_server_t *server)
 
 /* ---------- PUBLIC FUNCTIONS BELOW HERE ---------- */
 
-TSMQ_ERR_FUNCS(md_server)
+TSMQ_ERR_FUNCS(server)
 
-tsmq_md_server_t *tsmq_md_server_init()
+tsmq_server_t *tsmq_server_init()
 {
-  tsmq_md_server_t *server;
-  if((server = malloc_zero(sizeof(tsmq_md_server_t))) == NULL)
+  tsmq_server_t *server;
+  if((server = malloc_zero(sizeof(tsmq_server_t))) == NULL)
     {
       /* cannot set an err at this point */
       return NULL;
@@ -483,22 +483,22 @@ tsmq_md_server_t *tsmq_md_server_init()
 
   /* now we are ready to set errors... */
 
-  server->broker_uri = strdup(TSMQ_MD_SERVER_BROKER_URI_DEFAULT);
+  server->broker_uri = strdup(TSMQ_SERVER_BROKER_URI_DEFAULT);
 
-  server->heartbeat_interval = TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT;
+  server->heartbeat_interval = TSMQ_HEARTBEAT_INTERVAL_DEFAULT;
 
   server->heartbeat_liveness_remaining = server->heartbeat_liveness =
-    TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT;
+    TSMQ_HEARTBEAT_LIVENESS_DEFAULT;
 
   server->reconnect_interval_next = server->reconnect_interval_min =
-    TSMQ_MD_RECONNECT_INTERVAL_MIN;
+    TSMQ_RECONNECT_INTERVAL_MIN;
 
-  server->reconnect_interval_max = TSMQ_MD_RECONNECT_INTERVAL_MAX;
+  server->reconnect_interval_max = TSMQ_RECONNECT_INTERVAL_MAX;
 
   return server;
 }
 
-int tsmq_md_server_start(tsmq_md_server_t *server)
+int tsmq_server_start(tsmq_server_t *server)
 {
   /* connect to the server */
   if(server_connect(server) != 0)
@@ -518,7 +518,7 @@ int tsmq_md_server_start(tsmq_md_server_t *server)
   return -1;
 }
 
-void tsmq_md_server_free(tsmq_md_server_t *server)
+void tsmq_server_free(tsmq_server_t *server)
 {
   assert(server != NULL);
   assert(server->tsmq != NULL);
@@ -539,7 +539,7 @@ void tsmq_md_server_free(tsmq_md_server_t *server)
   return;
 }
 
-void tsmq_md_server_set_broker_uri(tsmq_md_server_t *server, const char *uri)
+void tsmq_server_set_broker_uri(tsmq_server_t *server, const char *uri)
 {
   assert(server != NULL);
 
@@ -548,32 +548,32 @@ void tsmq_md_server_set_broker_uri(tsmq_md_server_t *server, const char *uri)
   server->broker_uri = strdup(uri);
 }
 
-void tsmq_md_server_set_heartbeat_interval(tsmq_md_server_t *server,
-					   uint64_t interval_ms)
+void tsmq_server_set_heartbeat_interval(tsmq_server_t *server,
+					uint64_t interval_ms)
 {
   assert(server != NULL);
 
   server->heartbeat_interval = interval_ms;
 }
 
-void tsmq_md_server_set_heartbeat_liveness(tsmq_md_server_t *server,
-					   int beats)
+void tsmq_server_set_heartbeat_liveness(tsmq_server_t *server,
+					int beats)
 {
   assert(server != NULL);
 
   server->heartbeat_liveness = beats;
 }
 
-void tsmq_md_server_set_reconnect_interval_min(tsmq_md_server_t *server,
-					       uint64_t reconnect_interval_min)
+void tsmq_server_set_reconnect_interval_min(tsmq_server_t *server,
+					    uint64_t reconnect_interval_min)
 {
   assert(server != NULL);
 
   server->reconnect_interval_min = reconnect_interval_min;
 }
 
-void tsmq_md_server_set_reconnect_interval_max(tsmq_md_server_t *server,
-					       uint64_t reconnect_interval_max)
+void tsmq_server_set_reconnect_interval_max(tsmq_server_t *server,
+					    uint64_t reconnect_interval_max)
 {
   assert(server != NULL);
 
@@ -582,24 +582,24 @@ void tsmq_md_server_set_reconnect_interval_max(tsmq_md_server_t *server,
 
 /* ========== Callback setter functions ========== */
 
-void tsmq_md_server_set_cb_key_lookup(tsmq_md_server_t *server,
-                                      tsmq_md_server_cb_key_lookup_t *cb)
+void tsmq_server_set_cb_key_lookup(tsmq_server_t *server,
+				   tsmq_server_cb_key_lookup_t *cb)
 {
   assert(server != NULL);
 
   server->callbacks.key_lookup = cb;
 }
 
-void tsmq_md_server_set_cb_set_single(tsmq_md_server_t *server,
-                                      tsmq_md_server_cb_set_single_t *cb)
+void tsmq_server_set_cb_set_single(tsmq_server_t *server,
+				   tsmq_server_cb_set_single_t *cb)
 {
   assert(server != NULL);
 
   server->callbacks.set_single = cb;
 }
 
-void tsmq_md_server_set_cb_userdata(tsmq_md_server_t *server,
-                                    void *user)
+void tsmq_server_set_cb_userdata(tsmq_server_t *server,
+				 void *user)
 {
   assert(server != NULL);
 

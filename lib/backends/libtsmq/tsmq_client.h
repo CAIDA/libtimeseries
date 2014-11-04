@@ -23,8 +23,10 @@
  *
  */
 
-#ifndef __TSMQ_MD_CLIENT_H
-#define __TSMQ_MD_CLIENT_H
+#ifndef __TSMQ_CLIENT_H
+#define __TSMQ_CLIENT_H
+
+#include <tsmq_common.h>
 
 /** @file
  *
@@ -41,13 +43,13 @@
  * @{ */
 
 /** Default URI for the client -> broker connection */
-#define TSMQ_MD_CLIENT_BROKER_URI_DEFAULT "tcp://127.0.0.1:7300"
+#define TSMQ_CLIENT_BROKER_URI_DEFAULT "tcp://127.0.0.1:7300"
 
 /** Default the client request timeout to 2.5 seconds */
-#define TSMQ_MD_CLIENT_REQUEST_TIMEOUT 2500
+#define TSMQ_CLIENT_REQUEST_TIMEOUT 2500
 
 /** Default the client request retry count to 3 */
-#define TSMQ_MD_CLIENT_REQUEST_RETRIES 3
+#define TSMQ_CLIENT_REQUEST_RETRIES 3
 
 /** @} */
 
@@ -57,10 +59,10 @@
  * @{ */
 
 /** tsmq metadata client */
-typedef struct tsmq_md_client tsmq_md_client_t;
+typedef struct tsmq_client tsmq_client_t;
 
 /** tsmq metadata key */
-typedef struct tsmq_md_client_key tsmq_md_client_key_t;
+typedef struct tsmq_client_key tsmq_client_key_t;
 
 /** @} */
 
@@ -74,47 +76,47 @@ typedef struct tsmq_md_client_key tsmq_md_client_key_t;
  * @return a pointer to a tsmq md client structure if successful, NULL if an
  * error occurred
  */
-tsmq_md_client_t *tsmq_md_client_init();
+tsmq_client_t *tsmq_client_init();
 
 /** Start a given tsmq metadata client
  *
  * @param client        pointer to the client instance to start
  * @return 0 if the client was started successfully, -1 otherwise
  */
-int tsmq_md_client_start(tsmq_md_client_t *client);
+int tsmq_client_start(tsmq_client_t *client);
 
 /** Free a tsmq md client instance
  *
  * @param client        pointer to a tsmq md client instance to free
  */
-void tsmq_md_client_free(tsmq_md_client_t **client_p);
+void tsmq_client_free(tsmq_client_t **client_p);
 
 /** Set the URI for the client to connect to the broker on
  *
  * @param client        pointer to a tsmq md client instance to update
  * @param uri           pointer to a uri string
  */
-void tsmq_md_client_set_broker_uri(tsmq_md_client_t *client, const char *uri);
+void tsmq_client_set_broker_uri(tsmq_client_t *client, const char *uri);
 
 /** Set the request timeout
  *
  * @param client        pointer to a tsmq md client instance to update
  * @param timeout_ms    time in ms before request is retried
  *
- * @note defaults to TSMQ_MD_CLIENT_REQUEST_TIMEOUT
+ * @note defaults to TSMQ_CLIENT_REQUEST_TIMEOUT
  */
-void tsmq_md_client_set_request_timeout(tsmq_md_client_t *client,
-					uint64_t timeout_ms);
+void tsmq_client_set_request_timeout(tsmq_client_t *client,
+				     uint64_t timeout_ms);
 
 /** Set the number of request retries before a request is abandoned
  *
  * @param client        pointer to a tsmq md client instance to update
  * @param retry_cnt     number of times to retry a request before giving up
  *
- * @note defaults to TSMQ_MD_CLIENT_REQUEST_RETRIES
+ * @note defaults to TSMQ_CLIENT_REQUEST_RETRIES
  */
-void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
-					int retry_cnt);
+void tsmq_client_set_request_retries(tsmq_client_t *client,
+				     int retry_cnt);
 
 /** Given an array of bytes that represent a metric key (probably a string),
  *  issue a request to find the appropriate server and corresponding key id.
@@ -127,14 +129,14 @@ void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
  * requests. The broker will batch write requests into a single write for each
  * backend server based on the backend id in this structure.
  */
-tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
-						const char *key);
+tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
+					  const char *key);
 
 /** Free a key info structure
  *
  * @param key           double pointer to the key info structure to free
  */
-void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p);
+void tsmq_client_key_free(tsmq_client_key_t **key_p);
 
 /** Write the value for a single key to the database(s)
  *
@@ -144,16 +146,16 @@ void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p);
  * @param time          time slot to set value for
  * @return 0 if the command was successfully queued, -1 otherwise
  */
-int tsmq_md_client_key_set_single(tsmq_md_client_t *client,
-                                  tsmq_md_client_key_t *key,
-                                  tsmq_val_t value, tsmq_time_t time);
+int tsmq_client_key_set_single(tsmq_client_t *client,
+			       tsmq_client_key_t *key,
+			       tsmq_val_t value, tsmq_time_t time);
 
 /** Publish the error API for the metadata client */
-TSMQ_ERR_PROTOS(md_client)
+TSMQ_ERR_PROTOS(client)
 
 /** @} */
 
-#endif /* __TSMQ_MD_CLIENT_H */
+#endif /* __TSMQ_CLIENT_H */
 
 
 

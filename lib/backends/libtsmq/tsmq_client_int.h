@@ -23,9 +23,10 @@
  *
  */
 
-#ifndef __TSMQ_MD_CLIENT_INT_H
-#define __TSMQ_MD_CLIENT_INT_H
+#ifndef __TSMQ_CLIENT_INT_H
+#define __TSMQ_CLIENT_INT_H
 
+#include <tsmq_client.h>
 #include "tsmq_int.h"
 
 /** @file
@@ -37,7 +38,7 @@
  *
  */
 
-struct tsmq_md_client {
+struct tsmq_client {
   /** Common tsmq state */
   tsmq_t *tsmq;
 
@@ -61,7 +62,7 @@ struct tsmq_md_client {
  * It contains information about which backend issued the key id to allow for
  * subsequent writes
  */
-struct tsmq_md_client_key {
+struct tsmq_client_key {
   /** Backend server ID */
   uint8_t *server_id;
   /** Length of the server id */
@@ -77,7 +78,7 @@ struct tsmq_md_client_key {
   size_t server_key_id_len;
 };
 
-#endif /* __TSMQ_MD_CLIENT_INT_H */
+#endif /* __TSMQ_CLIENT_INT_H */
 
 
 

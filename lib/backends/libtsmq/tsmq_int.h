@@ -30,8 +30,7 @@
 
 #include "klist.h"
 
-/* always include our public header so that internal users don't need to */
-#include "tsmq.h"
+#include <tsmq_common.h>
 
 /** @file
  *

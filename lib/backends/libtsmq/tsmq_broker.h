@@ -23,8 +23,10 @@
  *
  */
 
-#ifndef __TSMQ_MD_BROKER_H
-#define __TSMQ_MD_BROKER_H
+#ifndef __TSMQ_BROKER_H
+#define __TSMQ_BROKER_H
+
+#include <tsmq_common.h>
 
 /** @file
  *
@@ -41,10 +43,10 @@
  * @{ */
 
 /** Default URI for the broker to listen for client requests on */
-#define TSMQ_MD_BROKER_CLIENT_URI_DEFAULT "tcp://*:7300"
+#define TSMQ_BROKER_CLIENT_URI_DEFAULT "tcp://*:7300"
 
 /** Default URI for the broker to listen for server connections on */
-#define TSMQ_MD_BROKER_SERVER_URI_DEFAULT "tcp://*:7400"
+#define TSMQ_BROKER_SERVER_URI_DEFAULT "tcp://*:7400"
 
 /** @} */
 
@@ -54,7 +56,7 @@
  * @{ */
 
 /** tsmq metadata broker */
-typedef struct tsmq_md_broker tsmq_md_broker_t;
+typedef struct tsmq_broker tsmq_broker_t;
 
 /** @} */
 
@@ -68,48 +70,48 @@ typedef struct tsmq_md_broker tsmq_md_broker_t;
  * @return a pointer to a tsmq md broker structure if successful, NULL if an
  * error occurred
  */
-tsmq_md_broker_t *tsmq_md_broker_init();
+tsmq_broker_t *tsmq_broker_init();
 
 /** Start a given tsmq metadata broker
  *
  * @param broker        pointer to the broker instance to start
  * @return 0 if the broker was started successfully, -1 otherwise
  */
-int tsmq_md_broker_start(tsmq_md_broker_t *broker);
+int tsmq_broker_start(tsmq_broker_t *broker);
 
 /** Free a tsmq md broker instance
  *
  * @param broker        pointer to a tsmq md broker instance to free
  */
-void tsmq_md_broker_free(tsmq_md_broker_t *broker);
+void tsmq_broker_free(tsmq_broker_t *broker);
 
 /** Set the URI for the broker to listen for client connections on
  *
  * @param server        pointer to a tsmq md broker instance to update
  * @param uri           pointer to a uri string
  *
- * @note defaults to TSMQ_MD_BROKER_CLIENT_URI_DEFAULT
+ * @note defaults to TSMQ_BROKER_CLIENT_URI_DEFAULT
  */
-void tsmq_md_broker_set_client_uri(tsmq_md_broker_t *broker, const char *uri);
+void tsmq_broker_set_client_uri(tsmq_broker_t *broker, const char *uri);
 
 /** Set the URI for the broker to listen for server connections on
  *
  * @param server        pointer to a tsmq md broker instance to update
  * @param uri           pointer to a uri string
  *
- * @note defaults to TSMQ_MD_BROKER_SERVER_URI_DEFAULT
+ * @note defaults to TSMQ_BROKER_SERVER_URI_DEFAULT
  */
-void tsmq_md_broker_set_server_uri(tsmq_md_broker_t *broker, const char *uri);
+void tsmq_broker_set_server_uri(tsmq_broker_t *broker, const char *uri);
 
 /** Set the heartbeat interval
  *
  * @param broker        pointer to a tsmq md broker instance to update
  * @param interval_ms   time in ms between heartbeats
  *
- * @note defaults to TSMQ_MD_HEARTBEAT_INTERVAL
+ * @note defaults to TSMQ_HEARTBEAT_INTERVAL
  */
-void tsmq_md_broker_set_heartbeat_interval(tsmq_md_broker_t *broker,
-					   uint64_t interval_ms);
+void tsmq_broker_set_heartbeat_interval(tsmq_broker_t *broker,
+					uint64_t interval_ms);
 
 /** Set the heartbeat liveness
  *
@@ -117,14 +119,14 @@ void tsmq_md_broker_set_heartbeat_interval(tsmq_md_broker_t *broker,
  * @param beats         number of heartbeats that can go by before a server is
  *                      declared dead
  *
- * @note defaults to TSMQ_MD_HEARTBEAT_LIVENESS
+ * @note defaults to TSMQ_HEARTBEAT_LIVENESS
  */
-void tsmq_md_broker_set_heartbeat_liveness(tsmq_md_broker_t *broker,
-					   int beats);
+void tsmq_broker_set_heartbeat_liveness(tsmq_broker_t *broker,
+					int beats);
 
 /** Publish the error API for the metadata broker */
-TSMQ_ERR_PROTOS(md_broker)
+TSMQ_ERR_PROTOS(broker)
 
 /** @} */
 
-#endif /* __TSMQ_MD_BROKER_H */
+#endif /* __TSMQ_BROKER_H */

@@ -28,26 +28,26 @@ AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common
 noinst_LTLIBRARIES = libtsmq.la
 
 include_HEADERS = 		\
-	tsmq.h 			\
 	tsmq_common.h		\
-	tsmq_md_server.h
+	tsmq_broker.h		\
+	tsmq_client.h		\
+	tsmq_server.h
 
 libtsmq_la_SOURCES = 		\
 	tsmq_int.h		\
-	tsmq.h			\
 	tsmq.c			\
 	tsmq_common.h		\
-	tsmq_md_server.c	\
-	tsmq_md_server.h	\
-	tsmq_md_server_int.h	\
-	tsmq_md_broker.c	\
-	tsmq_md_broker.h	\
-	tsmq_md_broker_int.h	\
-	tsmq_md_client.c	\
-	tsmq_md_client.h	\
-	tsmq_md_client_int.h
+	tsmq_server.c	\
+	tsmq_server.h	\
+	tsmq_server_int.h	\
+	tsmq_broker.c	\
+	tsmq_broker.h	\
+	tsmq_broker_int.h	\
+	tsmq_client.c	\
+	tsmq_client.h	\
+	tsmq_client_int.h
 
-libtsmq_la_LIBADD = 
+libtsmq_la_LIBADD =
 
 libtsmq_la_LDFLAGS = -version-info @TSMQ_MAJOR_VERSION@:@TSMQ_MID_VERSION@:@TSMQ_MINOR_VERSION@
 

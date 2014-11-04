@@ -31,9 +31,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* include tsmq's public interface */
-/* @@ never include the _int.h file from tools. */
-#include "tsmq.h"
+#include <tsmq_broker.h>
 
 static void usage(const char *name)
 {
@@ -48,10 +46,10 @@ static void usage(const char *name)
 	  "       -s <server-uri>    0MQ-style URI to listen for servers on\n"
 	  "                          (default: %s)\n",
 	  name,
-	  TSMQ_MD_BROKER_CLIENT_URI_DEFAULT,
-	  TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT,
-	  TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT,
-	  TSMQ_MD_BROKER_SERVER_URI_DEFAULT);
+	  TSMQ_BROKER_CLIENT_URI_DEFAULT,
+	  TSMQ_HEARTBEAT_INTERVAL_DEFAULT,
+	  TSMQ_HEARTBEAT_LIVENESS_DEFAULT,
+	  TSMQ_BROKER_SERVER_URI_DEFAULT);
 }
 
 int main(int argc, char **argv)
@@ -64,10 +62,10 @@ int main(int argc, char **argv)
   const char *client_uri = NULL;
   const char *server_uri = NULL;
 
-  uint64_t heartbeat_interval = TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT;
-  int heartbeat_liveness      = TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT;
+  uint64_t heartbeat_interval = TSMQ_HEARTBEAT_INTERVAL_DEFAULT;
+  int heartbeat_liveness      = TSMQ_HEARTBEAT_LIVENESS_DEFAULT;
 
-  tsmq_md_broker_t *broker;
+  tsmq_broker_t *broker;
 
   while(prevoptind = optind,
 	(opt = getopt(argc, argv, ":c:i:l:s:v?")) >= 0)
@@ -120,7 +118,7 @@ int main(int argc, char **argv)
   /* NB: once getopt completes, optind points to the first non-option
      argument */
 
-  if((broker = tsmq_md_broker_init()) == NULL)
+  if((broker = tsmq_broker_init()) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize tsmq metadata broker\n");
       goto err;
@@ -128,34 +126,34 @@ int main(int argc, char **argv)
 
   if(client_uri != NULL)
     {
-      tsmq_md_broker_set_client_uri(broker, client_uri);
+      tsmq_broker_set_client_uri(broker, client_uri);
     }
 
   if(server_uri != NULL)
     {
-      tsmq_md_broker_set_server_uri(broker, server_uri);
+      tsmq_broker_set_server_uri(broker, server_uri);
     }
 
-  tsmq_md_broker_set_heartbeat_interval(broker, heartbeat_interval);
+  tsmq_broker_set_heartbeat_interval(broker, heartbeat_interval);
 
-  tsmq_md_broker_set_heartbeat_liveness(broker, heartbeat_liveness);
+  tsmq_broker_set_heartbeat_liveness(broker, heartbeat_liveness);
 
   /* do work */
   /* this function will block until the broker shuts down */
-  tsmq_md_broker_start(broker);
+  tsmq_broker_start(broker);
 
   /* this will always be set, normally to a SIGINT-caught message */
-  tsmq_md_broker_perr(broker);
+  tsmq_broker_perr(broker);
 
   /* cleanup */
-  tsmq_md_broker_free(broker);
+  tsmq_broker_free(broker);
 
   /* complete successfully */
   return 0;
 
  err:
   if(broker != NULL) {
-    tsmq_md_broker_free(broker);
+    tsmq_broker_free(broker);
   }
   return -1;
 }

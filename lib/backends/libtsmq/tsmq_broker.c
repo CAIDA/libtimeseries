@@ -28,7 +28,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "tsmq_md_broker_int.h"
+#include "tsmq_broker_int.h"
 
 #include "utils.h"
 
@@ -51,7 +51,7 @@ typedef struct server {
   uint64_t expiry;
 } server_t;
 
-static server_t *server_init(tsmq_md_broker_t *broker, zframe_t *identity)
+static server_t *server_init(tsmq_broker_t *broker, zframe_t *identity)
 {
   server_t *server;
 
@@ -114,7 +114,7 @@ static int server_ready(zlist_t *servers, server_t *server)
   return zlist_append(servers, server);
 }
 
-static zframe_t *server_next (tsmq_md_broker_t *broker)
+static zframe_t *server_next (tsmq_broker_t *broker)
 {
   server_t *server = NULL;
   zframe_t *frame = NULL;
@@ -133,40 +133,40 @@ static zframe_t *server_next (tsmq_md_broker_t *broker)
   return frame;
 }
 
-static void servers_purge (tsmq_md_broker_t *broker)
-{
-    server_t *server = zlist_first(broker->servers);
-
-    while(server != NULL)
-      {
-        if(zclock_time () < server->expiry)
-	  {
-	    break; /* Worker is alive, we're done here */
-	  }
-
-	fprintf(stderr, "DEBUG: Removing dead server (%s)\n", server->id);
-        zlist_remove(broker->servers, server);
-	server_free(server);
-        server = zlist_first(broker->servers);
-    }
-}
-
-static void servers_free(tsmq_md_broker_t *broker)
+static void servers_purge (tsmq_broker_t *broker)
 {
   server_t *server = zlist_first(broker->servers);
 
-    while(server != NULL)
-      {
-        zlist_remove(broker->servers, server);
-	server_free(server);
-        server = zlist_first(broker->servers);
-      }
-    zlist_destroy(&broker->servers);
+  while(server != NULL)
+    {
+      if(zclock_time () < server->expiry)
+	{
+	  break; /* Worker is alive, we're done here */
+	}
+
+      fprintf(stderr, "DEBUG: Removing dead server (%s)\n", server->id);
+      zlist_remove(broker->servers, server);
+      server_free(server);
+      server = zlist_first(broker->servers);
+    }
+}
+
+static void servers_free(tsmq_broker_t *broker)
+{
+  server_t *server = zlist_first(broker->servers);
+
+  while(server != NULL)
+    {
+      zlist_remove(broker->servers, server);
+      server_free(server);
+      server = zlist_first(broker->servers);
+    }
+  zlist_destroy(&broker->servers);
 }
 
 /** @todo consider changing many of these return -1 to return 0 as they are not
     fatal. Be sure to clean up correctly however */
-static int run_broker(tsmq_md_broker_t *broker)
+static int run_broker(tsmq_broker_t *broker)
 {
   zmq_pollitem_t poll_items [] = {
     {broker->server_socket, 0, ZMQ_POLLIN, 0}, /* POLL_ITEM_SERVER */
@@ -367,12 +367,12 @@ static int run_broker(tsmq_md_broker_t *broker)
 
 /* ---------- PUBLIC FUNCTIONS BELOW HERE ---------- */
 
-TSMQ_ERR_FUNCS(md_broker)
+TSMQ_ERR_FUNCS(broker)
 
-tsmq_md_broker_t *tsmq_md_broker_init()
+tsmq_broker_t *tsmq_broker_init()
 {
-  tsmq_md_broker_t *broker;
-  if((broker = malloc_zero(sizeof(tsmq_md_broker_t))) == NULL)
+  tsmq_broker_t *broker;
+  if((broker = malloc_zero(sizeof(tsmq_broker_t))) == NULL)
     {
       /* cannot set an err at this point */
       return NULL;
@@ -386,27 +386,27 @@ tsmq_md_broker_t *tsmq_md_broker_init()
 
   /* now we are ready to set errors... */
 
-  broker->client_uri = strdup(TSMQ_MD_BROKER_CLIENT_URI_DEFAULT);
+  broker->client_uri = strdup(TSMQ_BROKER_CLIENT_URI_DEFAULT);
 
-  broker->server_uri = strdup(TSMQ_MD_BROKER_SERVER_URI_DEFAULT);
+  broker->server_uri = strdup(TSMQ_BROKER_SERVER_URI_DEFAULT);
 
-  broker->heartbeat_interval = TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT;
+  broker->heartbeat_interval = TSMQ_HEARTBEAT_INTERVAL_DEFAULT;
 
-  broker->heartbeat_liveness = TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT;
+  broker->heartbeat_liveness = TSMQ_HEARTBEAT_LIVENESS_DEFAULT;
 
   /* establish an empty server list */
   if((broker->servers = zlist_new()) == NULL)
     {
       tsmq_set_err(broker->tsmq, TSMQ_ERR_INIT_FAILED,
 		   "Could not create server list");
-      tsmq_md_broker_free(broker);
+      tsmq_broker_free(broker);
       return NULL;
     }
 
   return broker;
 }
 
-int tsmq_md_broker_start(tsmq_md_broker_t *broker)
+int tsmq_broker_start(tsmq_broker_t *broker)
 {
 
   /* bind to server socket */
@@ -443,11 +443,11 @@ int tsmq_md_broker_start(tsmq_md_broker_t *broker)
   /* start processing requests */
   while(run_broker(broker) == 0)
 
-  tsmq_set_err(broker->tsmq, TSMQ_ERR_UNHANDLED, "Unhandled error");
+    tsmq_set_err(broker->tsmq, TSMQ_ERR_UNHANDLED, "Unhandled error");
   return -1;
 }
 
-void tsmq_md_broker_free(tsmq_md_broker_t *broker)
+void tsmq_broker_free(tsmq_broker_t *broker)
 {
   assert(broker != NULL);
   assert(broker->tsmq != NULL);
@@ -482,7 +482,7 @@ void tsmq_md_broker_free(tsmq_md_broker_t *broker)
   return;
 }
 
-void tsmq_md_broker_set_client_uri(tsmq_md_broker_t *broker, const char *uri)
+void tsmq_broker_set_client_uri(tsmq_broker_t *broker, const char *uri)
 {
   assert(broker != NULL);
 
@@ -493,7 +493,7 @@ void tsmq_md_broker_set_client_uri(tsmq_md_broker_t *broker, const char *uri)
   broker->client_uri = strdup(uri);
 }
 
-void tsmq_md_broker_set_server_uri(tsmq_md_broker_t *broker, const char *uri)
+void tsmq_broker_set_server_uri(tsmq_broker_t *broker, const char *uri)
 {
   assert(broker != NULL);
 
@@ -504,16 +504,16 @@ void tsmq_md_broker_set_server_uri(tsmq_md_broker_t *broker, const char *uri)
   broker->server_uri = strdup(uri);
 }
 
-void tsmq_md_broker_set_heartbeat_interval(tsmq_md_broker_t *broker,
-					   uint64_t interval_ms)
+void tsmq_broker_set_heartbeat_interval(tsmq_broker_t *broker,
+					uint64_t interval_ms)
 {
   assert(broker != NULL);
 
   broker->heartbeat_interval = interval_ms;
 }
 
-void tsmq_md_broker_set_heartbeat_liveness(tsmq_md_broker_t *broker,
-					   int beats)
+void tsmq_broker_set_heartbeat_liveness(tsmq_broker_t *broker,
+					int beats)
 {
   assert(broker != NULL);
 

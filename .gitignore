@@ -22,9 +22,9 @@ TAGS
 # Compiled programs
 *.tar.gz
 ChangeLog
-tools/tsmq-md-client
-tools/tsmq-md-broker
-tools/tsmq-md-server
+tools/tsmq-test-client
+tools/tsmq-broker
+tools/tsmq-server
 
 # Autotools files
 # http://www.gnu.org/software/automake

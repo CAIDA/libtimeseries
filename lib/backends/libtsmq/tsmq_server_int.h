@@ -23,9 +23,10 @@
  *
  */
 
-#ifndef __TSMQ_MD_SERVER_INT_H
-#define __TSMQ_MD_SERVER_INT_H
+#ifndef __TSMQ_SERVER_INT_H
+#define __TSMQ_SERVER_INT_H
 
+#include <tsmq_server.h>
 #include "tsmq_int.h"
 
 /** @file
@@ -37,20 +38,20 @@
  *
  */
 
-typedef struct tsmq_md_server_callbacks {
+typedef struct tsmq_server_callbacks {
 
-  tsmq_md_server_cb_key_lookup_t *key_lookup;
+  tsmq_server_cb_key_lookup_t *key_lookup;
 
-  tsmq_md_server_cb_set_single_t *set_single;
+  tsmq_server_cb_set_single_t *set_single;
 
   /** @todo add other callback funcs here */
 
   /** pointer to user-provided data */
   void *user;
 
-} tsmq_md_server_callbacks_t;
+} tsmq_server_callbacks_t;
 
-struct tsmq_md_server {
+struct tsmq_server {
   /** Common tsmq state */
   tsmq_t *tsmq;
 
@@ -85,7 +86,7 @@ struct tsmq_md_server {
   uint64_t reconnect_interval_next;
 
   /** Callback information */
-  tsmq_md_server_callbacks_t callbacks;
+  tsmq_server_callbacks_t callbacks;
 };
 
-#endif /* __TSMQ_MD_SERVER_INT_H */
+#endif /* __TSMQ_SERVER_INT_H */

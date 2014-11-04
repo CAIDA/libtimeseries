@@ -28,13 +28,13 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "tsmq_md_client_int.h"
+#include "tsmq_client_int.h"
 
 #include "utils.h"
 
 #define CTX client->tsmq->ctx
 
-static int broker_connect(tsmq_md_client_t *client)
+static int broker_connect(tsmq_client_t *client)
 {
   /* connect to broker socket */
   if((client->broker_socket = zsocket_new(CTX, ZMQ_REQ)) == NULL)
@@ -56,7 +56,7 @@ static int broker_connect(tsmq_md_client_t *client)
 
 /* the caller no longer owns the request_body msg */
 /* but they *will* own the returned msg */
-static zmsg_t *execute_request(tsmq_md_client_t *client,
+static zmsg_t *execute_request(tsmq_client_t *client,
 			       tsmq_request_msg_type_t type,
 			       zmsg_t **request_body_p)
 {
@@ -238,12 +238,12 @@ static zmsg_t *execute_request(tsmq_md_client_t *client,
 
 /* ---------- PUBLIC FUNCTIONS BELOW HERE ---------- */
 
-TSMQ_ERR_FUNCS(md_client)
+TSMQ_ERR_FUNCS(client)
 
-tsmq_md_client_t *tsmq_md_client_init()
+tsmq_client_t *tsmq_client_init()
 {
-  tsmq_md_client_t *client;
-  if((client = malloc_zero(sizeof(tsmq_md_client_t))) == NULL)
+  tsmq_client_t *client;
+  if((client = malloc_zero(sizeof(tsmq_client_t))) == NULL)
     {
       /* cannot set an err at this point */
       return NULL;
@@ -257,24 +257,24 @@ tsmq_md_client_t *tsmq_md_client_init()
 
   /* now we are ready to set errors... */
 
-  client->broker_uri = strdup(TSMQ_MD_CLIENT_BROKER_URI_DEFAULT);
+  client->broker_uri = strdup(TSMQ_CLIENT_BROKER_URI_DEFAULT);
 
-  client->request_timeout = TSMQ_MD_CLIENT_REQUEST_TIMEOUT;
+  client->request_timeout = TSMQ_CLIENT_REQUEST_TIMEOUT;
 
-  client->request_retries = TSMQ_MD_CLIENT_REQUEST_RETRIES;
+  client->request_retries = TSMQ_CLIENT_REQUEST_RETRIES;
 
   return client;
 }
 
-int tsmq_md_client_start(tsmq_md_client_t *client)
+int tsmq_client_start(tsmq_client_t *client)
 {
   return broker_connect(client);
 }
 
-void tsmq_md_client_free(tsmq_md_client_t **client_p)
+void tsmq_client_free(tsmq_client_t **client_p)
 {
   assert(client_p != NULL);
-  tsmq_md_client_t *client = *client_p;
+  tsmq_client_t *client = *client_p;
   if(client == NULL)
     {
       return;
@@ -296,7 +296,7 @@ void tsmq_md_client_free(tsmq_md_client_t **client_p)
   return;
 }
 
-void tsmq_md_client_set_broker_uri(tsmq_md_client_t *client, const char *uri)
+void tsmq_client_set_broker_uri(tsmq_client_t *client, const char *uri)
 {
   assert(client != NULL);
 
@@ -306,28 +306,28 @@ void tsmq_md_client_set_broker_uri(tsmq_md_client_t *client, const char *uri)
   assert(client->broker_uri != NULL);
 }
 
-void tsmq_md_client_set_request_timeout(tsmq_md_client_t *client,
-					uint64_t timeout_ms)
+void tsmq_client_set_request_timeout(tsmq_client_t *client,
+				     uint64_t timeout_ms)
 {
   assert(client != NULL);
 
   client->request_timeout = timeout_ms;
 }
 
-void tsmq_md_client_set_request_retries(tsmq_md_client_t *client,
-					int retry_cnt)
+void tsmq_client_set_request_retries(tsmq_client_t *client,
+				     int retry_cnt)
 {
   assert(client != NULL);
 
   client->request_retries = retry_cnt;
 }
 
-tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
-						const char *key)
+tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
+					  const char *key)
 {
   zmsg_t *msg = NULL;
   zframe_t*frame = NULL;
-  tsmq_md_client_key_t *response = NULL;
+  tsmq_client_key_t *response = NULL;
 
   if((msg = zmsg_new()) == NULL)
     {
@@ -355,14 +355,14 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
     }
 
   /* create a new key info structure */
-  if((response = malloc(sizeof(tsmq_md_client_key_t))) == NULL)
+  if((response = malloc(sizeof(tsmq_client_key_t))) == NULL)
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
 		   "Failed to malloc key response");
       goto err;
     }
 
-  /* decode the message into a new tsmq_md_client_key_t message */
+  /* decode the message into a new tsmq_client_key_t message */
   /* we expect two frames, one with the server id and one with the key id */
   if((frame = zmsg_pop(msg)) == NULL)
     {
@@ -405,15 +405,15 @@ tsmq_md_client_key_t *tsmq_md_client_key_lookup(tsmq_md_client_t *client,
   return response;
 
  err:
-  tsmq_md_client_key_free(&response);
+  tsmq_client_key_free(&response);
   zframe_destroy(&frame);
   zmsg_destroy(&msg);
   return NULL;
 }
 
-void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p)
+void tsmq_client_key_free(tsmq_client_key_t **key_p)
 {
-  tsmq_md_client_key_t *key = *key_p;
+  tsmq_client_key_t *key = *key_p;
 
   if(key == NULL)
     {
@@ -433,9 +433,9 @@ void tsmq_md_client_key_free(tsmq_md_client_key_t **key_p)
   *key_p = NULL;
 }
 
-int tsmq_md_client_key_set_single(tsmq_md_client_t *client,
-                                  tsmq_md_client_key_t *key,
-                                  tsmq_val_t value, tsmq_time_t time)
+int tsmq_client_key_set_single(tsmq_client_t *client,
+			       tsmq_client_key_t *key,
+			       tsmq_val_t value, tsmq_time_t time)
 {
   zmsg_t *msg;
 

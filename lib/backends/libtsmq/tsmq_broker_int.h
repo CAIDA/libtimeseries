@@ -23,12 +23,13 @@
  *
  */
 
-#ifndef __TSMQ_MD_BROKER_INT_H
-#define __TSMQ_MD_BROKER_INT_H
-
-#include "tsmq_int.h"
+#ifndef __TSMQ_BROKER_INT_H
+#define __TSMQ_BROKER_INT_H
 
 #include <czmq.h>
+
+#include <tsmq_broker.h>
+#include "tsmq_int.h"
 
 /** @file
  *
@@ -38,7 +39,7 @@
  *
  */
 
-struct tsmq_md_broker {
+struct tsmq_broker {
   /** Common tsmq state */
   tsmq_t *tsmq;
 
@@ -68,4 +69,4 @@ struct tsmq_md_broker {
   int heartbeat_liveness;
 };
 
-#endif /* __TSMQ_MD_BROKER_INT_H */
+#endif /* __TSMQ_BROKER_INT_H */

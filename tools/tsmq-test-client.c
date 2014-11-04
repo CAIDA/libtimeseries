@@ -31,9 +31,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* include tsmq's public interface */
-/* @@ never include the _int.h file from tools. */
-#include "tsmq.h"
+#include <tsmq_client.h>
 
 #define KEY_LOOKUP_CNT 1
 
@@ -49,10 +47,10 @@ static void usage(const char *name)
 	  "       -t <timeout>       Time to wait before resending a request\n"
 	  "                          (default: %d)\n",
 	  name,
-	  TSMQ_MD_CLIENT_BROKER_URI_DEFAULT,
+	  TSMQ_CLIENT_BROKER_URI_DEFAULT,
           KEY_LOOKUP_CNT,
-	  TSMQ_MD_CLIENT_REQUEST_RETRIES,
-	  TSMQ_MD_CLIENT_REQUEST_TIMEOUT);
+	  TSMQ_CLIENT_REQUEST_RETRIES,
+	  TSMQ_CLIENT_REQUEST_TIMEOUT);
 }
 
 int main(int argc, char **argv)
@@ -64,12 +62,12 @@ int main(int argc, char **argv)
   /* to store command line argument values */
   const char *broker_uri = NULL;
 
-  int retries = TSMQ_MD_CLIENT_REQUEST_RETRIES;
-  int timeout = TSMQ_MD_CLIENT_REQUEST_TIMEOUT;
+  int retries = TSMQ_CLIENT_REQUEST_RETRIES;
+  int timeout = TSMQ_CLIENT_REQUEST_TIMEOUT;
 
   int key_cnt = KEY_LOOKUP_CNT;
 
-  tsmq_md_client_t *client;
+  tsmq_client_t *client;
 
   int i;
 
@@ -124,7 +122,7 @@ int main(int argc, char **argv)
   /* NB: once getopt completes, optind points to the first non-option
      argument */
 
-  if((client = tsmq_md_client_init()) == NULL)
+  if((client = tsmq_client_init()) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize tsmq metadata client\n");
       goto err;
@@ -132,30 +130,30 @@ int main(int argc, char **argv)
 
   if(broker_uri != NULL)
     {
-      tsmq_md_client_set_broker_uri(client, broker_uri);
+      tsmq_client_set_broker_uri(client, broker_uri);
     }
 
-  tsmq_md_client_set_request_timeout(client, timeout);
+  tsmq_client_set_request_timeout(client, timeout);
 
-  tsmq_md_client_set_request_retries(client, retries);
+  tsmq_client_set_request_retries(client, retries);
 
-  if(tsmq_md_client_start(client) != 0)
+  if(tsmq_client_start(client) != 0)
     {
-      tsmq_md_client_perr(client);
+      tsmq_client_perr(client);
       return -1;
     }
 
   /* debug !! */
   char *key = "a.test.key";
-  tsmq_md_client_key_t *response;
+  tsmq_client_key_t *response;
   uint64_t value = 123456;
   uint32_t time = 1404174060;
 
   fprintf(stderr, "Looking up backend ID for %s... ", key);
   if((response =
-      tsmq_md_client_key_lookup(client, key)) == NULL)
+      tsmq_client_key_lookup(client, key)) == NULL)
     {
-      tsmq_md_client_perr(client);
+      tsmq_client_perr(client);
       goto err;
     }
   fprintf(stderr, "done\n");
@@ -163,23 +161,23 @@ int main(int argc, char **argv)
   fprintf(stderr, "Running set on %d keys (%s)... ", key_cnt, key);
   for(i=0; i<key_cnt; i++)
     {
-      if(tsmq_md_client_key_set_single(client, response, value, time) != 0)
+      if(tsmq_client_key_set_single(client, response, value, time) != 0)
         {
-          tsmq_md_client_perr(client);
+          tsmq_client_perr(client);
           goto err;
         }
     }
   fprintf(stderr, "done \n");
 
   /* cleanup */
-  tsmq_md_client_key_free(&response);
-  tsmq_md_client_free(&client);
+  tsmq_client_key_free(&response);
+  tsmq_client_free(&client);
 
   /* complete successfully */
   return 0;
 
  err:
-  tsmq_md_client_key_free(&response);
-  tsmq_md_client_free(&client);
+  tsmq_client_key_free(&response);
+  tsmq_client_free(&client);
   return -1;
 }

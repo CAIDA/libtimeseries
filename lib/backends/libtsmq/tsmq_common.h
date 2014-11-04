@@ -56,16 +56,16 @@
  * @{ */
 
 /** Default the broker/server heartbeat interval to 1 second */
-#define TSMQ_MD_HEARTBEAT_INTERVAL_DEFAULT 1000
+#define TSMQ_HEARTBEAT_INTERVAL_DEFAULT 1000
 
 /** Default the broker/server heartbeat liveness to 3 beats */
-#define TSMQ_MD_HEARTBEAT_LIVENESS_DEFAULT 3
+#define TSMQ_HEARTBEAT_LIVENESS_DEFAULT 3
 
 /** Default the reconnect minimum interval to 1 second */
-#define TSMQ_MD_RECONNECT_INTERVAL_MIN 1000
+#define TSMQ_RECONNECT_INTERVAL_MIN 1000
 
 /** Default the reconnect maximum interval to 32 seconds */
-#define TSMQ_MD_RECONNECT_INTERVAL_MAX 32000
+#define TSMQ_RECONNECT_INTERVAL_MAX 32000
 
 /** @} */
 
