@@ -22,6 +22,7 @@ TAGS
 # Compiled programs
 *.tar.gz
 ChangeLog
+tools/timeseries-insert
 tools/tsmq-test-client
 tools/tsmq-broker
 tools/tsmq-server
