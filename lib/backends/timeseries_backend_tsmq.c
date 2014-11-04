@@ -219,6 +219,7 @@ int timeseries_backend_tsmq_set_single(timeseries_backend_t *backend,
 {
   timeseries_backend_tsmq_state_t *state = STATE(backend);
 
+  int rc;
   tsmq_client_key_t *ck = NULL;
 
   if((ck = tsmq_client_key_lookup(state->client, key)) == NULL)
@@ -226,9 +227,10 @@ int timeseries_backend_tsmq_set_single(timeseries_backend_t *backend,
       return -1;
     }
 
-  return tsmq_client_key_set_single(state->client, ck, value, time);
+  rc = tsmq_client_key_set_single(state->client, ck, value, time);
 
-  return 0;
+  tsmq_client_key_free(&ck);
+  return rc;
 }
 
 int timeseries_backend_tsmq_set_single_by_id(timeseries_backend_t *backend,
