@@ -34,16 +34,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "wandio.h"
+#include <tsmq_client.h>
 
 #include "utils.h"
-#include "wandio_utils.h"
 
 #include "timeseries_backend_tsmq.h"
 
 #define BACKEND_NAME "tsmq"
-
-#define DEFAULT_COMPRESS_LEVEL 6
 
 #define STATE(provname)				\
   (TIMESERIES_BACKEND_STATE(tsmq, provname))
@@ -57,14 +54,8 @@ static timeseries_backend_t timeseries_backend_tsmq = {
 
 /** Holds the state for an instance of this backend */
 typedef struct timeseries_backend_tsmq_state {
-  /** The filename to write metrics out to */
-  char *tsmq_file;
-
-  /** A wandio output file pointer to write metrics to */
-  iow_t *outfile;
-
-  /** The compression level to use of the outfile is compressed */
-  int compress_level;
+  /** TSMQ client instance to send metrics to */
+  tsmq_client_t *client;
 
 } timeseries_backend_tsmq_state_t;
 
@@ -72,11 +63,17 @@ typedef struct timeseries_backend_tsmq_state {
 static void usage(timeseries_backend_t *backend)
 {
   fprintf(stderr,
-	  "backend usage: %s [-c compress-level] [-f output-file]\n"
-	  "       -c <level>    output compression level to use (default: %d)\n"
-	  "       -f            file to write TSMQ timeseries metrics to\n",
+	  "backend usage: %s [<options>]\n"
+	  "       -b <broker-uri>    0MQ-style URI to connect to broker on\n"
+	  "                          (default: %s)\n"
+	  "       -r <retries>       Number of times to resend a request\n"
+	  "                          (default: %d)\n"
+	  "       -t <timeout>       Time to wait before resending a request\n"
+	  "                          (default: %d)\n",
 	  backend->name,
-	  DEFAULT_COMPRESS_LEVEL);
+	  TSMQ_CLIENT_BROKER_URI_DEFAULT,
+	  TSMQ_CLIENT_REQUEST_RETRIES,
+	  TSMQ_CLIENT_REQUEST_TIMEOUT);
 }
 
 
@@ -93,16 +90,22 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
   /* remember the argv strings DO NOT belong to us */
 
-  while((opt = getopt(argc, argv, ":c:f:?")) >= 0)
+  assert(state->client != NULL);
+
+  while((opt = getopt(argc, argv, ":b:r:t:?")) >= 0)
     {
       switch(opt)
 	{
-	case 'c':
-	  state->compress_level = atoi(optarg);
+	case 'b':
+	  tsmq_client_set_broker_uri(state->client, optarg);
 	  break;
 
-	case 'f':
-	  state->tsmq_file = strdup(optarg);
+	case 'r':
+	  tsmq_client_set_request_retries(state->client, atoi(optarg));
+	  break;
+
+	case 't':
+	  tsmq_client_set_request_timeout(state->client, atoi(optarg));
 	  break;
 
 	case '?':
@@ -138,8 +141,12 @@ int timeseries_backend_tsmq_init(timeseries_backend_t *backend,
     }
   timeseries_backend_register_state(backend, state);
 
-  /* set initial default values (that can be overridden on the command line) */
-  state->compress_level = DEFAULT_COMPRESS_LEVEL;
+  /* create a tsmq client instance (MUST be init before parse_args) */
+  if((state->client = tsmq_client_init()) == NULL)
+    {
+      timeseries_log(__func__, "could not init tsmq client");
+      return -1;
+    }
 
   /* parse the command line args */
   if(parse_args(backend, argc, argv) != 0)
@@ -147,16 +154,9 @@ int timeseries_backend_tsmq_init(timeseries_backend_t *backend,
       return -1;
     }
 
-  /* if specified, open the output file */
-  if(state->tsmq_file != NULL &&
-     (state->outfile =
-      wandio_wcreate(state->tsmq_file,
-		    wandio_detect_compression_type(state->tsmq_file),
-		    state->compress_level,
-		    O_CREAT)) == NULL)
+  if(tsmq_client_start(state->client) != 0)
     {
-      timeseries_log(__func__,
-		 "failed to open output file '%s'", state->tsmq_file);
+      tsmq_client_perr(state->client);
       return -1;
     }
 
@@ -170,17 +170,7 @@ void timeseries_backend_tsmq_free(timeseries_backend_t *backend)
   timeseries_backend_tsmq_state_t *state = STATE(backend);
   if(state != NULL)
     {
-      if(state->tsmq_file != NULL)
-	{
-	  free(state->tsmq_file);
-	  state->tsmq_file = NULL;
-	}
-
-      if(state->outfile != NULL)
-	{
-	  wandio_wdestroy(state->outfile);
-	  state->outfile = NULL;
-	}
+      tsmq_client_free(&state->client);
 
       timeseries_backend_free_state(backend);
     }
@@ -191,7 +181,7 @@ int timeseries_backend_tsmq_kp_init(timeseries_backend_t *backend,
                                      timeseries_kp_t *kp,
                                      void **state)
 {
-  /* we do not need any state */
+  /* todo */
   assert(state != NULL);
   *state = NULL;
   return 0;
@@ -201,7 +191,7 @@ void timeseries_backend_tsmq_kp_free(timeseries_backend_t *backend,
                                       timeseries_kp_t *kp,
                                       void *state)
 {
-  /* we did not allocate any state */
+  /* todo */
   return;
 }
 
@@ -209,44 +199,15 @@ int timeseries_backend_tsmq_kp_update(timeseries_backend_t *backend,
                                        timeseries_kp_t *kp,
                                        void *state)
 {
-  /* we don't need to do anything */
+  /* todo */
   return 0;
 }
-
-#define PRINT_METRIC(func, file, key, value, time)		\
-  do {								\
-    func(file, "%s %"PRIu64" %s\n", key, value, time);	\
-  } while(0)
-
-#define DUMP_METRIC(state, key, value, time)				\
-  do {									\
-  if(state->outfile != NULL)						\
-    {									\
-      PRINT_METRIC(wandio_printf, state->outfile, key, value, time);	\
-    }									\
-  else									\
-    {									\
-      PRINT_METRIC(fprintf, stdout, key, value, time);			\
-    }									\
-  } while(0)
 
 int timeseries_backend_tsmq_kp_flush(timeseries_backend_t *backend,
 				      timeseries_kp_t *kp,
 				      uint32_t time)
 {
-  timeseries_backend_tsmq_state_t *state = STATE(backend);
-  int i;
-
-  /* there are at most 10 digits in a 32bit unix time value, plus the nul */
-  char time_buffer[11];
-
-  /* we really only need to convert the time value to a string once */
-  snprintf(time_buffer, 11, "%"PRIu32, time);
-
-  for(i = 0; i < kp->kvs_cnt; i++)
-    {
-      DUMP_METRIC(state, kp->kvs[i].key, kp->kvs[i].value, time_buffer);
-    }
+  /* todo */
 
   return 0;
 }
@@ -258,13 +219,15 @@ int timeseries_backend_tsmq_set_single(timeseries_backend_t *backend,
 {
   timeseries_backend_tsmq_state_t *state = STATE(backend);
 
-  /* there are at most 10 digits in a 32bit unix time value, plus the nul */
-  char time_buffer[11];
+  tsmq_client_key_t *ck = NULL;
 
-  /* we really only need to convert the time value to a string once */
-  snprintf(time_buffer, 11, "%"PRIu32, time);
+  if((ck = tsmq_client_key_lookup(state->client, key)) == NULL)
+    {
+      return -1;
+    }
 
-  DUMP_METRIC(state, key, value, time_buffer);
+  return tsmq_client_key_set_single(state->client, ck, value, time);
+
   return 0;
 }
 
@@ -272,17 +235,17 @@ int timeseries_backend_tsmq_set_single_by_id(timeseries_backend_t *backend,
                                               uint8_t *id, size_t id_len,
                                               uint64_t value, uint32_t time)
 {
-  /* the tsmq backend ID is just the key, decode and call set single */
-  return timeseries_backend_tsmq_set_single(backend, (char*)id, value, time);
+  /* this would happen when chaining tsmq instances.
+     think some more about what this means */
+  assert(0 && "unimplemented");
+  return -1;
 }
 
 size_t timeseries_backend_tsmq_resolve_key(timeseries_backend_t *backend,
                                             const char *key,
                                             uint8_t **backend_key)
 {
-  if((*backend_key = (uint8_t*)strdup(key)) == NULL)
-    {
-      return 0;
-    }
-  return strlen(key)+1;
+  /* as with above */
+  assert(0 && "unimplemented");
+  return -1;
 }
