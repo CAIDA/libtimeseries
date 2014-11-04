@@ -85,7 +85,7 @@ struct timeseries_kp
   int dirty;
 
   /** Per-backend state about this key package
-
+   *
    *  Backends may use this to store any information they require, but most
    *  commonly it will be used to store an array of backend-specific id's that
    *  correspond to the keys in the key package

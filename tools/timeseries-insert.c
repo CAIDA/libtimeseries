@@ -141,8 +141,8 @@ static void usage(const char *name)
 {
   fprintf(stderr,
 	  "usage: %s -t <ts-backend> [-f input-file]\n"
-	  "       -t <ts-backend>    Timeseries backend to use for writing\n"
-          "       -f <input-file>    File to read time series data from (default: stdin)\n",
+          "       -f <input-file>    File to read time series data from (default: stdin)\n"
+	  "       -t <ts-backend>    Timeseries backend to use for writing\n",
 	  name);
   backend_usage();
 }
