@@ -33,9 +33,9 @@
 
 #include "utils.h"
 
-#include "libtimeseries_int.h"
-
-#include "timeseries_backend.h"
+#include "timeseries_backend_int.h" /* timeseries_backend_t */
+#include "timeseries_pub.h" /* timeseries_t */
+#include "timeseries_log_int.h" /* timeseries_log */
 
 /* now include the backends */
 
@@ -51,6 +51,8 @@
 #ifdef WITH_TSMQ
 #include "timeseries_backend_tsmq.h"
 #endif
+
+/* ========== PRIVATE DATA STRUCTURES/FUNCTIONS ========== */
 
 /** Convenience typedef for the backend alloc function type */
 typedef timeseries_backend_t* (*backend_alloc_func_t)();
@@ -82,51 +84,38 @@ static const backend_alloc_func_t backend_alloc_functions[] = {
 
 };
 
-#define FOREACH_BACKEND(id)                                             \
-  for(id = TIMESERIES_BACKEND_ID_FIRST; id <= TIMESERIES_BACKEND_ID_LAST; id++)
 
-/* --- Public functions below here -- */
 
-int timeseries_backend_alloc_all(timeseries_t *timeseries)
+/* ========== PROTECTED FUNCTIONS ========== */
+
+timeseries_backend_t *timeseries_backend_alloc(timeseries_backend_id_t id)
 {
-  assert(timeseries != NULL);
+  timeseries_backend_t *backend;
   assert(ARR_CNT(backend_alloc_functions) == TIMESERIES_BACKEND_ID_LAST);
 
-  int id;
-
-  /* loop across all backends and alloc each one */
-  FOREACH_BACKEND(id)
+  if(backend_alloc_functions[id-1] == NULL)
     {
-      if(backend_alloc_functions[id-1] == NULL)
-	{
-	  continue;
-	}
-
-      timeseries_backend_t *backend;
-      /* first, create the struct */
-      if((backend = malloc_zero(sizeof(timeseries_backend_t))) == NULL)
-	{
-	  timeseries_log(__func__, "could not malloc timeseries_backend_t");
-	  return -1;
-	}
-
-      /* get the core backend details (id, name) from the backend plugin */
-      memcpy(backend,
-	     backend_alloc_functions[id-1](),
-	     sizeof(timeseries_backend_t));
-
-      /* poke it into timeseries */
-      timeseries->backends[id-1] = backend;
+      return NULL;
     }
 
-  return 0;
+  /* first, create the struct */
+  if((backend = malloc_zero(sizeof(timeseries_backend_t))) == NULL)
+    {
+      timeseries_log(__func__, "could not malloc timeseries_backend_t");
+      return NULL;
+    }
+
+  /* get the core backend details (id, name) from the backend plugin */
+  memcpy(backend,
+	 backend_alloc_functions[id-1](),
+	 sizeof(timeseries_backend_t));
+
+  return backend;
 }
 
-int timeseries_backend_init(timeseries_t *timeseries,
-			    timeseries_backend_t *backend,
+int timeseries_backend_init(timeseries_backend_t *backend,
 			    int argc, char **argv)
 {
-  assert(timeseries != NULL);
   assert(backend != NULL);
 
   /* if it has already been initialized, then we simply return */
@@ -153,10 +142,11 @@ int timeseries_backend_init(timeseries_t *timeseries,
 }
 
 
-void timeseries_backend_free(timeseries_t *timeseries,
-			     timeseries_backend_t *backend)
+void timeseries_backend_free(timeseries_backend_t **backend_p)
 {
-  assert(timeseries != NULL);
+  assert(backend_p != NULL);
+  timeseries_backend_t *backend = *backend_p;
+  *backend_p = NULL;
 
   if(backend == NULL)
     {
@@ -168,83 +158,12 @@ void timeseries_backend_free(timeseries_t *timeseries,
     {
       /* ask the backend to free it's own state */
       backend->free(backend);
-
-      /* remove the pointer from timeseries */
-      timeseries->backends[backend->id - 1] = NULL;
     }
 
   /* finally, free the actual backend structure */
   free(backend);
 
   return;
-}
-
-int timeseries_backend_kp_init(timeseries_kp_t *kp)
-{
-  assert(kp != NULL);
-  assert(kp->timeseries != NULL);
-  int id;
-  timeseries_backend_t *backend;
-  void *state = NULL;
-
-  FOREACH_BACKEND(id)
-    {
-      backend = timeseries_get_backend_by_id(kp->timeseries, id);
-      assert(backend != NULL);
-
-      state = NULL; /* be kind to the backend */
-      if(backend->kp_init(backend, kp, &state) != 0)
-        {
-          return -1;
-        }
-      kp->backend_state[id-1] = state;
-    }
-  return 0;
-}
-
-void timeseries_backend_kp_free(timeseries_kp_t *kp)
-{
-  assert(kp != NULL);
-  assert(kp->timeseries != NULL);
-  int id;
-  timeseries_backend_t *backend;
-
-  FOREACH_BACKEND(id)
-    {
-      backend = timeseries_get_backend_by_id(kp->timeseries, id);
-      assert(backend != NULL);
-
-      if(kp->backend_state[id-1] != NULL)
-        {
-          backend->kp_free(backend, kp, kp->backend_state[id-1]);
-        }
-      kp->backend_state[id-1] = NULL;
-    }
-
-  return;
-}
-
-int timeseries_backend_kp_update(timeseries_kp_t *kp)
-{
-  assert(kp != NULL);
-  assert(kp->timeseries != NULL);
-  int id;
-  timeseries_backend_t *backend;
-
-  FOREACH_BACKEND(id)
-    {
-      backend = timeseries_get_backend_by_id(kp->timeseries, id);
-      assert(backend != NULL);
-
-      if(kp->backend_state[id-1] != NULL &&
-         backend->kp_update(backend, kp, kp->backend_state[id-1]) != 0)
-        {
-          return -1;
-        }
-      kp->backend_state[id-1] = NULL;
-    }
-
-  return 0;
 }
 
 void timeseries_backend_register_state(timeseries_backend_t *backend,
@@ -263,3 +182,28 @@ void timeseries_backend_free_state(timeseries_backend_t *backend)
   free(backend->state);
   backend->state = NULL;
 }
+
+/* ========== PUBLIC FUNCTIONS ========== */
+
+inline int timeseries_backend_is_enabled(timeseries_backend_t *backend)
+{
+  assert(backend != NULL);
+  return backend->enabled;
+}
+
+inline timeseries_backend_id_t timeseries_backend_get_id(
+					      timeseries_backend_t *backend)
+{
+  assert(backend != NULL);
+
+  return backend->id;
+}
+
+inline const char *timeseries_backend_get_name(timeseries_backend_t *backend)
+{
+  assert(backend != NULL);
+
+  return backend->name;
+}
+
+

@@ -24,12 +24,13 @@
  */
 
 
-#ifndef __TIMESERIES_BACKEND_H
-#define __TIMESERIES_BACKEND_H
+#ifndef __TIMESERIES_BACKEND_INT_H
+#define __TIMESERIES_BACKEND_INT_H
 
 #include <inttypes.h>
 
-#include "libtimeseries.h"
+#include <timeseries_backend_pub.h>
+#include "timeseries_kp_int.h"
 
 /** @file
  *
@@ -55,13 +56,18 @@
   void timeseries_backend_##provname##_free(timeseries_backend_t *ds);	\
   int timeseries_backend_##provname##_kp_init(timeseries_backend_t *backend, \
 					      timeseries_kp_t *kp,	\
-					      void **state);		\
+					      void **kp_state_p);	\
   void timeseries_backend_##provname##_kp_free(timeseries_backend_t *backend, \
 					       timeseries_kp_t *kp,	\
-					       void *state);		\
-  int timeseries_backend_##provname##_kp_update(timeseries_backend_t *backend, \
+					       void *kp_state);		\
+  int timeseries_backend_##provname##_kp_ki_init(timeseries_backend_t *backend, \
                                                 timeseries_kp_t *kp,    \
-                                                void *state);           \
+						timeseries_kp_ki_t *ki,	\
+                                                void **ki_state_p);	\
+  void timeseries_backend_##provname##_kp_ki_free(timeseries_backend_t *backend, \
+						  timeseries_kp_t *kp,	\
+						  timeseries_kp_ki_t *ki, \
+						  void *ki_state);	\
   int timeseries_backend_##provname##_kp_flush(timeseries_backend_t *backend, \
 					       timeseries_kp_t *kp,	\
 					       uint32_t time);		\
@@ -86,7 +92,8 @@
     timeseries_backend_##provname##_free,		\
     timeseries_backend_##provname##_kp_init,		\
     timeseries_backend_##provname##_kp_free,		\
-    timeseries_backend_##provname##_kp_update,          \
+    timeseries_backend_##provname##_kp_ki_init,		\
+    timeseries_backend_##provname##_kp_ki_free,		\
     timeseries_backend_##provname##_kp_flush,		\
     timeseries_backend_##provname##_set_single,		\
     timeseries_backend_##provname##_set_single_by_id,   \
@@ -147,40 +154,60 @@ struct timeseries_backend
    *
    * @param backend     Pointer to a backend instance
    * @param kp          Pointer to the KP to free state for
-   * @param[out] state  Pointer to the state allocated, or NULL if no state is
-   *                    needed by the backend
+   * @param[out] state  Set to pointer to the state allocated, or NULL if no
+   *                    state is needed by the backend
    * @return 0 if state was allocated successfully, -1 otherwise
    */
   int (*kp_init)(timeseries_backend_t *backend,
 		 timeseries_kp_t *kp,
-		 void **state);
+		 void **kp_state_p);
 
-  /** Free the backend-specific state in the given Key Package
+  /** Free the backend-specific state in the given Key Package.
    *
    * @param backend     Pointer to a backend instance
    * @param kp          Pointer to the KP to free state for
    * @param state       Pointer to the state to free
+   *
+   * @note This function should free the state created by kp_init.
    */
   void (*kp_free)(timeseries_backend_t *backend,
 		  timeseries_kp_t *kp,
-		  void *state);
+		  void *kp_state);
 
-  /** Update the backend-specific state in the given Key Package
+  /** Create backend-specific state in the given Key Info object
    *
-   * @param backend     Pointer to a backend instance
-   * @param kp          Pointer to the KP to free state for
-   * @param state       Pointer to the state to update
+   * @param      backend     Pointer to a backend instance
+   * @param      kp          Pointer to the KP the KI is a member of
+   * @param      ki          Pointer to the KI to create state for
+   * @param[out] ki_state_p  Set to pointer to state allocated, or NULL if no
+   *                         state is needed by the backend
    * @return 0 if state was updated successfully, -1 otherwise
    *
-   * @note for example, the DBATS backend needs to ask DBATS what the internal
-   * key id is for each string key. The tsmq backend needs to send a query over
-   * the network to find the server and key ids for each key. This is only done
-   * once per flush, and only when a key has been added to the Key Package since
-   * the last flush
+   * @note For example: the DBATS backend needs to ask DBATS what the internal
+   * key id is for the string key. Also, the tsmq backend needs to send a query
+   * over the network to find the server and backend key id.
+   *
+   * @note only the "key" property of the KI is guaranteed to be filled. All
+   * others are undefined.
    */
-  int (*kp_update)(timeseries_backend_t *backend,
-                   timeseries_kp_t *kp,
-                   void *state);
+  int (*kp_ki_init)(timeseries_backend_t *backend,
+		    timeseries_kp_t *kp,
+		    timeseries_kp_ki_t *ki,
+		    void **ki_state_p);
+
+  /** Free the backend-specific state in the given Key Info object.
+   *
+   * @param backend    Pointer to a backend instance
+   * @param kp         Pointer to the KP the KI is a member of
+   * @param kv         Pointer to the KI to free state for
+   * @param ki_state   Pointer to the state to free
+   *
+   * @note This function should free the state created by kp_kv_add.
+   */
+  void (*kp_ki_free)(timeseries_backend_t *backend,
+		     timeseries_kp_t *kp,
+		     timeseries_kp_ki_t *ki,
+		     void *ki_state);
 
   /** Flush the current values in the given Key Package to the database
    *
@@ -264,52 +291,28 @@ struct timeseries_backend
 
 /** Allocate all backend objects
  *
- * @param timeseries    The timeseries object to allocate backends for
- * @return 0 if all backends were successfully allocated, -1 otherwise
+ * @param id            ID of the backend to allocate
+ * @return pointer to the backend allocated, NULL if an error occurred, or the backend is
+ *         disabled.
  */
-int timeseries_backend_alloc_all(timeseries_t *timeseries);
+timeseries_backend_t *timeseries_backend_alloc(timeseries_backend_id_t id);
 
 /** Initialize a backend object
  *
- * @param timeseries    The timeseries object to initialize the backend for
- * @param backend_id    The unique ID of the metadata backend
- * @return the backend object created, NULL if an error occurred
+ * @param backend       Pointer to an alloc'd backend structure
+ * @param argc          Number of elements in the argument array
+ * @param argv          Pointer to the argument array
+ * @return 0 if the backend was initialized successfully, -1 otherwise
  */
-int timeseries_backend_init(timeseries_t *timeseries,
-			    timeseries_backend_t *backend,
+int timeseries_backend_init(timeseries_backend_t *backend,
 			    int argc, char **argv);
 
 /** Free the given backend object
  *
  * @param timeseries    The timeseries object to remove the backend from
- * @param backend       The backend object to free
- *
- * @note if this backend was the default, there will be *no* default backend set
- * after this function returns
+ * @param backend       Double-pointer to the backend object to free
  */
-void timeseries_backend_free(timeseries_t *timeseries,
-			     timeseries_backend_t *backend);
-
-/** Ask all backend providers to initialize their state for the given Key
- * Package
- *
- * @param kp            pointer to the key package to be initialized
- * @return 0 if all backends initialized state successfully, -1 otherwise
- */
-int timeseries_backend_kp_init(timeseries_kp_t *kp);
-
-/** Ask all backend providers to free their state for the given Key Package
- *
- * @param               pointer to the key package to be freed
- */
-void timeseries_backend_kp_free(timeseries_kp_t *kp);
-
-/** Ask all backend providers to update their state for the given Key Package
- *
- * @param               pointer to the key package to be updated
- * @return 0 if all backends updated state successfully, -1 otherwise
- */
-int timeseries_backend_kp_update(timeseries_kp_t *kp);
+void timeseries_backend_free(timeseries_backend_t **backend_p);
 
 /** }@ */
 

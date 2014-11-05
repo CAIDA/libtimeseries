@@ -33,7 +33,8 @@
 
 #include <tsmq_server.h>
 
-#include <libtimeseries.h>
+#include <timeseries.h>
+#include "timeseries_backend_int.h" /* @TODO REMOVE CALLBACKS */
 
 #include "config.h"
 
@@ -44,7 +45,7 @@ static size_t handle_key_lookup(tsmq_server_t *server,
                                 char *key, uint8_t **server_key,
                                 void *user)
 {
-  return timeseries_resolve_key(backend, key, server_key);
+  return backend->resolve_key(backend, key, server_key);
 }
 
 static int handle_set_single(tsmq_server_t *server,
@@ -52,7 +53,7 @@ static int handle_set_single(tsmq_server_t *server,
                              tsmq_val_t value, tsmq_time_t time,
                              void *user)
 {
-  return timeseries_set_single_by_id(backend, id, id_len, value, time);
+  return backend->set_single_by_id(backend, id, id_len, value, time);
 }
 
 static void backend_usage()
@@ -74,10 +75,10 @@ static void backend_usage()
 	  continue;
 	}
 
-      assert(timeseries_get_backend_name(backends[i]));
+      assert(timeseries_backend_get_name(backends[i]));
       fprintf(stderr,
 	      "                            - %s\n",
-	      timeseries_get_backend_name(backends[i]));
+	      timeseries_backend_get_name(backends[i]));
     }
 }
 
@@ -133,7 +134,7 @@ static int init_timeseries(const char *ts_backend)
       goto err;
     }
 
-  if(timeseries_enable_backend(timeseries, backend, args) != 0)
+  if(timeseries_enable_backend(backend, args) != 0)
     {
       fprintf(stderr, "ERROR: Failed to initialized backend (%s)\n",
 	      ts_backend);

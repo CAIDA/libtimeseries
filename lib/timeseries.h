@@ -23,20 +23,12 @@
  *
  */
 
-#ifndef __TIMESERIES_BACKEND_ASCII_H
-#define __TIMESERIES_BACKEND_ASCII_H
 
-#include "timeseries_backend_int.h"
+#ifndef __TIMESERIES_H
+#define __TIMESERIES_H
 
-/** @file
- *
- * @brief Header file that exposes the timeseries ASCII backend implementation
- * interface
- *
- * @author Alistair King
- *
- */
+#include <timeseries_pub.h>
+#include <timeseries_backend_pub.h>
+#include <timeseries_kp_pub.h>
 
-TIMESERIES_BACKEND_GENERATE_PROTOS(ascii)
-
-#endif /* __TIMESERIES_BACKEND_ASCII_H */
+#endif /* __TIMESERIES_H */

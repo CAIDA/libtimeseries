@@ -26,7 +26,7 @@
 #ifndef __TIMESERIES_BACKEND_TSMQ_H
 #define __TIMESERIES_BACKEND_TSMQ_H
 
-#include "timeseries_backend.h"
+#include "timeseries_backend_int.h"
 
 /** @file
  *

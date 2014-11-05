@@ -24,7 +24,6 @@
  */
 
 #include "config.h"
-#include "libtimeseries_int.h"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -34,11 +33,14 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "wandio.h"
+#include <wandio.h>
 
 #include "utils.h"
 #include "wandio_utils.h"
 
+#include "timeseries_backend_int.h"
+#include "timeseries_kp_int.h"
+#include "timeseries_log_int.h"
 #include "timeseries_backend_ascii.h"
 
 #define BACKEND_NAME "ascii"
@@ -189,28 +191,42 @@ void timeseries_backend_ascii_free(timeseries_backend_t *backend)
 
 int timeseries_backend_ascii_kp_init(timeseries_backend_t *backend,
                                      timeseries_kp_t *kp,
-                                     void **state)
+                                     void **kp_state_p)
 {
   /* we do not need any state */
-  assert(state != NULL);
-  *state = NULL;
+  assert(kp_state_p != NULL);
+  *kp_state_p = NULL;
   return 0;
 }
 
 void timeseries_backend_ascii_kp_free(timeseries_backend_t *backend,
                                       timeseries_kp_t *kp,
-                                      void *state)
+                                      void *kp_state)
 {
   /* we did not allocate any state */
+  assert(kp_state == NULL);
   return;
 }
 
-int timeseries_backend_ascii_kp_update(timeseries_backend_t *backend,
+int timeseries_backend_ascii_kp_ki_init(timeseries_backend_t *backend,
                                        timeseries_kp_t *kp,
-                                       void *state)
+				       timeseries_kp_ki_t *ki,
+                                       void **ki_state_p)
 {
   /* we don't need to do anything */
+  assert(ki_state_p != NULL);
+  *ki_state_p = NULL;
   return 0;
+}
+
+void timeseries_backend_ascii_kp_ki_free(timeseries_backend_t *backend,
+                                       timeseries_kp_t *kp,
+				       timeseries_kp_ki_t *ki,
+                                       void *ki_state)
+{
+  /* we did not allocate any state */
+  assert(ki_state == NULL);
+  return;
 }
 
 #define PRINT_METRIC(func, file, key, value, time)		\
@@ -235,7 +251,8 @@ int timeseries_backend_ascii_kp_flush(timeseries_backend_t *backend,
 				      uint32_t time)
 {
   timeseries_backend_ascii_state_t *state = STATE(backend);
-  int i;
+  timeseries_kp_ki_t *ki;
+  int id;
 
   /* there are at most 10 digits in a 32bit unix time value, plus the nul */
   char time_buffer[11];
@@ -243,9 +260,12 @@ int timeseries_backend_ascii_kp_flush(timeseries_backend_t *backend,
   /* we really only need to convert the time value to a string once */
   snprintf(time_buffer, 11, "%"PRIu32, time);
 
-  for(i = 0; i < kp->kvs_cnt; i++)
+  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
-      DUMP_METRIC(state, kp->kvs[i].key, kp->kvs[i].value, time_buffer);
+      DUMP_METRIC(state,
+		  timeseries_kp_ki_get_key(ki),
+		  timeseries_kp_ki_get_value(ki),
+		  time_buffer);
     }
 
   return 0;

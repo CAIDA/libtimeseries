@@ -30,15 +30,28 @@ AM_CPPFLAGS = 	-I$(top_srcdir) 	\
 
 lib_LTLIBRARIES = libtimeseries.la
 
-include_HEADERS = libtimeseries.h
+include_HEADERS = 	timeseries.h			\
+			timeseries_pub.h		\
+			timeseries_backend_pub.h	\
+			timeseries_kp_pub.h
 
 libtimeseries_la_SOURCES = 		\
+	timeseries.h			\
+					\
+	timeseries_pub.h		\
+	timeseries_int.h		\
 	timeseries.c	 		\
-	libtimeseries.h			\
-	libtimeseries_int.h		\
+					\
+	timeseries_log_int.h		\
 	timeseries_log.c		\
+					\
+	timeseries_backend_pub.h	\
+	timeseries_backend_int.h	\
 	timeseries_backend.c		\
-	timeseries_backend.h
+					\
+	timeseries_kp_pub.h		\
+	timeseries_kp_int.h		\
+	timeseries_kp.c
 
 libtimeseries_la_LIBADD = 			\
 	$(top_builddir)/common/libcccommon.la 	\

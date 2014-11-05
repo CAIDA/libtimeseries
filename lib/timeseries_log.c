@@ -47,8 +47,6 @@
 
 #include "utils.h"
 
-#include "libtimeseries_int.h"
-
 static char *timestamp_str(char *buf, const size_t len)
 {
   struct timeval  tv;

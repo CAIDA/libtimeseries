@@ -24,7 +24,6 @@
  */
 
 #include "config.h"
-#include "libtimeseries_int.h"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -38,6 +37,9 @@
 
 #include "utils.h"
 
+#include "timeseries_backend_int.h"
+#include "timeseries_kp_int.h"
+#include "timeseries_log_int.h"
 #include "timeseries_backend_tsmq.h"
 
 #define BACKEND_NAME "tsmq"
@@ -178,37 +180,44 @@ void timeseries_backend_tsmq_free(timeseries_backend_t *backend)
 }
 
 int timeseries_backend_tsmq_kp_init(timeseries_backend_t *backend,
-                                     timeseries_kp_t *kp,
-                                     void **state)
+				    timeseries_kp_t *kp,
+				    void **kp_state_p)
 {
-  /* todo */
-  assert(state != NULL);
-  *state = NULL;
+  assert(0);
   return 0;
 }
 
 void timeseries_backend_tsmq_kp_free(timeseries_backend_t *backend,
-                                      timeseries_kp_t *kp,
-                                      void *state)
+				     timeseries_kp_t *kp,
+				     void *kp_state)
 {
-  /* todo */
+  assert(0);
   return;
 }
 
-int timeseries_backend_tsmq_kp_update(timeseries_backend_t *backend,
+int timeseries_backend_tsmq_kp_ki_init(timeseries_backend_t *backend,
                                        timeseries_kp_t *kp,
-                                       void *state)
+				       timeseries_kp_ki_t *ki,
+                                       void **ki_state_p)
 {
-  /* todo */
+  assert(0);
   return 0;
+}
+
+void timeseries_backend_tsmq_kp_ki_free(timeseries_backend_t *backend,
+                                       timeseries_kp_t *kp,
+				       timeseries_kp_ki_t *ki,
+                                       void *ki_state)
+{
+  assert(0);
+  return;
 }
 
 int timeseries_backend_tsmq_kp_flush(timeseries_backend_t *backend,
 				      timeseries_kp_t *kp,
 				      uint32_t time)
 {
-  /* todo */
-
+  assert(0);
   return 0;
 }
 

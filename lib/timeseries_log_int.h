@@ -23,20 +23,31 @@
  *
  */
 
-#ifndef __TIMESERIES_BACKEND_ASCII_H
-#define __TIMESERIES_BACKEND_ASCII_H
 
-#include "timeseries_backend_int.h"
+#ifndef __TIMESERIES_LOG_INT_H
+#define __TIMESERIES_LOG_INT_H
 
 /** @file
  *
- * @brief Header file that exposes the timeseries ASCII backend implementation
- * interface
+ * @brief Header file that contains the protected interface to the timeseries log class
+ *
  *
  * @author Alistair King
  *
  */
 
-TIMESERIES_BACKEND_GENERATE_PROTOS(ascii)
+/**
+ * @name Logging functions
+ *
+ * Collection of convenience functions that allow libtimeseries to log events
+ * For now we just log to stderr, but this should be extended in future.
+ *
+ * @todo find (or write) good C logging library (that can also log to syslog)
+ *
+ * @{ */
 
-#endif /* __TIMESERIES_BACKEND_ASCII_H */
+void timeseries_log(const char *func, const char *format, ...);
+
+/** @} */
+
+#endif /* __TIMESERIES_LOG_INT_H */

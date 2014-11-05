@@ -36,19 +36,16 @@
 #include <wandio.h>
 #include <wandio_utils.h>
 
-#include <libtimeseries.h>
+#include <timeseries.h>
 
 #include "config.h"
 
 #define BUFFER_LEN 1024
 
 timeseries_t *timeseries = NULL;
-timeseries_backend_t *backends[TIMESERIES_BACKEND_ID_LAST];
-int backends_cnt = 0;
 
 static int insert(char *line)
 {
-  int i;
   char *end = NULL;
   char *key = NULL;
   char *value_str = NULL;
@@ -101,13 +98,11 @@ static int insert(char *line)
       return 0;
     }
 
-  for(i=0; i<backends_cnt; i++)
+  if(timeseries_set_single(timeseries, key, value, time) != 0)
     {
-      if(timeseries_set_single(backends[i], key, value, time) != 0)
-        {
-          return -1;
-        }
+      return -1;
     }
+
   return 0;
 }
 
@@ -130,10 +125,10 @@ static void backend_usage()
 	  continue;
 	}
 
-      assert(timeseries_get_backend_name(avail_backends[i]));
+      assert(timeseries_backend_get_name(avail_backends[i]));
       fprintf(stderr,
 	      "                            - %s\n",
-	      timeseries_get_backend_name(avail_backends[i]));
+	      timeseries_backend_get_name(avail_backends[i]));
     }
 }
 
@@ -152,6 +147,8 @@ static int init_timeseries(char *ts_backend)
   char *strcpy = NULL;
   char *args = NULL;
 
+  timeseries_backend_t *backend;
+
   if((strcpy = strdup(ts_backend)) == NULL)
     {
       goto err;
@@ -167,22 +164,19 @@ static int init_timeseries(char *ts_backend)
       args++;
     }
 
-  if((backends[backends_cnt] =
-      timeseries_get_backend_by_name(timeseries, ts_backend)) == NULL)
+  if((backend = timeseries_get_backend_by_name(timeseries, ts_backend)) == NULL)
     {
       fprintf(stderr, "ERROR: Invalid backend name (%s)\n",
 	      ts_backend);
       goto err;
     }
 
-  if(timeseries_enable_backend(timeseries, backends[backends_cnt], args) != 0)
+  if(timeseries_enable_backend(backend, args) != 0)
     {
-      fprintf(stderr, "ERROR: Failed to initialized backend (%s)\n",
+      fprintf(stderr, "ERROR: Failed to initialize backend (%s)\n",
 	      ts_backend);
       goto err;
     }
-
-  backends_cnt++;
 
   free(strcpy);
 
@@ -288,9 +282,9 @@ int main(int argc, char **argv)
         }
     }
 
-  assert(timeseries != NULL && backends_cnt > 0);
+  assert(timeseries != NULL);
 
-  timeseries_log(__func__, "Reading metrics from %s", input_file);
+  fprintf(stderr, "INFO: Reading metrics from %s\n", input_file);
   /* open the input file, (defaults to stdin) */
   if((infile = wandio_create(input_file)) == NULL)
     {
@@ -312,12 +306,12 @@ int main(int argc, char **argv)
     }
 
   /* free timeseries, backends will be free'd */
-  timeseries_free(timeseries);
+  timeseries_free(&timeseries);
 
   /* complete successfully */
   return 0;
 
  err:
-  timeseries_free(timeseries);
+  timeseries_free(&timeseries);
   return -1;
 }
