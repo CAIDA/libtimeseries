@@ -58,15 +58,10 @@ typedef struct timeseries_kp_ki timeseries_kp_ki_t;
 
 #define TIMESERIES_KP_FOREACH_KI(kp, ki, id)			\
   int cnt = timeseries_kp_size(kp);				\
-  for(id=0; id<cnt; ++id && (ki=timeseries_kp_get_ki(kp, id)))
+  for(id=0, (ki=timeseries_kp_get_ki(kp, id));			\
+      id<cnt;							\
+      ++id, (ki=timeseries_kp_get_ki(kp, id)))
 
-
-/** Get the number of Keys in the given Key Package
- *
- * @param kp            pointer to a Key Package
- * @return the number of keys in the given key package
- */
-int timeseries_kp_size(timeseries_kp_t *kp);
 
 /** Get the Key Info object with the given ID
  *

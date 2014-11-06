@@ -183,7 +183,9 @@ int timeseries_backend_tsmq_kp_init(timeseries_backend_t *backend,
 				    timeseries_kp_t *kp,
 				    void **kp_state_p)
 {
-  assert(0);
+  /* we don't need any kp-specific state */
+  assert(kp_state_p != NULL);
+  *kp_state_p = NULL;
   return 0;
 }
 
@@ -191,7 +193,8 @@ void timeseries_backend_tsmq_kp_free(timeseries_backend_t *backend,
 				     timeseries_kp_t *kp,
 				     void *kp_state)
 {
-  assert(0);
+  /* we stored no state in the kp */
+  assert(kp_state == NULL);
   return;
 }
 

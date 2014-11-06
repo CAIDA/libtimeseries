@@ -106,6 +106,17 @@ void timeseries_kp_free(timeseries_kp_t **kp_p);
  */
 int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key);
 
+/** Get the ID of the given key
+ *
+ * @param kp            The Key Package to search
+ * @param key           Pointer to a string key name to look for
+ * @return the ID of the key (to be used with timeseries_kp_set) if it exists, -1 otherwise
+ *
+ * @note this function does a linear search of the KP, so it should not be used
+ * in performance-critical environments
+ */
+int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key);
+
 /** Set the current value for the given key in a Key Package
  *
  * @param kp            Pointer to the KP to set the value on
@@ -124,5 +135,12 @@ void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value);
  * @note this will only flush to those backends enabled when the KP was created
  */
 int timeseries_kp_flush(timeseries_kp_t *kp, uint32_t time);
+
+/** Get the number of Keys in the given Key Package
+ *
+ * @param kp            pointer to a Key Package
+ * @return the number of keys in the given key package
+ */
+int timeseries_kp_size(timeseries_kp_t *kp);
 
 #endif /* __TIMESERIES_KP_PUB_H */

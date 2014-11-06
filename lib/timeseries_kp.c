@@ -264,6 +264,11 @@ void timeseries_kp_free(timeseries_kp_t **kp_p)
   timeseries_kp_t *kp = *kp_p;
   *kp_p = NULL;
 
+  if(kp == NULL)
+    {
+      return;
+    }
+
   timeseries_t *timeseries = kp_get_timeseries(kp);
   timeseries_backend_t *backend;
   int id;
@@ -317,6 +322,21 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
   kp->dirty = 1;
 
   return 0;
+}
+
+int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key)
+{
+  int i;
+  assert(kp != NULL);
+
+  for(i=0; i < kp->key_infos_cnt; i++)
+    {
+      if(strcmp(timeseries_kp_ki_get_key(&kp->key_infos[i]), key) == 0)
+	{
+	  return i;
+	}
+    }
+  return -1;
 }
 
 void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value)

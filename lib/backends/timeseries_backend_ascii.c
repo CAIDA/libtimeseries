@@ -247,7 +247,7 @@ int timeseries_backend_ascii_kp_flush(timeseries_backend_t *backend,
 				      uint32_t time)
 {
   timeseries_backend_ascii_state_t *state = STATE(backend);
-  timeseries_kp_ki_t *ki;
+  timeseries_kp_ki_t *ki = NULL;
   int id;
 
   /* there are at most 10 digits in a 32bit unix time value, plus the nul */
