@@ -77,6 +77,9 @@ struct timeseries_kp
 
   /** Should the values be explicitly reset after a flush? */
   int reset;
+
+  /** Have keys been added since the last call to [backend]->kp_ki_update? */
+  int dirty;
 };
 
 /** Get the timeseries object associated with the given Key Package
@@ -142,29 +145,12 @@ static void kp_reset(timeseries_kp_t *kp)
 static int kp_ki_init(timeseries_kp_ki_t *ki, timeseries_kp_t *kp,
 		      const char *key)
 {
-  timeseries_t *timeseries;
-  timeseries_backend_t *backend = NULL;
-  int id;
-
   assert(ki != NULL);
-
-  timeseries = kp_get_timeseries(kp);
-  assert(timeseries != NULL);
 
   if((ki->key = strdup(key)) == NULL)
     {
       kp_ki_free(ki, kp);
       return -1;
-    }
-
-  /* let each backend create some state for this key if they want */
-  TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)
-    {
-      if(backend->kp_ki_init(backend, kp, ki, &ki->backend_state[id-1]) != 0)
-	{
-	  kp_ki_free(ki, kp);
-	  return -1;
-	}
     }
 
   return 0;
@@ -228,6 +214,13 @@ uint64_t timeseries_kp_ki_get_value(timeseries_kp_ki_t *ki)
 {
   assert(ki != NULL);
   return ki->value;
+}
+
+void **timeseries_kp_ki_get_backend_state(timeseries_kp_ki_t *ki,
+					  timeseries_backend_id_t id)
+{
+  assert(ki != NULL);
+  return ki->backend_state[id-1];
 }
 
 /* ========== PUBLIC FUNCTIONS ========== */
@@ -320,6 +313,9 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
 
   kp->key_infos_cnt++;
 
+  /* backends will need to update their state */
+  kp->dirty = 1;
+
   return 0;
 }
 
@@ -336,11 +332,20 @@ int timeseries_kp_flush(timeseries_kp_t *kp,
 {
   int id;
   timeseries_backend_t *backend;
+  int dirty;
   timeseries_t *timeseries = kp_get_timeseries(kp);
   assert(timeseries != NULL);
 
+  dirty = kp->dirty;
+  kp->dirty = 0;
+
   TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)
     {
+      if(dirty != 0 && backend->kp_ki_update(backend, kp) != 0)
+	{
+	  return -1;
+	}
+
       if(backend->kp_flush(backend, kp, time) != 0)
 	{
 	  return -1;

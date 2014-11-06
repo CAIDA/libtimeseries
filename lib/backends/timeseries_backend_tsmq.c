@@ -195,10 +195,8 @@ void timeseries_backend_tsmq_kp_free(timeseries_backend_t *backend,
   return;
 }
 
-int timeseries_backend_tsmq_kp_ki_init(timeseries_backend_t *backend,
-                                       timeseries_kp_t *kp,
-				       timeseries_kp_ki_t *ki,
-                                       void **ki_state_p)
+int timeseries_backend_tsmq_kp_ki_update(timeseries_backend_t *backend,
+					 timeseries_kp_t *kp)
 {
   assert(0);
   return 0;

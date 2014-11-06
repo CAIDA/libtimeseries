@@ -60,10 +60,8 @@
   void timeseries_backend_##provname##_kp_free(timeseries_backend_t *backend, \
 					       timeseries_kp_t *kp,	\
 					       void *kp_state);		\
-  int timeseries_backend_##provname##_kp_ki_init(timeseries_backend_t *backend, \
-                                                timeseries_kp_t *kp,    \
-						timeseries_kp_ki_t *ki,	\
-                                                void **ki_state_p);	\
+  int timeseries_backend_##provname##_kp_ki_update(timeseries_backend_t *backend, \
+						   timeseries_kp_t *kp); \
   void timeseries_backend_##provname##_kp_ki_free(timeseries_backend_t *backend, \
 						  timeseries_kp_t *kp,	\
 						  timeseries_kp_ki_t *ki, \
@@ -92,7 +90,7 @@
     timeseries_backend_##provname##_free,		\
     timeseries_backend_##provname##_kp_init,		\
     timeseries_backend_##provname##_kp_free,		\
-    timeseries_backend_##provname##_kp_ki_init,		\
+    timeseries_backend_##provname##_kp_ki_update,	\
     timeseries_backend_##provname##_kp_ki_free,		\
     timeseries_backend_##provname##_kp_flush,		\
     timeseries_backend_##provname##_set_single,		\
@@ -174,26 +172,23 @@ struct timeseries_backend
 		  timeseries_kp_t *kp,
 		  void *kp_state);
 
-  /** Create backend-specific state in the given Key Info object
+  /** Update backend-specific Key Info state in the given Key Package object
    *
    * @param      backend     Pointer to a backend instance
-   * @param      kp          Pointer to the KP the KI is a member of
-   * @param      ki          Pointer to the KI to create state for
-   * @param[out] ki_state_p  Set to pointer to state allocated, or NULL if no
-   *                         state is needed by the backend
+   * @param      kp          Pointer to the KP to update
    * @return 0 if state was updated successfully, -1 otherwise
    *
-   * @note For example: the DBATS backend needs to ask DBATS what the internal
-   * key id is for the string key. Also, the tsmq backend needs to send a query
-   * over the network to find the server and backend key id.
+   * For example: the DBATS backend needs to ask DBATS what the internal key id
+   * is for the string key. Also, the tsmq backend needs to send a query over
+   * the network to find the server and backend key id.
    *
-   * @note only the "key" property of the KI is guaranteed to be filled. All
-   * others are undefined.
+   * Backends should use the TIMESERIES_KP_FOREACH_KI macro to iterate over all
+   * KIs in the KP and then use the timeseries_kp_get_ki and
+   * timeseries_kp_ki_get_backend_state functions to get a pointer to the state
+   * to update.
    */
-  int (*kp_ki_init)(timeseries_backend_t *backend,
-		    timeseries_kp_t *kp,
-		    timeseries_kp_ki_t *ki,
-		    void **ki_state_p);
+  int (*kp_ki_update)(timeseries_backend_t *backend,
+		      timeseries_kp_t *kp);
 
   /** Free the backend-specific state in the given Key Info object.
    *

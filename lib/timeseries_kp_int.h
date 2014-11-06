@@ -76,18 +76,28 @@ int timeseries_kp_size(timeseries_kp_t *kp);
  */
 timeseries_kp_ki_t *timeseries_kp_get_ki(timeseries_kp_t *kp, int id);
 
-/** Get the string key from a Key object
+/** Get the string key from a Key Info object
  *
  * @param key           pointer to a Key Package Key Info object
- * @return a pointer to the string representation of the Key
+ * @return a pointer to the string representation of the Key Info
  */
-const char *timeseries_kp_ki_get_key(timeseries_kp_ki_t *info);
+const char *timeseries_kp_ki_get_key(timeseries_kp_ki_t *ki);
 
-/** Get the value of the given Key object
+/** Get the value of the given Key Info object
  *
  * @param key           pointer to a Key Package Key Info object
- * @return current value for the given Key
+ * @return current value for the given Key Info
  */
-uint64_t timeseries_kp_ki_get_value(timeseries_kp_ki_t *info);
+uint64_t timeseries_kp_ki_get_value(timeseries_kp_ki_t *ki);
+
+/** Get the backend state of the given Key Info object
+ *
+ * @param ki            pointer to a Key Package Key Info object
+ * @param backend_id    ID of the backend state to retrieve
+ * @return double-pointer to the state for this backend/info pair
+ */
+void **timeseries_kp_ki_get_backend_state(timeseries_kp_ki_t *ki,
+					  timeseries_backend_id_t id);
+
 
 #endif /* __TIMESERIES_KP_INT_H */

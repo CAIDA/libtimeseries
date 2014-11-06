@@ -208,14 +208,10 @@ void timeseries_backend_ascii_kp_free(timeseries_backend_t *backend,
   return;
 }
 
-int timeseries_backend_ascii_kp_ki_init(timeseries_backend_t *backend,
-                                       timeseries_kp_t *kp,
-				       timeseries_kp_ki_t *ki,
-                                       void **ki_state_p)
+int timeseries_backend_ascii_kp_ki_update(timeseries_backend_t *backend,
+					  timeseries_kp_t *kp)
 {
   /* we don't need to do anything */
-  assert(ki_state_p != NULL);
-  *ki_state_p = NULL;
   return 0;
 }
 
