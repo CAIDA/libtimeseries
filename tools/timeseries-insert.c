@@ -42,7 +42,11 @@
 
 #define BUFFER_LEN 1024
 
-timeseries_t *timeseries = NULL;
+static timeseries_t *timeseries = NULL;
+static timeseries_kp_t *kp = NULL;
+
+static int batch_mode = 0;
+static int gtime = 0;
 
 static int insert(char *line)
 {
@@ -52,6 +56,13 @@ static int insert(char *line)
   char *time_str = NULL;
   uint64_t value = 0;
   uint32_t time = 0;
+
+  int key_id = -1;
+
+  if(line == NULL)
+    {
+      return 0;
+    }
 
   /* line format is "<key> <value> <time>" */
 
@@ -98,9 +109,41 @@ static int insert(char *line)
       return 0;
     }
 
-  if(timeseries_set_single(timeseries, key, value, time) != 0)
+  if(batch_mode == 0)
     {
-      return -1;
+      if(timeseries_set_single(timeseries, key, value, time) != 0)
+	{
+	  return -1;
+	}
+    }
+  else
+    {
+      /* use kp */
+      if(gtime == 0)
+	{
+	  gtime = time;
+	}
+      if(gtime != time)
+	{
+	  fprintf(stderr, "Flushing table at time %d\n", gtime);
+	  if(timeseries_kp_flush(kp, gtime) != 0)
+	    {
+	      fprintf(stderr, "ERROR: Could not flush table\n");
+	      return -1;
+	    }
+	  gtime = time;
+	}
+
+      /* attempt to get id for this key */
+      if((key_id = timeseries_kp_get_key(kp, key)) == -1 &&
+	 (key_id = timeseries_kp_add_key(kp, key)) == -1)
+	{
+	  fprintf(stderr, "ERROR: Could not add key (%s) to KP\n", key);
+	  return -1;
+	}
+      assert(key_id >= 0);
+
+      timeseries_kp_set(kp, key_id, value);
     }
 
   return 0;
@@ -135,7 +178,8 @@ static void backend_usage()
 static void usage(const char *name)
 {
   fprintf(stderr,
-	  "usage: %s -t <ts-backend> [-f input-file]\n"
+	  "usage: %s -t <ts-backend> [<options>]\n"
+	  "       -b                 Simulate batch insert mode (may be slower)\n"
           "       -f <input-file>    File to read time series data from (default: stdin)\n"
 	  "       -t <ts-backend>    Timeseries backend to use for writing\n",
 	  name);
@@ -215,7 +259,7 @@ int main(int argc, char **argv)
     }
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":f:t:v?")) >= 0)
+	(opt = getopt(argc, argv, ":bf:t:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && (optarg == NULL || *optarg == '-') ) {
         opt = ':';
@@ -227,6 +271,10 @@ int main(int argc, char **argv)
 	  fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
 	  usage(argv[0]);
 	  return -1;
+	  break;
+
+	case 'b':
+	  batch_mode = 1;
 	  break;
 
         case 'f':
@@ -284,6 +332,15 @@ int main(int argc, char **argv)
 
   assert(timeseries != NULL);
 
+  if(batch_mode != 0)
+    {
+      fprintf(stderr, "INFO: Using batch mode (Key Package)\n");
+      if((kp = timeseries_kp_init(timeseries, 1)) == NULL)
+	{
+	  fprintf(stderr, "ERROR: Could not create Key Package\n");
+	}
+    }
+
   fprintf(stderr, "INFO: Reading metrics from %s\n", input_file);
   /* open the input file, (defaults to stdin) */
   if((infile = wandio_create(input_file)) == NULL)
@@ -302,9 +359,24 @@ int main(int argc, char **argv)
           continue;
         }
 
-      insert(buffer);
+      if(insert(buffer) != 0)
+	{
+	  goto err;
+	}
     }
 
+  if(batch_mode != 0)
+    {
+      fprintf(stderr, "Flushing final table at time %d\n", gtime);
+      if(timeseries_kp_flush(kp, gtime) != 0)
+	{
+	  fprintf(stderr, "ERROR: Could not flush table\n");
+	  return -1;
+	}
+    }
+
+  /* free the kp */
+  timeseries_kp_free(&kp);
   /* free timeseries, backends will be free'd */
   timeseries_free(&timeseries);
 
@@ -312,6 +384,7 @@ int main(int argc, char **argv)
   return 0;
 
  err:
+  timeseries_kp_free(&kp);
   timeseries_free(&timeseries);
   return -1;
 }
