@@ -302,16 +302,18 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
   assert(kp != NULL);
   assert(key != NULL);
 
+  int this_id = kp->key_infos_cnt;
+
   /* first we need to realloc the array of keys */
   if((kp->key_infos =
       realloc(kp->key_infos,
-              sizeof(timeseries_kp_ki_t) * (kp->key_infos_cnt+1))) == NULL)
+              sizeof(timeseries_kp_ki_t) * (this_id+1))) == NULL)
     {
       timeseries_log(__func__, "could not realloc KP KI array");
       return -1;
     }
 
-  if(kp_ki_init(&kp->key_infos[kp->key_infos_cnt], kp, key) != 0)
+  if(kp_ki_init(&kp->key_infos[this_id], kp, key) != 0)
     {
       return -1;
     }
@@ -321,7 +323,7 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
   /* backends will need to update their state */
   kp->dirty = 1;
 
-  return 0;
+  return this_id;
 }
 
 int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key)
