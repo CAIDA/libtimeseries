@@ -201,7 +201,30 @@ void timeseries_backend_tsmq_kp_free(timeseries_backend_t *backend,
 int timeseries_backend_tsmq_kp_ki_update(timeseries_backend_t *backend,
 					 timeseries_kp_t *kp)
 {
-  assert(0);
+  timeseries_backend_tsmq_state_t *state = STATE(backend);
+  timeseries_kp_ki_t *ki = NULL;
+  tsmq_client_key_t *tsmq_key = NULL;
+  const char *key = NULL;
+  int id;
+
+  /** @todo make this easier for backends */
+  /* foreach KI, find those that have NULL state, build resolution table */
+  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+    {
+      /* @todo resolve many */
+      if(timeseries_kp_ki_get_backend_state(ki, backend->id) == NULL)
+	{
+	  key = timeseries_kp_ki_get_key(ki);
+	  assert(key != NULL);
+	  /*fprintf(stderr, "INFO: Resolving key for %s\n", key);*/
+	  if((tsmq_key = tsmq_client_key_lookup(state->client, key)) == NULL)
+	    {
+	      return -1;
+	    }
+	  timeseries_kp_ki_set_backend_state(ki, backend->id, tsmq_key);
+	}
+    }
+
   return 0;
 }
 
@@ -210,7 +233,8 @@ void timeseries_backend_tsmq_kp_ki_free(timeseries_backend_t *backend,
 				       timeseries_kp_ki_t *ki,
                                        void *ki_state)
 {
-  assert(0);
+  tsmq_client_key_t *tsmq_key = (tsmq_client_key_t*)ki_state;
+  tsmq_client_key_free(&tsmq_key);
   return;
 }
 
@@ -218,7 +242,23 @@ int timeseries_backend_tsmq_kp_flush(timeseries_backend_t *backend,
 				      timeseries_kp_t *kp,
 				      uint32_t time)
 {
-  assert(0);
+  timeseries_backend_tsmq_state_t *state = STATE(backend);
+  timeseries_kp_ki_t *ki = NULL;
+  tsmq_client_key_t *tsmq_key = NULL;
+  int id;
+
+  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+    {
+      /* @todo set many */
+      tsmq_key = (tsmq_client_key_t*)timeseries_kp_ki_get_backend_state(ki, backend->id);
+      assert(tsmq_key != NULL);
+      if(tsmq_client_key_set_single(state->client, tsmq_key,
+				    timeseries_kp_ki_get_value(ki), time) != 0)
+	{
+	  return -1;
+	}
+    }
+
   return 0;
 }
 

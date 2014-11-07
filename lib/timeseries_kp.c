@@ -159,6 +159,10 @@ static int kp_ki_init(timeseries_kp_ki_t *ki, timeseries_kp_t *kp,
       return -1;
     }
 
+  /* zero out the structure */
+  ki->value = 0;
+  memset(&ki->backend_state, 0, sizeof(void*)*TIMESERIES_BACKEND_ID_LAST);
+
   return 0;
 }
 
@@ -204,8 +208,11 @@ int timeseries_kp_size(timeseries_kp_t *kp)
 timeseries_kp_ki_t *timeseries_kp_get_ki(timeseries_kp_t *kp, int id)
 {
   assert(kp != NULL);
-  assert(id >= 0 && id < kp->key_infos_cnt);
-  return &kp->key_infos[id];
+  if(id >= 0 && id < kp->key_infos_cnt)
+    {
+      return &kp->key_infos[id];
+    }
+  return NULL;
 }
 
 const char *timeseries_kp_ki_get_key(timeseries_kp_ki_t *ki)
@@ -220,11 +227,19 @@ uint64_t timeseries_kp_ki_get_value(timeseries_kp_ki_t *ki)
   return ki->value;
 }
 
-void **timeseries_kp_ki_get_backend_state(timeseries_kp_ki_t *ki,
+void *timeseries_kp_ki_get_backend_state(timeseries_kp_ki_t *ki,
 					  timeseries_backend_id_t id)
 {
   assert(ki != NULL);
   return ki->backend_state[id-1];
+}
+
+void timeseries_kp_ki_set_backend_state(timeseries_kp_ki_t *ki,
+					timeseries_backend_id_t id,
+					void *ki_state)
+{
+  assert(ki != NULL);
+  ki->backend_state[id-1] = ki_state;
 }
 
 /* ========== PUBLIC FUNCTIONS ========== */
