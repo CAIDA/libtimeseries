@@ -183,8 +183,6 @@ static void kp_ki_free(timeseries_kp_ki_t *ki, timeseries_kp_t *kp)
       ki->backend_state[id-1] = NULL;
     }
 
-  free(ki);
-
   return;
 }
 

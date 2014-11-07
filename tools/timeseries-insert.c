@@ -380,6 +380,8 @@ int main(int argc, char **argv)
   /* free timeseries, backends will be free'd */
   timeseries_free(&timeseries);
 
+  wandio_destroy(infile);
+
   /* complete successfully */
   return 0;
 
