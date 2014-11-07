@@ -111,9 +111,6 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key);
  * @param kp            The Key Package to search
  * @param key           Pointer to a string key name to look for
  * @return the ID of the key (to be used with timeseries_kp_set) if it exists, -1 otherwise
- *
- * @note this function does a linear search of the KP, so it should not be used
- * in performance-critical environments
  */
 int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key);
 

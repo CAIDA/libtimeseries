@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "khash.h"
 #include "utils.h"
 
 #include "timeseries_kp_int.h"
@@ -40,6 +41,8 @@
 #include "timeseries_log_int.h"
 
 /* ========== PRIVATE DATA STRUCTURES/FUNCTIONS ========== */
+
+KHASH_MAP_INIT_STR(strint, int);
 
 struct timeseries_kp_ki
 {
@@ -64,6 +67,9 @@ struct timeseries_kp
 
   /** Dynamically allocated array of Key Info objects */
   timeseries_kp_ki_t *key_infos;
+
+  /** Hash of key names -> key ids */
+  khash_t(strint) *key_id_hash;
 
   /** Number of keys in the Key Package */
   uint32_t key_infos_cnt;
@@ -239,6 +245,13 @@ timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset)
       return NULL;
     }
 
+  /* prep the key hash */
+  if((kp->key_id_hash = kh_init(strint)) == NULL)
+    {
+      timeseries_log(__func__, "could not init key hash");
+      return NULL;
+    }
+
   /* save the timeseries pointer */
   kp->timeseries = timeseries;
 
@@ -259,40 +272,40 @@ timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset)
 
 void timeseries_kp_free(timeseries_kp_t **kp_p)
 {
-  int i;
-  assert(kp_p != NULL);
-  timeseries_kp_t *kp = *kp_p;
-  *kp_p = NULL;
+  timeseries_kp_t *kp;
+  timeseries_t *timeseries;
+  timeseries_backend_t *backend;
+  int i, id;
 
+  assert(kp_p != NULL);
+  kp = *kp_p;
   if(kp == NULL)
     {
       return;
     }
+  *kp_p = NULL;
 
-  timeseries_t *timeseries = kp_get_timeseries(kp);
-  timeseries_backend_t *backend;
-  int id;
+  /* destroy the key hash */
+  kh_destroy(strint, kp->key_id_hash);
 
-  if(kp != NULL)
+  for(i=0; i < kp->key_infos_cnt; i++)
     {
-      for(i=0; i < kp->key_infos_cnt; i++)
-	{
-	  kp_ki_free(&kp->key_infos[i], kp);
-	}
-
-      free(kp->key_infos);
-      kp->key_infos = NULL;
-      kp->key_infos_cnt = 0;
-
-      TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)
-	{
-	  backend->kp_free(backend, kp, kp->backend_state[id-1]);
-	  kp->backend_state[id-1] = NULL;
-	}
-
-      /* free the actual key package structure */
-      free(kp);
+      kp_ki_free(&kp->key_infos[i], kp);
     }
+
+  free(kp->key_infos);
+  kp->key_infos = NULL;
+  kp->key_infos_cnt = 0;
+
+  timeseries = kp_get_timeseries(kp);
+  TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)
+    {
+      backend->kp_free(backend, kp, kp->backend_state[id-1]);
+      kp->backend_state[id-1] = NULL;
+    }
+
+  /* free the actual key package structure */
+  free(kp);
 
   return;
 }
@@ -301,8 +314,10 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
 {
   assert(kp != NULL);
   assert(key != NULL);
-
+  int ret;
+  khiter_t k;
   int this_id = kp->key_infos_cnt;
+  timeseries_kp_ki_t *ki = NULL;
 
   /* first we need to realloc the array of keys */
   if((kp->key_infos =
@@ -313,10 +328,22 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
       return -1;
     }
 
-  if(kp_ki_init(&kp->key_infos[this_id], kp, key) != 0)
+  ki = &kp->key_infos[this_id];
+  assert(ki != NULL);
+
+  if(kp_ki_init(ki, kp, key) != 0)
     {
       return -1;
     }
+
+  /* now add a lookup in the hash */
+  k = kh_put(strint, kp->key_id_hash, timeseries_kp_ki_get_key(ki), &ret);
+  if(ret == -1)
+    {
+      timeseries_log(__func__, "could not add key to hash");
+      return -1;
+    }
+  kh_val(kp->key_id_hash, k) = this_id;
 
   kp->key_infos_cnt++;
 
@@ -328,17 +355,15 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
 
 int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key)
 {
-  int i;
+  khiter_t k;
   assert(kp != NULL);
 
-  for(i=0; i < kp->key_infos_cnt; i++)
+  /* just check the hash */
+  if((k = kh_get(strint, kp->key_id_hash, key)) == kh_end(kp->key_id_hash))
     {
-      if(strcmp(timeseries_kp_ki_get_key(&kp->key_infos[i]), key) == 0)
-	{
-	  return i;
-	}
+      return -1;
     }
-  return -1;
+  return kh_val(kp->key_id_hash, k);
 }
 
 void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value)
