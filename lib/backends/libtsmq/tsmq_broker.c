@@ -290,10 +290,11 @@ static void server_remove(tsmq_broker_t *broker,
 }
 #endif
 
-static int servers_purge(tsmq_broker_t *broker, uint64_t clock)
+static int servers_purge(tsmq_broker_t *broker)
 {
   khiter_t k;
   tsmq_broker_server_t *server;
+  uint64_t clock = zclock_time();
 
   for(k = kh_begin(broker->servers); k != kh_end(broker->servers); ++k)
     {
@@ -332,7 +333,6 @@ static void servers_free(tsmq_broker_t *broker)
 static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 {
   tsmq_broker_t *broker = (tsmq_broker_t*)arg;
-  uint64_t clock = zclock_time();
   uint8_t msg_type_p;
   tsmq_broker_server_t *server = NULL;
   khiter_t k;
@@ -362,7 +362,7 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
     }
 
   /* remove dead servers */
-  return servers_purge(broker, clock);
+  return servers_purge(broker);
 
  err:
   return -1;
