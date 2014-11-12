@@ -34,11 +34,8 @@
 
 #define CTX broker->tsmq->ctx
 
-enum {
-  POLL_ITEM_SERVER = 0,
-  POLL_ITEM_CLIENT = 1,
-  POLL_ITEM_CNT    = 2,
-};
+static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg);
+static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg);
 
 typedef struct server {
   /* Identity frame that the server sent us */
@@ -50,6 +47,75 @@ typedef struct server {
   /** Time at which the server expires */
   uint64_t expiry;
 } server_t;
+
+static void reset_heartbeat_timer(tsmq_broker_t *broker,
+				  uint64_t clock)
+{
+  broker->heartbeat_next = clock + broker->heartbeat_interval;
+}
+
+#if 0
+static void reset_heartbeat_liveness(tsmq_broker_t *broker)
+{
+  broker->heartbeat_liveness_remaining = broker->heartbeat_liveness;
+}
+#endif
+
+static int server_bind(tsmq_broker_t *broker)
+{
+  /* bind to server socket */
+  if((broker->server_socket = zsocket_new(CTX, ZMQ_ROUTER)) == NULL)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_START_FAILED,
+		   "Failed to create server socket");
+      return -1;
+    }
+
+  if(zsocket_bind(broker->server_socket, "%s", broker->server_uri) < 0)
+    {
+      tsmq_set_err(broker->tsmq, errno, "Could not bind to server socket");
+      return -1;
+    }
+
+  /* add to reactor */
+  if(zloop_reader(broker->loop, broker->server_socket,
+                  handle_server_msg, broker) != 0)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not add server socket to reactor");
+      return -1;
+    }
+
+  return 0;
+}
+
+static int client_bind(tsmq_broker_t *broker)
+{
+  /* bind to client socket */
+  if((broker->client_socket = zsocket_new(CTX, ZMQ_ROUTER)) == NULL)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_START_FAILED,
+		   "Failed to create client socket");
+      return -1;
+    }
+
+  if(zsocket_bind(broker->client_socket, "%s", broker->client_uri) < 0)
+    {
+      tsmq_set_err(broker->tsmq, errno, "Could not bind to client socket");
+      return -1;
+    }
+
+  /* add to reactor */
+  if(zloop_reader(broker->loop, broker->client_socket,
+                  handle_client_msg, broker) != 0)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not add client socket to reactor");
+      return -1;
+    }
+
+  return 0;
+}
 
 static server_t *server_init(tsmq_broker_t *broker, zframe_t *identity)
 {
@@ -153,7 +219,14 @@ static void servers_purge (tsmq_broker_t *broker)
 
 static void servers_free(tsmq_broker_t *broker)
 {
-  server_t *server = zlist_first(broker->servers);
+  server_t *server;
+
+  if(broker->servers == NULL)
+    {
+      return;
+    }
+
+  server = zlist_first(broker->servers);
 
   while(server != NULL)
     {
@@ -164,160 +237,22 @@ static void servers_free(tsmq_broker_t *broker)
   zlist_destroy(&broker->servers);
 }
 
-/** @todo consider changing many of these return -1 to return 0 as they are not
-    fatal. Be sure to clean up correctly however */
-static int run_broker(tsmq_broker_t *broker)
+static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 {
-  zmq_pollitem_t poll_items [] = {
-    {broker->server_socket, 0, ZMQ_POLLIN, 0}, /* POLL_ITEM_SERVER */
-    {broker->client_socket, 0, ZMQ_POLLIN, 0}, /* POLL_ITEM_CLIENT */
-  };
-  int poll_items_cnt = POLL_ITEM_CNT;
-  int rc;
-
-  zmsg_t *msg = NULL;
+  tsmq_broker_t *broker = (tsmq_broker_t*)arg;
+  uint64_t clock = zclock_time();
   zframe_t *frame = NULL;
-
-  server_t *server = NULL;
-
-  tsmq_msg_type_t msg_type;
   uint8_t msg_type_p;
-
-  /*fprintf(stderr, "DEBUG: Beginning loop cycle\n");*/
-
-  /* poll for client requests only if we have servers to handle them */
-  if(zlist_size(broker->servers) == 0)
-    {
-      poll_items_cnt = 1;
-    }
-
-  if((rc = zmq_poll(poll_items, poll_items_cnt,
-		    broker->heartbeat_interval * ZMQ_POLL_MSEC)) == -1)
-    {
-      goto interrupt;
-    }
-
-  /* handle message from a server */
-  if(poll_items[POLL_ITEM_SERVER].revents & ZMQ_POLLIN)
-    {
-      if((msg = zmsg_recv(broker->server_socket)) == NULL)
-	{
-	  goto interrupt;
-	}
-
-      /* any kind of message from a server means that it is ready to
-	 be given a task */
-      /* treat the first frame as an identity frame */
-      if((frame = zmsg_pop(msg)) == NULL)
-	{
-	  tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
-		       "Could not parse response from server");
-	  goto err;
-	}
-
-      /* create state for this server */
-      if((server = server_init(broker, frame)) == NULL)
-	{
-	  goto err;
-	}
-      /* frame is owned by server */
-
-      /* add it to the queue of waiting and eager workers */
-      server_ready(broker->servers, server);
-      /* server is owned by broker->servers */
-
-      /* now we validate the actual message and perhaps send it back to the
-	 client */
-      msg_type = tsmq_msg_type(msg);
-
-      if(msg_type == TSMQ_MSG_TYPE_READY)
-	{
-	  /*fprintf(stderr, "DEBUG: Adding new server (%s)\n", server->id);*/
-	  /* ignore these as we already did the work */
-	  zmsg_destroy(&msg);
-	}
-      else if(msg_type == TSMQ_MSG_TYPE_HEARTBEAT)
-	{
-	  /*fprintf(stderr, "DEBUG: Got a heartbeat from %s\n", server->id);*/
-	  /* ignore these */
-	  zmsg_destroy(&msg);
-	}
-      else if(msg_type == TSMQ_MSG_TYPE_REPLY)
-	{
-	  /* DEBUG */
-	  /*fprintf(stderr, "DEBUG: Handing reply to client:\n");*/
-	  /*zmsg_print(msg);*/
-
-
-	  /* there must be at least two frames for a valid reply:
-	     1. client address 2. empty (3. reply body) */
-	  if(zmsg_size(msg) < 2)
-	    {
-	      tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
-			   "Malformed reply received from server");
-	      goto err;
-	    }
-
-	  /** @todo can we do more error checking here? */
-	  /* pass this message along to the client */
-	  if(zmsg_send(&msg, broker->client_socket) == -1)
-	    {
-	      tsmq_set_err(broker->tsmq, errno,
-			   "Could not forward server reply to client");
-	      goto err;
-	    }
-
-	  /* msg is destroyed by zmsg_send */
-	}
-      else
-	{
-	  tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
-		       "Invalid message type (%d) rx'd from server",
-		       msg_type);
-	  goto err;
-	}
-
-    }
-
-  /* get next client request, route to next server */
-  if(poll_items[POLL_ITEM_CLIENT].revents & ZMQ_POLLIN)
-    {
-      if((msg = zmsg_recv(broker->client_socket)) == NULL)
-	{
-	  goto interrupt;
-	}
-
-      if((frame = server_next(broker)) == NULL)
-	{
-	  tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
-		       "No server available for client request");
-	  zmsg_destroy(&msg);
-	  return -1;
-	}
-
-      if(zmsg_prepend(msg, &frame) != 0)
-	{
-	  tsmq_set_err(broker->tsmq, TSMQ_ERR_MALLOC,
-		       "Could not prepend frame to message");
-	  goto err;
-	}
-
-      if(zmsg_send(&msg, broker->server_socket) == -1)
-	{
-	  tsmq_set_err(broker->tsmq, errno,
-		       "Could not forward client request to server");
-	  goto err;
-	}
-
-      /* msg is free'd by zmsg_send */
-    }
+  server_t *server = NULL;
 
   /* time for heartbeats */
   assert(broker->heartbeat_next > 0);
-  if(zclock_time() >= broker->heartbeat_next)
+  if(clock >= broker->heartbeat_next)
     {
+      /** @todo optimize the server list */
       server = zlist_first(broker->servers);
 
+      /* send a heartbeat to each server */
       while(server != NULL)
 	{
 	  if(zframe_send(&server->identity, broker->server_socket,
@@ -347,22 +282,189 @@ static int run_broker(tsmq_broker_t *broker)
 
 	  server = zlist_next(broker->servers);
 	}
-      broker->heartbeat_next = zclock_time() + broker->heartbeat_interval;
+
+      reset_heartbeat_timer(broker, clock);
     }
+
+  /* remove dead servers */
   servers_purge(broker);
 
   return 0;
 
  err:
-  /* try and clean up everything */
   zframe_destroy(&frame);
+  return -1;
+}
+
+static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
+{
+  tsmq_broker_t *broker = (tsmq_broker_t*)arg;
+  tsmq_msg_type_t msg_type;
+  zmsg_t *msg = NULL;
+  zframe_t *frame = NULL;
+  server_t *server = NULL;
+
+  if((msg = zmsg_recv(broker->server_socket)) == NULL)
+    {
+      goto interrupt;
+    }
+
+  /* any kind of message from a server means that it is ready to
+     be given a task */
+  /* treat the first frame as an identity frame */
+  if((frame = zmsg_pop(msg)) == NULL)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Could not parse response from server");
+      goto err;
+    }
+
+  /* create state for this server */
+  if((server = server_init(broker, frame)) == NULL)
+    {
+      goto err;
+    }
+  /* frame is owned by server */
+
+  /* add it to the queue of waiting and eager workers */
+  server_ready(broker->servers, server);
+  /* server is owned by broker->servers */
+
+  /* now we validate the actual message and perhaps send it back to the
+     client */
+  msg_type = tsmq_msg_type(msg);
+
+  if(msg_type == TSMQ_MSG_TYPE_READY)
+    {
+      /*fprintf(stderr, "DEBUG: Adding new server (%s)\n", server->id);*/
+      /* ignore these as we already did the work */
+      zmsg_destroy(&msg);
+    }
+  else if(msg_type == TSMQ_MSG_TYPE_HEARTBEAT)
+    {
+      /*fprintf(stderr, "DEBUG: Got a heartbeat from %s\n", server->id);*/
+      /* ignore these */
+      zmsg_destroy(&msg);
+    }
+  else if(msg_type == TSMQ_MSG_TYPE_REPLY)
+    {
+      /* DEBUG */
+      /*fprintf(stderr, "DEBUG: Handing reply to client:\n");*/
+      /*zmsg_print(msg);*/
+
+
+      /* there must be at least two frames for a valid reply:
+         1. client address 2. empty (3. reply body) */
+      if(zmsg_size(msg) < 2)
+        {
+          tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Malformed reply received from server");
+          goto err;
+        }
+
+      /** @todo can we do more error checking here? */
+      /* pass this message along to the client */
+      if(zmsg_send(&msg, broker->client_socket) == -1)
+        {
+          tsmq_set_err(broker->tsmq, errno,
+                       "Could not forward server reply to client");
+          goto err;
+        }
+
+      /* msg is destroyed by zmsg_send */
+    }
+  else
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid message type (%d) rx'd from server",
+                   msg_type);
+      goto err;
+    }
+
+  return 0;
+
+ err:
   zmsg_destroy(&msg);
+  zframe_destroy(&frame);
   return -1;
 
  interrupt:
-  /* we were interrupted */
+  zmsg_destroy(&msg);
+  zframe_destroy(&frame);
   tsmq_set_err(broker->tsmq, TSMQ_ERR_INTERRUPT, "Caught SIGINT");
   return -1;
+}
+
+static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg)
+{
+  tsmq_broker_t *broker = (tsmq_broker_t*)arg;
+  zmsg_t *msg = NULL;
+  zframe_t *frame = NULL;
+
+  if((msg = zmsg_recv(broker->client_socket)) == NULL)
+    {
+      goto interrupt;
+    }
+
+  if((frame = server_next(broker)) == NULL)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
+                   "No server available for client request");
+      goto err;
+    }
+
+  if(zmsg_prepend(msg, &frame) != 0)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not prepend frame to message");
+      goto err;
+    }
+
+  if(zmsg_send(&msg, broker->server_socket) == -1)
+    {
+      tsmq_set_err(broker->tsmq, errno,
+                   "Could not forward client request to server");
+      goto err;
+    }
+
+  /* msg is free'd by zmsg_send */
+  return 0;
+
+ err:
+  zmsg_destroy(&msg);
+  zframe_destroy(&frame);
+  return -1;
+
+ interrupt:
+  zmsg_destroy(&msg);
+  zframe_destroy(&frame);
+  tsmq_set_err(broker->tsmq, TSMQ_ERR_INTERRUPT, "Caught SIGINT");
+  return -1; 
+}
+
+static int init_reactor(tsmq_broker_t *broker)
+{
+  /* set up the reactor */
+  if((broker->loop = zloop_new()) == NULL)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_INIT_FAILED,
+                   "Could not initialize reactor");
+      return -1;
+    }
+
+  /* add a heartbeat timer */
+  if((broker->timer_id = zloop_timer(broker->loop,
+                                     broker->heartbeat_interval, 0,
+                                     handle_heartbeat_timer, broker)) < 0)
+    {
+      tsmq_set_err(broker->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not add heartbeat timer reactor");
+      return -1;
+    }
+
+  /* server and client sockets will be added by _start */
+
+  return 0;
 }
 
 /* ---------- PUBLIC FUNCTIONS BELOW HERE ---------- */
@@ -381,7 +483,7 @@ tsmq_broker_t *tsmq_broker_init()
   if((broker->tsmq = tsmq_init()) == NULL)
     {
       /* still cannot set an error */
-      return NULL;
+      goto err;
     }
 
   /* now we are ready to set errors... */
@@ -399,81 +501,71 @@ tsmq_broker_t *tsmq_broker_init()
     {
       tsmq_set_err(broker->tsmq, TSMQ_ERR_INIT_FAILED,
 		   "Could not create server list");
-      tsmq_broker_free(broker);
-      return NULL;
+      goto err;
+    }
+
+  /* initialize the reactor */
+  if(init_reactor(broker) != 0)
+    {
+      goto err;
     }
 
   return broker;
+
+ err:
+  tsmq_broker_free(&broker);
+  return NULL;
 }
 
 int tsmq_broker_start(tsmq_broker_t *broker)
 {
 
-  /* bind to server socket */
-  if((broker->server_socket = zsocket_new(CTX, ZMQ_ROUTER)) == NULL)
+  if(server_bind(broker) != 0)
     {
-      tsmq_set_err(broker->tsmq, TSMQ_ERR_START_FAILED,
-		   "Failed to create server socket");
       return -1;
     }
 
-  if(zsocket_bind(broker->server_socket, "%s", broker->server_uri) < 0)
+  if(client_bind(broker) != 0)
     {
-      tsmq_set_err(broker->tsmq, errno, "Could not bind to server socket");
-      return -1;
-    }
-
-  /* bind to client socket */
-  if((broker->client_socket = zsocket_new(CTX, ZMQ_ROUTER)) == NULL)
-    {
-      tsmq_set_err(broker->tsmq, TSMQ_ERR_START_FAILED,
-		   "Failed to create client socket");
-      return -1;
-    }
-
-  if(zsocket_bind(broker->client_socket, "%s", broker->client_uri) < 0)
-    {
-      tsmq_set_err(broker->tsmq, errno, "Could not bind to client socket");
       return -1;
     }
 
   /* seed the time for the next heartbeat sent to servers */
-  broker->heartbeat_next = zclock_time() + broker->heartbeat_interval;
+  reset_heartbeat_timer(broker, zclock_time());
 
   /* start processing requests */
-  while(run_broker(broker) == 0)
+  zloop_start(broker->loop);
 
-    tsmq_set_err(broker->tsmq, TSMQ_ERR_UNHANDLED, "Unhandled error");
-  return -1;
+  return 0;
 }
 
-void tsmq_broker_free(tsmq_broker_t *broker)
+void tsmq_broker_free(tsmq_broker_t **broker_p)
 {
-  assert(broker != NULL);
+  assert(broker_p != NULL);
+  tsmq_broker_t *broker;
+
+  broker = *broker_p;
+  if(broker == NULL)
+    {
+      return;
+    }
+  *broker_p = NULL;
+
   assert(broker->tsmq != NULL);
 
-  if(broker->client_uri != NULL)
-    {
-      free(broker->client_uri);
-      broker->client_uri = NULL;
-    }
+  free(broker->client_uri);
+  broker->client_uri = NULL;
 
   /* free'd by tsmq_free */
   broker->client_socket = NULL;
 
-  if(broker->server_uri != NULL)
-    {
-      free(broker->server_uri);
-      broker->server_uri = NULL;
-    }
+  free(broker->server_uri);
+  broker->server_uri = NULL;
 
   /* free'd by tsmq_free */
   broker->server_socket = NULL;
 
-  if(broker->servers != NULL)
-    {
-      servers_free(broker);
-    }
+  servers_free(broker);
 
   /* will call zctx_destroy which will destroy our sockets too */
   tsmq_free(broker->tsmq);

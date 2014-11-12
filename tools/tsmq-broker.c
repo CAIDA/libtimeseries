@@ -146,14 +146,12 @@ int main(int argc, char **argv)
   tsmq_broker_perr(broker);
 
   /* cleanup */
-  tsmq_broker_free(broker);
+  tsmq_broker_free(&broker);
 
   /* complete successfully */
   return 0;
 
  err:
-  if(broker != NULL) {
-    tsmq_broker_free(broker);
-  }
+  tsmq_broker_free(&broker);
   return -1;
 }

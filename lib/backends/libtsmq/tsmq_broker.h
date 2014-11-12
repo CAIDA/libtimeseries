@@ -81,9 +81,9 @@ int tsmq_broker_start(tsmq_broker_t *broker);
 
 /** Free a tsmq md broker instance
  *
- * @param broker        pointer to a tsmq md broker instance to free
+ * @param broker        double-pointer to a tsmq md broker instance to free
  */
-void tsmq_broker_free(tsmq_broker_t *broker);
+void tsmq_broker_free(tsmq_broker_t **broker_p);
 
 /** Set the URI for the broker to listen for client connections on
  *

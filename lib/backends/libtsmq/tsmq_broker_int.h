@@ -67,6 +67,12 @@ struct tsmq_broker {
   /** The number of heartbeats that can go by before a server is declared
       dead */
   int heartbeat_liveness;
+
+  /** Event loop */
+  zloop_t *loop;
+
+  /** Heartbeat timer ID */
+  int timer_id;
 };
 
 #endif /* __TSMQ_BROKER_INT_H */
