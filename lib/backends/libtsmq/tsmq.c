@@ -142,6 +142,20 @@ tsmq_msg_type_t tsmq_msg_type(zmsg_t *msg)
   return (tsmq_msg_type_t)type;
 }
 
+tsmq_msg_type_t tsmq_recv_type(void *src)
+{
+  tsmq_msg_type_t type = TSMQ_MSG_TYPE_UNKNOWN;
+
+  if((zmq_recv(src, &type, tsmq_msg_type_size_t, 0)
+      != tsmq_msg_type_size_t) ||
+     (type > TSMQ_MSG_TYPE_MAX))
+    {
+      return TSMQ_MSG_TYPE_UNKNOWN;
+    }
+
+  return type;
+}
+
 tsmq_request_msg_type_t tsmq_request_msg_type(zmsg_t *msg)
 {
   zframe_t *frame;
