@@ -34,27 +34,11 @@
 #include <tsmq_server.h>
 
 #include <timeseries.h>
-#include "timeseries_backend_int.h" /* @TODO REMOVE CALLBACKS */
 
 #include "config.h"
 
 timeseries_t *timeseries = NULL;
 timeseries_backend_t *backend = NULL;
-
-static size_t handle_key_lookup(tsmq_server_t *server,
-                                char *key, uint8_t **server_key,
-                                void *user)
-{
-  return backend->resolve_key(backend, key, server_key);
-}
-
-static int handle_set_single(tsmq_server_t *server,
-                             uint8_t *id, size_t id_len,
-                             tsmq_val_t value, tsmq_time_t time,
-                             void *user)
-{
-  return backend->set_single_by_id(backend, id, id_len, value, time);
-}
 
 static void backend_usage()
 {
@@ -252,7 +236,7 @@ int main(int argc, char **argv)
     }
   assert(timeseries != NULL && backend != NULL);
 
-  if((server = tsmq_server_init()) == NULL)
+  if((server = tsmq_server_init(backend)) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize tsmq server\n");
       usage(argv[0]);
@@ -272,14 +256,8 @@ int main(int argc, char **argv)
 
   tsmq_server_set_reconnect_interval_max(server, reconnect_interval_max);
 
-  tsmq_server_set_cb_key_lookup(server, handle_key_lookup);
-
-  tsmq_server_set_cb_set_single(server, handle_set_single);
-
   /* do work */
   /* this function will block until the broker shuts down */
-  /* @todo add a structure of callback functions for the server to call when
-     messages are received */
   tsmq_server_start(server);
 
   /* this will always be set, normally to a SIGINT-caught message */

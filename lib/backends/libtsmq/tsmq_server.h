@@ -26,6 +26,8 @@
 #ifndef __TSMQ_SERVER_H
 #define __TSMQ_SERVER_H
 
+#include <timeseries.h>
+
 #include <tsmq_common.h>
 
 /** @file
@@ -58,75 +60,18 @@ typedef struct tsmq_server tsmq_server_t;
 /** @} */
 
 /**
- * @name Server callback definitions and setter functions
- *
- * @{ */
-
-/** Uses the timeseries API to resolve the given key to a backend-specific ID
- *
- * @param server          pointer to the server instance that received the request
- * @param key             pointer to a string key
- * @param server_key[out] set to point to a byte array of the server key id
- * @return the length of the server_key array if successful, 0 otherwise
- */
-typedef size_t (tsmq_server_cb_key_lookup_t)(tsmq_server_t *server,
-					     char *key,
-					     uint8_t **server_key,
-					     void *user);
-
-/** Uses the timeseries API to set the value for the given backend-specific ID
- *
- * @param server          pointer to the server instance that received the request
- * @param id              pointer to a backend-specific byte array
- * @param id_len          length of the ID byte array
- * @param value           value to set
- * @param time            time for which to set the value for
- * @return 0 if the value was successfully set, -1 otherwise
- */
-typedef int (tsmq_server_cb_set_single_t)(tsmq_server_t *server,
-					  uint8_t *id, size_t id_len,
-					  tsmq_val_t value,
-					  tsmq_time_t time,
-					  void *user);
-
-/** Register a function to be called to handle key lookups
- *
- * @param client        pointer to a client instance to set callback for
- * @param cb            pointer to a handle_reply callback function
- */
-void tsmq_server_set_cb_key_lookup(tsmq_server_t *server,
-				   tsmq_server_cb_key_lookup_t *cb);
-
-/** Register a function to be called to handle insertion of single key/value
-*
-* @param client        pointer to a client instance to set callback for
-* @param cb            pointer to a set_single callback function
-*/
-void tsmq_server_set_cb_set_single(tsmq_server_t *server,
-				   tsmq_server_cb_set_single_t *cb);
-
-/** Set the user data that will provided to each callback function */
-void tsmq_server_set_cb_userdata(tsmq_server_t *server,
-				 void *user);
-
-/** @} */
-
-/**
-* @name Public Metadata Server API
+* @name Public Server API
 *
 * @{ */
 
 /** Initialize a new instance of a tsmq metadata server
 *
-* @todo add callback structure here
+* @param ts_backend     pointer to an initialized and configured libtimeseries
+*                       backend instance to write to
 * @return a pointer to a tsmq md server structure if successful, NULL if an
 * error occurred
-*
-* @note Currently we will only consider one timeseries backend for writing.  If
-* more than one is provided, the one with the lowest id will be used. As of the
-* time of writing this, this would be the ASCII backend.
 */
-tsmq_server_t *tsmq_server_init();
+tsmq_server_t *tsmq_server_init(timeseries_backend_t *ts_backend);
 
 /** Start a given tsmq metadata server
 *

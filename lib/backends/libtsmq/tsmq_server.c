@@ -29,20 +29,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "timeseries.h"
+#include "timeseries_backend_int.h"
+
 #include "tsmq_server_int.h"
 
 #include "utils.h"
 
 #define CTX server->tsmq->ctx
-
-#define DO_CALLBACK(cbfunc, args...)				\
-  do {								\
-    if(server->callbacks.cbfunc != NULL)			\
-      {								\
-	server->callbacks.cbfunc(server, args,			\
-				 server->callbacks.user);	\
-      }								\
-  } while(0)
 
 /* @todo: make this configurable, and generate a sane default. should be
    constant across restarts and define an instance of a timeseries
@@ -118,16 +112,11 @@ static zmsg_t *handle_key_lookup(tsmq_server_t *server,
     }
 
   /* maybe call the lookup function */
-  if(server->callbacks.key_lookup != NULL &&
-     (server_key_len =
-      server->callbacks.key_lookup(server,
-                                   key,
-                                   &server_key,
-                                   server->callbacks.user)) == 0)
+  if((server_key_len =
+      server->backend->resolve_key(server->backend, key, &server_key)) == 0)
     {
-      /* callback failed */
-      tsmq_set_err(server->tsmq, TSMQ_ERR_CALLBACK,
-                   "key lookup callback failed\n");
+      tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                   "Key lookup failed");
       free(key);
       return NULL;
     }
@@ -185,15 +174,12 @@ static zmsg_t *handle_set_single(tsmq_server_t *server,
     }
 
   /* maybe call the lookup function */
-  if(server->callbacks.set_single != NULL &&
-     server->callbacks.set_single(server,
-                                  zframe_data(frame), zframe_size(frame),
-                                  value, time,
-                                  server->callbacks.user) != 0)
+  if(server->backend->set_single_by_id(server->backend,
+                                       zframe_data(frame), zframe_size(frame),
+                                       value, time) != 0)
     {
-      /* callback failed */
-      tsmq_set_err(server->tsmq, TSMQ_ERR_CALLBACK,
-                   "set single callback failed\n");
+      tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                   "Set single failed\n");
       goto err;
     }
 
@@ -471,7 +457,7 @@ static int run_server(tsmq_server_t *server)
 
 TSMQ_ERR_FUNCS(server)
 
-tsmq_server_t *tsmq_server_init()
+tsmq_server_t *tsmq_server_init(timeseries_backend_t *ts_backend)
 {
   tsmq_server_t *server;
   if((server = malloc_zero(sizeof(tsmq_server_t))) == NULL)
@@ -487,6 +473,9 @@ tsmq_server_t *tsmq_server_init()
     }
 
   /* now we are ready to set errors... */
+
+  assert(ts_backend != NULL);
+  server->backend = ts_backend;
 
   server->broker_uri = strdup(TSMQ_SERVER_BROKER_URI_DEFAULT);
 
@@ -583,30 +572,4 @@ void tsmq_server_set_reconnect_interval_max(tsmq_server_t *server,
   assert(server != NULL);
 
   server->reconnect_interval_max = reconnect_interval_max;
-}
-
-/* ========== Callback setter functions ========== */
-
-void tsmq_server_set_cb_key_lookup(tsmq_server_t *server,
-				   tsmq_server_cb_key_lookup_t *cb)
-{
-  assert(server != NULL);
-
-  server->callbacks.key_lookup = cb;
-}
-
-void tsmq_server_set_cb_set_single(tsmq_server_t *server,
-				   tsmq_server_cb_set_single_t *cb)
-{
-  assert(server != NULL);
-
-  server->callbacks.set_single = cb;
-}
-
-void tsmq_server_set_cb_userdata(tsmq_server_t *server,
-				 void *user)
-{
-  assert(server != NULL);
-
-  server->callbacks.user = user;
 }
