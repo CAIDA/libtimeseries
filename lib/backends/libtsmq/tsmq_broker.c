@@ -241,7 +241,6 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 {
   tsmq_broker_t *broker = (tsmq_broker_t*)arg;
   uint64_t clock = zclock_time();
-  zframe_t *frame = NULL;
   uint8_t msg_type_p;
   server_t *server = NULL;
 
@@ -255,6 +254,7 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
       /* send a heartbeat to each server */
       while(server != NULL)
 	{
+          /** @todo replace server id with zmq_msg */
 	  if(zframe_send(&server->identity, broker->server_socket,
 			 ZFRAME_REUSE | ZFRAME_MORE) == -1)
 	    {
@@ -265,14 +265,7 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 	    }
 
 	  msg_type_p = TSMQ_MSG_TYPE_HEARTBEAT;
-	  if((frame = zframe_new(&msg_type_p, 1)) == NULL)
-	    {
-	      tsmq_set_err(broker->tsmq, TSMQ_ERR_MALLOC,
-			   "Could not create new heartbeat frame");
-	      goto err;
-	    }
-
-	  if(zframe_send(&frame, broker->server_socket, 0) == -1)
+	  if(zmq_send(broker->server_socket, &msg_type_p, 1, 0) == -1)
 	    {
 	      tsmq_set_err(broker->tsmq, errno,
 			   "Could not send heartbeat msg to server %s",
@@ -292,7 +285,6 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
   return 0;
 
  err:
-  zframe_destroy(&frame);
   return -1;
 }
 
