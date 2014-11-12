@@ -246,9 +246,10 @@ static tsmq_broker_server_t *server_get(tsmq_broker_t *broker,
   return server;
 }
 
-static int server_send_id(tsmq_broker_t *broker,
-                          tsmq_broker_server_t *server,
-                          int sndmore)
+static int server_send_headers(tsmq_broker_t *broker,
+                               tsmq_broker_server_t *server,
+                               tsmq_msg_type_t msg_type,
+                               int sndmore)
 {
   zmq_msg_t id_cpy;
 
@@ -259,14 +260,21 @@ static int server_send_id(tsmq_broker_t *broker,
                    "Failed to duplicate server id");
       return -1;
     }
-  if(zmq_msg_send(&id_cpy,
-                  broker->server_socket,
-                  (sndmore != 0) ? ZMQ_SNDMORE : 0) == -1)
+  if(zmq_msg_send(&id_cpy, broker->server_socket, ZMQ_SNDMORE) == -1)
     {
       zmq_msg_close(&id_cpy);
       tsmq_set_err(broker->tsmq, errno,
                    "Could not send server id to server %s",
                    server->id);
+      return -1;
+    }
+
+  if(zmq_send(broker->server_socket, &msg_type, tsmq_msg_type_size_t,
+              (sndmore != 0) ? ZMQ_SNDMORE : 0) == -1)
+    {
+      tsmq_set_err(broker->tsmq, errno,
+                   "Could not send msg type (%d) to server %s",
+                   msg_type, server->id);
       return -1;
     }
 
@@ -333,7 +341,6 @@ static void servers_free(tsmq_broker_t *broker)
 static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 {
   tsmq_broker_t *broker = (tsmq_broker_t*)arg;
-  uint8_t msg_type_p;
   tsmq_broker_server_t *server = NULL;
   khiter_t k;
 
@@ -346,17 +353,8 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 
       server = kh_val(broker->servers, k);
 
-      if(server_send_id(broker, server, ZMQ_SNDMORE) != 0)
+      if(server_send_headers(broker, server, TSMQ_MSG_TYPE_HEARTBEAT, 0) != 0)
         {
-          goto err;
-        }
-
-      msg_type_p = TSMQ_MSG_TYPE_HEARTBEAT;
-      if(zmq_send(broker->server_socket, &msg_type_p, 1, 0) == -1)
-        {
-          tsmq_set_err(broker->tsmq, errno,
-                       "Could not send heartbeat msg to server %s",
-                       server->id);
           goto err;
         }
     }
@@ -407,7 +405,7 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
     {
       tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
                    "Invalid message received from server "
-                   "(missing seq num)");
+                   "(missing type)");
       goto err;
     }
 
@@ -445,6 +443,12 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
       break;
 
     case TSMQ_MSG_TYPE_REPLY:
+      if(zsocket_rcvmore(broker->server_socket) == 0)
+        {
+          tsmq_set_err(broker->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Empty received from server");
+          goto err;
+        }
       /* simply rx/tx the rest of the message */
       while(1)
         {
@@ -516,7 +520,7 @@ static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg)
     }
 
   /* send the server id frame */
-  if(server_send_id(broker, server, ZMQ_SNDMORE) != 0)
+  if(server_send_headers(broker, server, TSMQ_MSG_TYPE_REQUEST, ZMQ_SNDMORE) != 0)
     {
       goto err;
     }

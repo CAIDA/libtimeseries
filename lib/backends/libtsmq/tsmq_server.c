@@ -51,7 +51,6 @@ enum {
 static int server_connect(tsmq_server_t *server)
 {
   uint8_t msg_type_p;
-  zframe_t *frame;
 
   /* connect to broker socket */
   if((server->broker_socket = zsocket_new(CTX, ZMQ_DEALER)) == NULL)
@@ -68,14 +67,7 @@ static int server_connect(tsmq_server_t *server)
     }
 
   msg_type_p = TSMQ_MSG_TYPE_READY;
-  if((frame = zframe_new(&msg_type_p, 1)) == NULL)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-		   "Could not create new server-ready frame");
-      return -1;
-    }
-
-  if(zframe_send(&frame, server->broker_socket, 0) == -1)
+  if(zmq_send(server->broker_socket, &msg_type_p, 1, 0) == -1)
     {
       tsmq_set_err(server->tsmq, errno,
 		   "Could not send ready msg to broker");
@@ -249,7 +241,6 @@ static int run_server(tsmq_server_t *server)
   zmsg_t *msg = NULL;
   zmsg_t *reply = NULL;
   zframe_t *frame = NULL;
-
   tsmq_msg_type_t msg_type;
   uint8_t req_type;
   uint8_t msg_type_p;
@@ -267,7 +258,7 @@ static int run_server(tsmq_server_t *server)
   if(poll_items[POLL_ITEM_BROKER].revents & ZMQ_POLLIN)
     {
       /*  Get message
-       *  - 3-part: [client.id + empty + content] => request
+       *  - 4-part: REQUEST + [client.id + empty + content] => request
        *  - 1-part: HEARTBEAT => heartbeat
        */
       if((msg = zmsg_recv(server->broker_socket)) == NULL)
@@ -275,10 +266,12 @@ static int run_server(tsmq_server_t *server)
 	  goto interrupt;
 	}
 
-#if 0
+#if 1
       fprintf(stderr, "DEBUG: Message from broker:\n");
       zmsg_print(msg);
 #endif
+
+      msg_type = tsmq_msg_type(msg);
 
       if(zmsg_size(msg) >= 3)
 	{
@@ -365,11 +358,11 @@ static int run_server(tsmq_server_t *server)
 	      goto interrupt;
 	    }
 	}
-      else if(zmsg_size(msg) == 1)
+      else if(zmsg_size(msg) == 0)
 	{
 	  /* When we get a heartbeat message from the queue, it means the queue
 	     was (recently) alive, so we must reset our liveness indicator */
-	  msg_type = tsmq_msg_type(msg);
+
 	  if(msg_type == TSMQ_MSG_TYPE_HEARTBEAT)
 	    {
 	      server->heartbeat_liveness_remaining = server->heartbeat_liveness;
@@ -517,11 +510,8 @@ void tsmq_server_free(tsmq_server_t *server)
   assert(server != NULL);
   assert(server->tsmq != NULL);
 
-  if(server->broker_uri != NULL)
-    {
-      free(server->broker_uri);
-      server->broker_uri = NULL;
-    }
+  free(server->broker_uri);
+  server->broker_uri = NULL;
 
   /* free'd by tsmq_free */
   server->broker_socket = NULL;
