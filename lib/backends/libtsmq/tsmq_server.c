@@ -79,95 +79,127 @@ static int server_connect(tsmq_server_t *server)
   return 0;
 }
 
-static zmsg_t *handle_key_lookup(tsmq_server_t *server,
-                                 zmsg_t *msg, zmsg_t *reply)
+static int handle_key_lookup(tsmq_server_t *server)
 {
   char *key = NULL;
+  size_t server_id_len = strlen(SERVER_ID);
   uint8_t *server_key = NULL;
   size_t server_key_len = 0;
 
-  /* append our server id */
+  /* send our server id */
   /** @todo replace with user-specified id */
-  if(zmsg_addmem(reply, SERVER_ID, strlen(SERVER_ID)) != 0)
+  if(zmq_send(server->broker_socket, SERVER_ID, server_id_len,
+              ZMQ_SNDMORE) != server_id_len)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                   "Failed to add server id to reply message");
-      return NULL;
+                   "Failed to send server id in reply message");
+      goto err;
     }
 
   /* grab the key from the message */
-  if((key = zmsg_popstr(msg)) == NULL)
+  if((key = tsmq_recv_str(server->broker_socket)) == NULL)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Malformed request (missing key)");
-      return NULL;
+                   "Malformed key lookup request (missing key)");
+      goto err;
     }
 
-  /* maybe call the lookup function */
+  /* do the actual lookup */
   if((server_key_len =
       server->backend->resolve_key(server->backend, key, &server_key)) == 0)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
                    "Key lookup failed");
-      free(key);
-      return NULL;
+      goto err;
     }
-  free(key);
 
-  if(zmsg_addmem(reply, server_key, server_key_len) != 0)
+  /* send the backend-specific key */
+  if(zmq_send(server->broker_socket, server_key, server_key_len, 0)
+     != server_key_len)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                   "Failed to add server id to reply message");
-      free(server_key);
-      return NULL;
+                   "Failed to send server key id");
+      goto err;
     }
-  free(server_key);
-  server_key = NULL;
-  server_key_len = 0;
 
-  return reply;
+  free(key);
+  free(server_key);
+  return 0;
+
+ err:
+  free(key);
+  free(server_key);
+  return -1;
 }
 
-static zmsg_t *handle_set_single(tsmq_server_t *server,
-                                 zmsg_t *msg, zmsg_t *reply)
+static int handle_set_single(tsmq_server_t *server)
 {
-  zframe_t *frame = NULL;
   tsmq_val_t value;
   tsmq_time_t time;
+  zmq_msg_t key_msg;
+
+  /* ack the request immediately */
+  /* send back a single empty message as an ack */
+  if(zmq_send(server->broker_socket, "", 0, 0) == -1)
+    {
+      tsmq_set_err(server->tsmq, errno,
+                   "Could not send set single reply");
+      goto err;
+    }
 
   /* get the time from the message */
-  if((frame = zmsg_pop(msg)) == NULL ||
-     zframe_size(frame) != sizeof(tsmq_time_t))
+  if(zsocket_rcvmore(server->broker_socket) == 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid 'set single' message (missing time)");
+      goto err;
+    }
+  if(zmq_recv(server->broker_socket, &time, sizeof(tsmq_time_t), 0)
+     != sizeof(tsmq_time_t))
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
                    "Malformed set single request (invalid time)");
       goto err;
     }
-  memcpy(&time, zframe_data(frame), sizeof(tsmq_time_t));
-  zframe_destroy(&frame);
 
   /* get the value from the message */
-  if((frame = zmsg_pop(msg)) == NULL ||
-     zframe_size(frame) != sizeof(tsmq_val_t))
+  if(zsocket_rcvmore(server->broker_socket) == 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid 'set single' message (missing value)");
+      goto err;
+    }
+  if(zmq_recv(server->broker_socket, &value, sizeof(tsmq_val_t), 0)
+     != sizeof(tsmq_val_t))
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
                    "Malformed set single request (invalid value)");
       goto err;
     }
-  memcpy(&value, zframe_data(frame), sizeof(tsmq_val_t));
-  zframe_destroy(&frame);
 
   /* grab the key from the message */
-  if((frame = zmsg_pop(msg)) == NULL)
+  if(zsocket_rcvmore(server->broker_socket) == 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid 'set single' message (missing key)");
+      goto err;
+    }
+  if(zmq_msg_init(&key_msg) == -1)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not init key message");
+      goto err;
+    }
+  if(zmq_msg_recv(&key_msg, server->broker_socket, 0) == -1)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
                    "Malformed request (missing key id)");
       goto err;
     }
 
-  /* maybe call the lookup function */
   if(server->backend->set_single_by_id(server->backend,
-                                       zframe_data(frame), zframe_size(frame),
+                                       zmq_msg_data(&key_msg),
+                                       zmq_msg_size(&key_msg),
                                        value, time) != 0)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
@@ -175,58 +207,110 @@ static zmsg_t *handle_set_single(tsmq_server_t *server,
       goto err;
     }
 
-  zframe_destroy(&frame);
-  return reply;
+  zmq_msg_close(&key_msg);
+
+  return 0;
 
  err:
-  zframe_destroy(&frame);
-  return NULL;
+  zmq_msg_close(&key_msg);
+  return -1;
 }
 
-/** Parse the given message for a request type and then do the right thing.
- *
- * @param server        pointer to a tsmq md server instance
- * @param msg           pointer to the message containing the request
- * @param reply         pointer to a reply message to append frames to
- * @return pointer to the completed reply message if successful, NULL otherwise
- *
- * @note the msg object contains only the request information, no framing info.
- *       if framing information is needed, the reply message can be parsed
- *
- * @note reply must be in the following format:
- *       [01][TSMQ_MSG_TYPE_REPLY]
- *       [XX][CLIENT-ID]
- *       [00][EMPTY]
- *       [08][SEQUENCE-NUMBER]
- *       [01][TSMQ_REQUEST_MSG_TYPE_XX]
- *       -----------------------^ (pre-populated in reply)
- *       <response payload>
- *       -----------------------^ (responsibility of this function)
- *
- * @note the payload must be one of the following:
- *       for TSMQ_MSG_REQUEST_TYPE_KEY_LOOKUP:
- *         [XX][SERVER-ID] <-- globally unique id for this server
- *                             (will be used as prefix for metric routing)
- *         [XX][KEY-ID]    <-- server-unique byte string representing the metric
- */
-static zmsg_t *handle_request(tsmq_server_t *server,
-			      tsmq_request_msg_type_t req_type,
-			      zmsg_t *msg, zmsg_t *reply)
+/* send reply message type, and turn around the client info frames */
+static int send_reply_header(tsmq_server_t *server)
 {
+  tsmq_msg_type_t msg_type = TSMQ_MSG_TYPE_REPLY;
+  int i;
+  zmq_msg_t proxy;
+
+  /* sends
+    TSMQ_MSG_TYPE_REPLY
+    CLIENT_ID (rx)
+    EMPTY (rx)
+    SEQ_NUM (rx)
+  */
+
+  if(zmq_send(server->broker_socket, &msg_type, tsmq_msg_type_size_t,
+              ZMQ_SNDMORE) == -1)
+    {
+      tsmq_set_err(server->tsmq, errno,
+                   "Could not send reply msg type to broker");
+      return -1;
+    }
+
+  /* we need to receive the client id, the empty frame and the sequence
+     number and send them back to the broker */
+  /* <client-id>, <empty>, <seq no> */
+  for(i=0; i<3; i++)
+    {
+      if(zsocket_rcvmore(server->broker_socket) == 0)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Invalid message from broker (%d)", i);
+          return -1;
+        }
+
+      if(zmq_msg_init(&proxy) != 0)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                       "Could not create proxy message");
+          return -1;
+        }
+
+      if(zmq_msg_recv(&proxy, server->broker_socket, 0) == -1)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Could not receive message from client");
+          return -1;
+        }
+
+      if(zmq_msg_send(&proxy, server->broker_socket, ZMQ_SNDMORE) == -1)
+        {
+          zmq_msg_close(&proxy);
+          tsmq_set_err(server->tsmq, errno, "Could not send reply header");
+          return -1;
+        }
+    }
+
+  return 0;
+}
+
+static int handle_request(tsmq_server_t *server)
+{
+  tsmq_request_msg_type_t req_type;
+
+  if(send_reply_header(server) != 0)
+    {
+      return -1;
+    }
+
+  /* grab the request type */
+  req_type = tsmq_recv_request_type(server->broker_socket);
+
+  /* send it back to the broker */
+  if(zmq_send(server->broker_socket, &req_type,
+              tsmq_request_msg_type_size_t, ZMQ_SNDMORE)
+     != tsmq_request_msg_type_size_t)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not add reply type to message");
+      return -1;
+    }
+
   switch(req_type)
     {
     case TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP:
-      return handle_key_lookup(server, msg, reply);
+      return handle_key_lookup(server);
       break;
 
     case TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE:
-      return handle_set_single(server, msg, reply);
+      return handle_set_single(server);
       break;
 
     default:
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
                    "Unhandled request type (%d)", req_type);
-      return NULL;
+      return -1;
       break;
     }
 }
@@ -236,18 +320,10 @@ static int run_server(tsmq_server_t *server)
   zmq_pollitem_t poll_items[] = {
     {server->broker_socket, 0, ZMQ_POLLIN, 0}, /* POLL_ITEM_BROKER */
   };
-  int i, rc;
+  int rc;
 
-  zmsg_t *msg = NULL;
-  zmsg_t *reply = NULL;
-  zframe_t *frame = NULL;
   tsmq_msg_type_t msg_type;
-  uint8_t req_type;
   uint8_t msg_type_p;
-
-  uint8_t msg_type_reply = TSMQ_MSG_TYPE_REPLY;
-
-  /*fprintf(stderr, "DEBUG: Beginning loop cycle\n");*/
 
   if((rc = zmq_poll(poll_items, POLL_ITEM_CNT,
 		    server->heartbeat_interval * ZMQ_POLL_MSEC)) == -1)
@@ -261,129 +337,30 @@ static int run_server(tsmq_server_t *server)
        *  - 4-part: REQUEST + [client.id + empty + content] => request
        *  - 1-part: HEARTBEAT => heartbeat
        */
-      if((msg = zmsg_recv(server->broker_socket)) == NULL)
-	{
-	  goto interrupt;
-	}
 
-#if 1
-      fprintf(stderr, "DEBUG: Message from broker:\n");
-      zmsg_print(msg);
-#endif
+      msg_type = tsmq_recv_type(server->broker_socket);
 
-      msg_type = tsmq_msg_type(msg);
+      switch(msg_type)
+        {
+        case TSMQ_MSG_TYPE_REQUEST:
+          handle_request(server);
+          break;
 
-      if(zmsg_size(msg) >= 3)
-	{
-	  /* fprintf(stderr, "DEBUG: Got request from client (via broker)\n"); */
+        case TSMQ_MSG_TYPE_HEARTBEAT:
+          /* nothing to do here */
+          break;
 
-	  server->heartbeat_liveness_remaining = server->heartbeat_liveness;
-
-	  /* create our reply message */
-	  if((reply = zmsg_new()) == NULL)
-	    {
-	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-			   "Could not allocate reply message");
-              goto err;
-	    }
-
-	  /* first we push on a message type indicating a reply */
-	  if(zmsg_addmem(reply, &msg_type_reply, sizeof(uint8_t)) != 0)
-	    {
-	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-			   "Could not add reply type to message");
-              goto err;
-	    }
-
-	  /* we need to pop off the client id, the empty frame and the sequence
-	     number and append them to our reply */
-	  for(i=0; i<3; i++)
-	    {
-	      /* <client-id>, <empty>, <seq no> */
-	      if((frame = zmsg_pop(msg)) == NULL)
-		{
-		  tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-			       "Invalid request from broker (missing frame %d)",
-			       i);
-                  goto err;
-		}
-
-	      if(zmsg_append(reply, &frame) != 0)
-		{
-		  tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-			       "Could not append frame (%d) to reply\n",
-			       i);
-                  goto err;
-		}
-	    }
-
-	  /* now we grab the request type */
-	  if((req_type =
-	      tsmq_request_msg_type(msg)) == TSMQ_REQUEST_MSG_TYPE_UNKNOWN)
-	    {
-	      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-			   "Invalid request type received (%d)\n",
-			   req_type);
-              goto err;
-	    }
-
-	  /* now we push it onto the reply */
-	  if(zmsg_addmem(reply, &req_type, sizeof(uint8_t)) != 0)
-	    {
-	      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-			   "Could not add reply type to message");
-              goto err;
-	    }
-
-	  if((reply = handle_request(server, req_type, msg, reply)) == NULL)
-	    {
-              goto err;
-	    }
-
-	  /* fprintf(stderr, "DEBUG: Sending reply to client (via broker)\n"); */
-	  /* zmsg_dump(reply); */
-
-	  if(zmsg_send(&reply, server->broker_socket) == -1)
-	    {
-	      tsmq_set_err(server->tsmq, errno,
-			   "Could not send reply to broker");
-              goto err;
-	    }
-
-	  /* safe to destroy message now */
-	  zmsg_destroy(&msg);
-
-	  if(zctx_interrupted != 0)
-	    {
-	      goto interrupt;
-	    }
-	}
-      else if(zmsg_size(msg) == 0)
-	{
-	  /* When we get a heartbeat message from the queue, it means the queue
-	     was (recently) alive, so we must reset our liveness indicator */
-
-	  if(msg_type == TSMQ_MSG_TYPE_HEARTBEAT)
-	    {
-	      server->heartbeat_liveness_remaining = server->heartbeat_liveness;
-	    }
-	  else
-	    {
-	      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-			   "Invalid message type received from broker (%d)",
-			   msg_type);
-              goto err;
-	    }
-	  zmsg_destroy(&msg);
-	}
-      else
-	{
-	  tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-		       "Invalid message received from broker");
+        default:
+          tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Invalid message type received from broker (%d)",
+                       msg_type);
           goto err;
-	}
-      server->reconnect_interval_next =
-	server->reconnect_interval_min;
+          break;
+        }
+
+      server->heartbeat_liveness_remaining = server->heartbeat_liveness;
+      server->reconnect_interval_next = server->reconnect_interval_min;
+
     }
   else if(--server->heartbeat_liveness_remaining == 0)
     {
@@ -405,20 +382,12 @@ static int run_server(tsmq_server_t *server)
     }
 
   /* send heartbeat to queue if it is time */
-  if(zclock_time () > server->heartbeat_next)
+  if(zclock_time() > server->heartbeat_next)
     {
       server->heartbeat_next = zclock_time() + server->heartbeat_interval;
-      /*fprintf(stderr, "DEBUG: Sending heartbeat to broker\n");*/
 
       msg_type_p = TSMQ_MSG_TYPE_HEARTBEAT;
-      if((frame = zframe_new(&msg_type_p, 1)) == NULL)
-	{
-	  tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-		       "Could not create new heartbeat frame");
-          goto err;
-	}
-
-      if(zframe_send(&frame, server->broker_socket, 0) == -1)
+      if(zmq_send(server->broker_socket, &msg_type_p, 1, 0) == -1)
 	{
 	  tsmq_set_err(server->tsmq, errno,
 		       "Could not send heartbeat msg to broker");
@@ -426,22 +395,13 @@ static int run_server(tsmq_server_t *server)
 	}
     }
 
-  zframe_destroy(&frame);
-  zmsg_destroy(&msg);
-  zmsg_destroy(&reply);
   return 0;
 
  err:
-  zframe_destroy(&frame);
-  zmsg_destroy(&msg);
-  zmsg_destroy(&reply);
   return -1;
 
  interrupt:
   /* we were interrupted */
-  zframe_destroy(&frame);
-  zmsg_destroy(&msg);
-  zmsg_destroy(&reply);
   tsmq_set_err(server->tsmq, TSMQ_ERR_INTERRUPT, "Caught interrupt");
   return -1;
 }

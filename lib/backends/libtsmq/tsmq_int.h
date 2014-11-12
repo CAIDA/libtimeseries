@@ -221,6 +221,21 @@ tsmq_msg_type_t tsmq_recv_type(void *src);
  */
 tsmq_request_msg_type_t tsmq_request_msg_type(zmsg_t *msg);
 
+/** Receives a single message and decodes as a request message type
+ *
+ * @param src           socket to receive message on
+ * @return the type of the message, or TSMQ_REQUEST_MSG_TYPE_UNKNOWN if an
+ *         error occurred
+ */
+tsmq_request_msg_type_t tsmq_recv_request_type(void *src);
+
+/** Receive a string from the given socket
+ *
+ * @param src           socket to recieve on
+ * @return pointer to a string if successful, NULL otherwise
+ */
+char *tsmq_recv_str(void *src);
+
 /** @} */
 
 #endif /* __TSMQ_INT_H */

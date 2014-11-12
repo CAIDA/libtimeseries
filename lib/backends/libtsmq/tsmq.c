@@ -177,3 +177,43 @@ tsmq_request_msg_type_t tsmq_request_msg_type(zmsg_t *msg)
 
   return (tsmq_request_msg_type_t)type;
 }
+
+tsmq_request_msg_type_t tsmq_recv_request_type(void *src)
+{
+  tsmq_request_msg_type_t type = TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
+
+  if((zmq_recv(src, &type, tsmq_request_msg_type_size_t, 0)
+      != tsmq_request_msg_type_size_t) ||
+     (type > TSMQ_REQUEST_MSG_TYPE_MAX))
+    {
+      return TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
+    }
+
+  return type;
+}
+
+char *tsmq_recv_str(void *src)
+{
+  zmq_msg_t llm;
+  size_t len;
+  char *str = NULL;
+
+  if(zmq_msg_init(&llm) == -1 || zmq_msg_recv(&llm, src, 0) == -1)
+    {
+      goto err;
+    }
+  len = zmq_msg_size(&llm);
+  if((str = malloc(len + 1)) == NULL)
+    {
+      goto err;
+    }
+  memcpy(str, zmq_msg_data(&llm), len);
+  str[len] = '\0';
+  zmq_msg_close(&llm);
+
+  return str;
+
+ err:
+  free(str);
+  return NULL;
+}

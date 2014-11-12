@@ -499,8 +499,8 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
       goto err;
     }
 
-  /* the message is empty. is it?? */
-  assert(zmsg_size(msg) == 0);
+  /* the reply contains a single empty frame */
+  assert(zmsg_size(msg) == 1);
   zmsg_destroy(&msg);
   return 0;
 
