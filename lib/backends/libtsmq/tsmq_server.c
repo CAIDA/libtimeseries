@@ -289,6 +289,11 @@ static int run_server(tsmq_server_t *server)
 	  goto interrupt;
 	}
 
+#if 0
+      fprintf(stderr, "DEBUG: Message from broker:\n");
+      zmsg_print(msg);
+#endif
+
       if(zmsg_size(msg) >= 3)
 	{
 	  /* fprintf(stderr, "DEBUG: Got request from client (via broker)\n"); */

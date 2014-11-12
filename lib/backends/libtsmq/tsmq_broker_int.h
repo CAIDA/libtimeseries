@@ -28,6 +28,8 @@
 
 #include <czmq.h>
 
+#include "khash.h"
+
 #include <tsmq_broker.h>
 #include "tsmq_int.h"
 
@@ -38,6 +40,11 @@
  * @author Alistair King
  *
  */
+
+typedef struct tsmq_broker_server tsmq_broker_server_t;
+
+KHASH_INIT(str_server, char*, tsmq_broker_server_t*, 1,
+	   kh_str_hash_func, kh_str_hash_equal);
 
 struct tsmq_broker {
   /** Common tsmq state */
@@ -55,14 +62,11 @@ struct tsmq_broker {
   /** Socket to bind to for client connections */
   void *server_socket;
 
-  /** List of servers that are connected */
-  zlist_t *servers;
+  /** Hash of servers that are connected */
+  khash_t(str_server) *servers;
 
   /** Time (in ms) between heartbeats sent to servers */
   uint64_t heartbeat_interval;
-
-  /** Time (in ms) to send the next heartbeat to servers */
-  uint64_t heartbeat_next;
 
   /** The number of heartbeats that can go by before a server is declared
       dead */
