@@ -227,21 +227,11 @@ int timeseries_backend_tsmq_kp_flush(timeseries_backend_t *backend,
 				      uint32_t time)
 {
   timeseries_backend_tsmq_state_t *state = STATE(backend);
-  timeseries_kp_ki_t *ki = NULL;
-  tsmq_client_key_t *tsmq_key = NULL;
-  int id;
 
-  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+  if(tsmq_client_key_set_bulk(state->client, kp, time) != 0)
     {
-      /* @todo set many */
-      tsmq_key = (tsmq_client_key_t*)timeseries_kp_ki_get_backend_state(ki, backend->id);
-      assert(tsmq_key != NULL);
-      if(tsmq_client_key_set_single(state->client, tsmq_key,
-				    timeseries_kp_ki_get_value(ki), time) != 0)
-	{
-          tsmq_client_perr(state->client);
-	  return -1;
-	}
+      tsmq_client_perr(state->client);
+      return -1;
     }
 
   return 0;

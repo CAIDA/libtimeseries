@@ -160,11 +160,66 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
   return rc;
 }
 
-static int handle_set_single(tsmq_server_t *server)
+static int recv_key_val(tsmq_server_t *server,
+                        zmq_msg_t *key_msg_out,
+                        tsmq_val_t *value_out)
+{
+  size_t len;
+
+  /* get the value from the message */
+  if(zsocket_rcvmore(server->broker_socket) == 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid 'key/value' message (missing value)");
+      goto err;
+    }
+  if((len = zmq_recv(server->broker_socket, value_out, sizeof(tsmq_val_t), 0))
+     != sizeof(tsmq_val_t))
+    {
+      if(len == 0)
+        {
+          /* end of stream reached */
+          return 0;
+        }
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed 'key/value' request (invalid value)");
+      goto err;
+    }
+  *value_out = ntohll(*value_out);
+
+  /* grab the key from the message */
+  if(zsocket_rcvmore(server->broker_socket) == 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid 'key/value' message (missing key)");
+      goto err;
+    }
+  if(zmq_msg_init(key_msg_out) == -1)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not init key message");
+      goto err;
+    }
+  if(zmq_msg_recv(key_msg_out, server->broker_socket, 0) == -1)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed request (missing key id)");
+      goto err;
+    }
+
+  return zmq_msg_size(key_msg_out);
+
+ err:
+  zmq_msg_close(key_msg_out);
+  return -1;
+}
+
+static int handle_set_bulk(tsmq_server_t *server)
 {
   tsmq_val_t value;
   tsmq_time_t time;
   zmq_msg_t key_msg;
+  int rc;
 
   /* ack the request immediately */
   /* send back a single empty message as an ack */
@@ -189,55 +244,32 @@ static int handle_set_single(tsmq_server_t *server)
                    "Malformed set single request (invalid time)");
       goto err;
     }
+  time = ntohl(time);
 
-  /* get the value from the message */
-  if(zsocket_rcvmore(server->broker_socket) == 0)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Invalid 'set single' message (missing value)");
-      goto err;
-    }
-  if(zmq_recv(server->broker_socket, &value, sizeof(tsmq_val_t), 0)
-     != sizeof(tsmq_val_t))
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Malformed set single request (invalid value)");
-      goto err;
-    }
+  /* @todo get the number of keys in this message (to decide whether we should
+     use set_single, or set_many */
 
-  /* grab the key from the message */
-  if(zsocket_rcvmore(server->broker_socket) == 0)
+  while(1)
     {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Invalid 'set single' message (missing key)");
-      goto err;
-    }
-  if(zmq_msg_init(&key_msg) == -1)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                   "Could not init key message");
-      goto err;
-    }
-  if(zmq_msg_recv(&key_msg, server->broker_socket, 0) == -1)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Malformed request (missing key id)");
-      goto err;
+      if((rc = recv_key_val(server, &key_msg, &value)) <= 0)
+        {
+          break;
+        }
+
+      if(server->backend->set_single_by_id(server->backend,
+                                           zmq_msg_data(&key_msg),
+                                           zmq_msg_size(&key_msg),
+                                           value, time) != 0)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                       "Set single failed\n");
+          goto err;
+        }
+
+      zmq_msg_close(&key_msg);
     }
 
-  if(server->backend->set_single_by_id(server->backend,
-                                       zmq_msg_data(&key_msg),
-                                       zmq_msg_size(&key_msg),
-                                       value, time) != 0)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
-                   "Set single failed\n");
-      goto err;
-    }
-
-  zmq_msg_close(&key_msg);
-
-  return 0;
+  return rc;
 
  err:
   zmq_msg_close(&key_msg);
@@ -333,7 +365,8 @@ static int handle_request(tsmq_server_t *server)
       break;
 
     case TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE:
-      return handle_set_single(server);
+    case TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK:
+      return handle_set_bulk(server);
       break;
 
     default:
@@ -378,7 +411,10 @@ static int run_server(tsmq_server_t *server)
   switch(msg_type)
     {
     case TSMQ_MSG_TYPE_REQUEST:
-      handle_request(server);
+      if(handle_request(server) != 0)
+        {
+          goto err;
+        }
       /* fall through to heartbeat */
 
     case TSMQ_MSG_TYPE_HEARTBEAT:

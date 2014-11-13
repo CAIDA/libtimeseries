@@ -55,6 +55,13 @@ enum {
     }
 
 #define HANDLE_REQUEST_REPLY(req_type)                                  \
+  /* send an empty message indicating the end of the request */         \
+  if(zmq_send(client->broker_socket, "", 0, 0) != 0)                    \
+    {                                                                   \
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,                       \
+                   "Failed to send EOS message");                       \
+      goto err;                                                         \
+    }                                                                   \
   /* wait for a reply */                                                \
   if((reply_rx = recv_reply_headers(client, req_type)) == REPLY_ERROR)  \
     {                                                                   \
@@ -289,6 +296,44 @@ static int key_recv(tsmq_client_t *client, tsmq_client_key_t *key)
   return 0;
 }
 
+static int key_val_send(tsmq_client_t *client, tsmq_client_key_t *key,
+                        tsmq_val_t value)
+{
+  tsmq_val_t nval;
+  zmq_msg_t msg_cpy;
+
+  /* add the value */
+  nval = htonll(value);
+  if(zmq_send(client->broker_socket, &nval, sizeof(tsmq_val_t),
+                    ZMQ_SNDMORE) != sizeof(tsmq_val_t))
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                   "Failed to send value in set single");
+      goto err;
+    }
+
+  /* add the key */
+  if(zmq_msg_init(&msg_cpy) == -1 ||
+     zmq_msg_copy(&msg_cpy, &key->server_key_id) == -1)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                   "Failed to copy key id in set single");
+      goto err;
+    }
+  if(zmq_msg_send(&msg_cpy, client->broker_socket, ZMQ_SNDMORE) == -1)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                   "Failed to send key id in set single");
+      goto err;
+    }
+
+  return 0;
+
+ err:
+  zmq_msg_close(&msg_cpy);
+  return -1;
+}
+
 /* ---------- PUBLIC FUNCTIONS BELOW HERE ---------- */
 
 TSMQ_ERR_FUNCS(client)
@@ -391,14 +436,6 @@ tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
                      "Failed to add key to lookup message");
         goto err;
       }
-
-    /* send an empty message indicating the end of the request */
-    if(zmq_send(client->broker_socket, "", 0, 0) != 0)
-      {
-        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to send request completion message");
-        goto err;
-      }
   }
   HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP);
 
@@ -469,14 +506,6 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
               }
           }
       }
-
-    /* send an empty message indicating the end of the batch of keys */
-    if(zmq_send(client->broker_socket, "", 0, 0) != 0)
-      {
-        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to send batch completion message");
-        goto err;
-      }
   }
   HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK);
 
@@ -533,7 +562,7 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
 			       tsmq_client_key_t *key,
 			       tsmq_val_t value, tsmq_time_t time)
 {
-  zmq_msg_t msg_cpy;
+  tsmq_time_t ntime;
 
   /* payload structure will be:
      TIME          (4)
@@ -545,7 +574,8 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
   SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE)
   {
     /* add the time */
-    if(zmq_send_const(client->broker_socket, &time, sizeof(tsmq_time_t),
+    ntime = htonl(time);
+    if(zmq_send_const(client->broker_socket, &ntime, sizeof(tsmq_time_t),
                       ZMQ_SNDMORE) != sizeof(tsmq_time_t))
       {
         tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
@@ -553,31 +583,68 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
         goto err;
       }
 
-    /* add the value */
-    if(zmq_send_const(client->broker_socket, &value, sizeof(tsmq_val_t),
-                      ZMQ_SNDMORE) != sizeof(tsmq_val_t))
+    if(key_val_send(client, key, value) != 0)
       {
-        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to send value in set single");
-        goto err;
-      }
-
-    /* add the key */
-    if(zmq_msg_init(&msg_cpy) == -1 ||
-       zmq_msg_copy(&msg_cpy, &key->server_key_id) == -1)
-      {
-        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to copy key id in set single");
-        goto err;
-      }
-    if(zmq_msg_send(&msg_cpy, client->broker_socket, 0) == -1)
-      {
-        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to send key id in set single");
         goto err;
       }
   }
   HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE);
+
+  /* there should be a single empty message, just pop it */
+  if(zmq_recv(client->broker_socket, NULL, 0, 0) != 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed set single reply");
+      goto err;
+    }
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+int tsmq_client_key_set_bulk(tsmq_client_t *client,
+			     timeseries_kp_t *kp,
+                             tsmq_time_t time)
+{
+  timeseries_kp_ki_t *ki = NULL;
+  int id;
+  tsmq_client_key_t *key_info = NULL;
+  tsmq_time_t ntime;
+
+  /* payload structure will be:
+     TIME          (4)
+     VALUE         (8)
+     SERVER_ID     (?) //TODO
+     SERVER_KEY_ID (?)
+  */
+
+  SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK)
+  {
+    /* add the time */
+    ntime = htonl(time);
+    if(zmq_send_const(client->broker_socket, &ntime, sizeof(tsmq_time_t),
+                      ZMQ_SNDMORE) != sizeof(tsmq_time_t))
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send time in set single");
+        goto err;
+      }
+
+    TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+      {
+        key_info = (tsmq_client_key_t*)
+          timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ);
+        assert(key_info != NULL);
+
+        if(key_val_send(client, key_info, timeseries_kp_ki_get_value(ki)) != 0)
+          {
+            goto err;
+          }
+      }
+  }
+  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK);
 
   /* there should be a single empty message, just pop it */
   if(zmq_recv(client->broker_socket, NULL, 0, 0) != 0)

@@ -75,7 +75,7 @@ typedef struct tsmq_client_key tsmq_client_key_t;
 
 /** Initialize a new instance of a tsmq metadata client
  *
- * @return a pointer to a tsmq md client structure if successful, NULL if an
+ * @return a pointer to a tsmq client structure if successful, NULL if an
  * error occurred
  */
 tsmq_client_t *tsmq_client_init();
@@ -87,22 +87,22 @@ tsmq_client_t *tsmq_client_init();
  */
 int tsmq_client_start(tsmq_client_t *client);
 
-/** Free a tsmq md client instance
+/** Free a tsmq client instance
  *
- * @param client        pointer to a tsmq md client instance to free
+ * @param client        pointer to a tsmq client instance to free
  */
 void tsmq_client_free(tsmq_client_t **client_p);
 
 /** Set the URI for the client to connect to the broker on
  *
- * @param client        pointer to a tsmq md client instance to update
+ * @param client        pointer to a tsmq client instance to update
  * @param uri           pointer to a uri string
  */
 void tsmq_client_set_broker_uri(tsmq_client_t *client, const char *uri);
 
 /** Set the request timeout
  *
- * @param client        pointer to a tsmq md client instance to update
+ * @param client        pointer to a tsmq client instance to update
  * @param timeout_ms    time in ms before request is retried
  *
  * @note defaults to TSMQ_CLIENT_REQUEST_TIMEOUT
@@ -112,7 +112,7 @@ void tsmq_client_set_request_timeout(tsmq_client_t *client,
 
 /** Set the number of request retries before a request is abandoned
  *
- * @param client        pointer to a tsmq md client instance to update
+ * @param client        pointer to a tsmq client instance to update
  * @param retry_cnt     number of times to retry a request before giving up
  *
  * @note defaults to TSMQ_CLIENT_REQUEST_RETRIES
@@ -123,7 +123,7 @@ void tsmq_client_set_request_retries(tsmq_client_t *client,
 /** Given an array of bytes that represent a metric key (probably a string),
  *  issue a request to find the appropriate server and corresponding key id.
  *
- * @param client        pointer to a tsmq md client instance to query
+ * @param client        pointer to a tsmq client instance to query
  * @param key           pointer to a string key
  * @return a pointer to a key info structure if successful, NULL otherwise
  *
@@ -137,7 +137,7 @@ tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
 /** Given an key package, issue a request to resolve string keys to
  * backend-specific ids.
  *
- * @param client        pointer to a tsmq md client instance to query
+ * @param client        pointer to a tsmq client instance to query
  * @param kp            pointer to a Key Package
  * @param force         if set to 1, all keys will be looked up, even if they
  *                      are already resolved
@@ -149,7 +149,7 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
 
 /** Write the value for a single key to the database(s)
  *
- * @param client        pointer to a tsmq md client instance
+ * @param client        pointer to a tsmq client instance
  * @param key           pointer to a key structure (returned by `_key_lookup`)
  * @param value         value to set for the given key
  * @param time          time slot to set value for
@@ -158,6 +158,17 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
 int tsmq_client_key_set_single(tsmq_client_t *client,
 			       tsmq_client_key_t *key,
 			       tsmq_val_t value, tsmq_time_t time);
+
+/** Write the values for the given Key Package to the database
+ *
+ * @param client        pointer to a tsmq client instance
+ * @param kp            pointer to the kp to write out
+ * @param time          time to set values for
+ * @return 0 if the command was successfully queued, -1 otherwise
+ */
+int tsmq_client_key_set_bulk(tsmq_client_t *client,
+                             timeseries_kp_t *kp,
+                             tsmq_time_t time);
 
 /** Free a key info structure
  *
