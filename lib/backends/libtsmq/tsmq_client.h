@@ -132,12 +132,6 @@ void tsmq_client_set_request_retries(tsmq_client_t *client,
 tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
 					  const char *key);
 
-/** Free a key info structure
- *
- * @param key           double pointer to the key info structure to free
- */
-void tsmq_client_key_free(tsmq_client_key_t **key_p);
-
 /** Write the value for a single key to the database(s)
  *
  * @param client        pointer to a tsmq md client instance
@@ -149,6 +143,12 @@ void tsmq_client_key_free(tsmq_client_key_t **key_p);
 int tsmq_client_key_set_single(tsmq_client_t *client,
 			       tsmq_client_key_t *key,
 			       tsmq_val_t value, tsmq_time_t time);
+
+/** Free a key info structure
+ *
+ * @param key           double pointer to the key info structure to free
+ */
+void tsmq_client_key_free(tsmq_client_key_t **key_p);
 
 /** Publish the error API for the metadata client */
 TSMQ_ERR_PROTOS(client)

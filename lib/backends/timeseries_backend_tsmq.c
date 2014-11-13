@@ -219,6 +219,7 @@ int timeseries_backend_tsmq_kp_ki_update(timeseries_backend_t *backend,
 	  /*fprintf(stderr, "INFO: Resolving key for %s\n", key);*/
 	  if((tsmq_key = tsmq_client_key_lookup(state->client, key)) == NULL)
 	    {
+              tsmq_client_perr(state->client);
 	      return -1;
 	    }
 	  timeseries_kp_ki_set_backend_state(ki, backend->id, tsmq_key);
@@ -255,6 +256,7 @@ int timeseries_backend_tsmq_kp_flush(timeseries_backend_t *backend,
       if(tsmq_client_key_set_single(state->client, tsmq_key,
 				    timeseries_kp_ki_get_value(ki), time) != 0)
 	{
+          tsmq_client_perr(state->client);
 	  return -1;
 	}
     }
@@ -278,6 +280,11 @@ int timeseries_backend_tsmq_set_single(timeseries_backend_t *backend,
     }
 
   rc = tsmq_client_key_set_single(state->client, ck, value, time);
+
+  if(tsmq_client_is_err(state->client) != 0)
+    {
+      tsmq_client_perr(state->client);
+    }
 
   tsmq_client_key_free(&ck);
   return rc;

@@ -34,6 +34,53 @@
 
 #define CTX client->tsmq->ctx
 
+enum {
+  REPLY_ERROR   = -1,
+  REPLY_SUCCESS =  0,
+  REPLY_TIMEOUT =  1,
+};
+
+#define SEND_REQUEST(req_type)                                  \
+  int retries_remaining = client->request_retries;              \
+  int reply_rx = -1;                                            \
+  while(retries_remaining > 0 && zctx_interrupted == 0)         \
+    {                                                           \
+  /* send the message headers */                                \
+  if(send_request_headers(client, req_type, ZMQ_SNDMORE) != 0)  \
+    {                                                           \
+      /* err will already be set */                             \
+      goto err;                                                 \
+    }
+
+#define HANDLE_REQUEST_REPLY(req_type)                                  \
+  /* wait for a reply */                                                \
+  if((reply_rx = recv_reply_headers(client, req_type)) == REPLY_ERROR)  \
+    {                                                                   \
+      goto err;                                                         \
+    }                                                                   \
+  if(reply_rx == REPLY_SUCCESS)                                         \
+    {                                                                   \
+      break;                                                            \
+    }                                                                   \
+  if(reconnect_broker(client) != 0)                                     \
+    {                                                                   \
+      goto err;                                                         \
+    }                                                                   \
+  retries_remaining--;                                                  \
+  }                                                                     \
+  /* increment the seq number regardless of the outcome */              \
+  client->sequence_num++;                                               \
+  /* we didn't get a reply, and we ran out of retries */                \
+   do {                                                                 \
+     if(reply_rx == REPLY_TIMEOUT)                                      \
+       {                                                                \
+         tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,                  \
+                      "No response received after %d retries.",         \
+                      client->request_retries);                         \
+         goto err;                                                      \
+       }                                                                \
+   } while(0)
+
 static int broker_connect(tsmq_client_t *client)
 {
   /* connect to broker socket */
@@ -43,6 +90,9 @@ static int broker_connect(tsmq_client_t *client)
 		   "Failed to create broker connection");
       return -1;
     }
+
+  /** @todo enable this instead of zmq_poll */
+  /*zsocket_set_rcvtimeo(client->server_socket, client->request_timeout);*/
 
   if(zsocket_connect(client->broker_socket, "%s", client->broker_uri) < 0)
     {
@@ -54,186 +104,192 @@ static int broker_connect(tsmq_client_t *client)
   return 0;
 }
 
-/* the caller no longer owns the request_body msg */
-/* but they *will* own the returned msg */
-static zmsg_t *execute_request(tsmq_client_t *client,
-			       tsmq_request_msg_type_t type,
-			       zmsg_t **request_body_p)
+static int reconnect_broker(tsmq_client_t *client)
 {
-  zmsg_t *request_body = *request_body_p;
-  *request_body_p = NULL;
-
-  int retries_remaining = client->request_retries;
-
-  zmsg_t *req_cpy;
-
-  uint8_t type_b = type;
-  int expect_reply = 1;
-
-  zmsg_t *msg = NULL;
-  zframe_t *frame = NULL;
-
-  uint64_t seq;
-  tsmq_request_msg_type_t rtype;
-
-  while(retries_remaining > 0 && !zctx_interrupted)
+  fprintf(stderr, "WARN: No response, retrying...\n");
+  zsocket_destroy(CTX, client->broker_socket);
+  fprintf(stderr, "DEBUG: Reconnecting to broker\n");
+  if(broker_connect(client) != 0)
     {
-      /* request format:
-	 SEQUENCE
-	 REQUEST_TYPE
-	 REQUEST_BODY
-	 ...
-      */
+      tsmq_set_err(client->tsmq, TSMQ_ERR_START_FAILED,
+                   "Failed to connect to broker");
+      return -1;
+    }
+  return 0;
+}
 
-      /* first (working backward), we prepend the request type */
-      if(zmsg_pushmem(request_body, &type_b, sizeof(uint8_t)) != 0)
-	{
-	  tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		       "Could not add request type to message");
-          goto err;
-	}
+static int send_request_headers(tsmq_client_t *client,
+                                tsmq_request_msg_type_t req_type,
+                                int sndmore)
+{
+  uint64_t seq_num;
+  /* request format:
+     SEQUENCE
+     REQUEST_TYPE
+     REQUEST_BODY
+     ...
+  */
 
-      /* now prepend the sequence number */
-      if(zmsg_pushmem(request_body, &client->sequence_num,
-		      sizeof(uint64_t)) != 0)
-	{
-	  tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		       "Could not add sequence number to message");
-          goto err;
-	}
-
-      /* create a copy of the message in case we need to resend */
-      if((req_cpy = zmsg_dup(request_body)) == NULL)
-	{
-	  tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		       "Could not duplicate request message");
-          goto err;
-	}
-
-      /* now fire off the request and wait for a reply */
-      if(zmsg_send(&req_cpy, client->broker_socket) != 0)
-	{
-	  tsmq_set_err(client->tsmq, errno,
-		       "Could not send request to broker");
-          goto err;
-	}
-
-      while(expect_reply != 0)
-	{
-	  zmq_pollitem_t poll_items[] = {
-	    { client->broker_socket, 0, ZMQ_POLLIN, 0 },
-	  };
-	  if(zmq_poll(poll_items, 1,
-		      client->request_timeout * ZMQ_POLL_MSEC) == -1)
-	    {
-	      goto interrupt;
-	    }
-
-	  /* process a server reply and exit our loop if the reply is valid */
-	  if(poll_items[0].revents & ZMQ_POLLIN)
-	    {
-	      /* as soon as we get a response, we know that we will not resend,
-		 so destroy the original message */
-	      zmsg_destroy(&request_body);
-
-	      /* got a reply from the broker, must match the sequence number */
-	      if((msg = zmsg_recv(client->broker_socket)) == NULL)
-		{
-		  goto interrupt;
-		}
-
-	      /* pop off the first frame, it should be a seq no */
-	      if((frame = zmsg_pop(msg)) == NULL)
-		{
-		  tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-			       "Missing sequence number in reply");
-                  goto err;
-		}
-
-	      /* check the sequence number against what we have */
-	      if((seq = *zframe_data(frame)) != client->sequence_num)
-		{
-		  tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-			       "Invalid sequence number received."
-			       " Got %"PRIu64", expecting %"PRIu64,
-			       seq, client->sequence_num);
-                  goto err;
-		  zframe_destroy(&frame);
-		  zmsg_destroy(&msg);
-		  return NULL;
-		}
-	      zframe_destroy(&frame);
-
-	      /* check the request type against what we sent */
-	      if((rtype = tsmq_request_msg_type(msg)) != type)
-		{
-		  tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-			       "Invalid request type in response."
-			       " Got %d, expecting %d",
-			       rtype, type);
-                  goto err;
-
-		}
-
-	      /* call this an acceptable response */
-	      return msg;
-	    }
-
-	  /* recv timed out */
-	  if(--retries_remaining == 0)
-	    {
-	      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-			   "No response received after %d retries.",
-			   client->request_retries);
-              goto err;
-	    }
-	  else
-	    {
-	      /* send the request again */
-	      fprintf(stderr, "WARN: No response, retrying...\n");
-	      zsocket_destroy(CTX, client->broker_socket);
-	      fprintf(stderr, "DEBUG: Reconnecting to broker\n");
-	      if(broker_connect(client) != 0)
-		{
-		  tsmq_set_err(client->tsmq, TSMQ_ERR_START_FAILED,
-			       "Failed to connect to broker");
-                  goto err;
-		}
-	      /* create a copy of the message in case we need to resend */
-	      if((req_cpy = zmsg_dup(request_body)) == NULL)
-		{
-		  tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-			       "Could not duplicate request message");
-                  goto err;
-		}
-
-	      fprintf(stderr, "DEBUG: Re-sending request to broker\n");
-	      /* now fire off the request and wait for a reply */
-	      if(zmsg_send(&req_cpy, client->broker_socket) != 0)
-		{
-		  tsmq_set_err(client->tsmq, errno,
-			       "Could not send request to broker");
-                  goto err;
-		}
-	    }
-	}
+  seq_num = htonll(client->sequence_num);
+  /* send the sequence number */
+  if(zmq_send(client->broker_socket, &seq_num, sizeof(uint64_t),
+              ZMQ_SNDMORE) != sizeof(uint64_t))
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                   "Could send sequence number message");
+      return -1;
     }
 
-  zframe_destroy(&frame);
-  zmsg_destroy(&msg);
-  return NULL;
+  /* send the request type */
+  if(zmq_send(client->broker_socket, &req_type, tsmq_msg_type_size_t,
+              (sndmore != 0) ? ZMQ_SNDMORE : 0)
+     != tsmq_msg_type_size_t)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not send request type message");
+      return -1;
+    }
+
+  return 0;
+}
+
+/** Block waiting for a reply
+ *
+ * @param client
+ * @param req_type      expected type of the reply
+ * @return 0 if the headers were received correctly, 1 if not (needs re-tx),
+ *         -1 if an error occurred
+ */
+static int recv_reply_headers(tsmq_client_t *client,
+                              tsmq_request_msg_type_t req_type)
+{
+  uint64_t rx_seq_num;
+  tsmq_request_msg_type_t rx_req_type;
+
+  zmq_pollitem_t poll_items[] = {
+    { client->broker_socket, 0, ZMQ_POLLIN, 0 },
+  };
+  if(zmq_poll(poll_items, 1,
+              client->request_timeout * ZMQ_POLL_MSEC) == -1)
+    {
+      goto interrupt;
+    }
+
+  /* process a server reply and exit our loop if the reply is valid */
+  if(poll_items[0].revents & ZMQ_POLLIN)
+    {
+      /* Msg Format:
+         SEQ_NUM
+         REQ_TYPE
+         PAYLOAD
+      */
+
+      /* got a reply from the broker, must match the sequence number */
+      if(zmq_recv(client->broker_socket, &rx_seq_num, sizeof(uint64_t), 0)
+         != sizeof(uint64_t))
+        {
+          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Malformed request reply (missing seq num)");
+          goto err;
+        }
+      rx_seq_num = ntohll(rx_seq_num);
+
+      /* check the sequence number against what we have */
+      if(rx_seq_num != client->sequence_num)
+        {
+          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Invalid sequence number received."
+                       " Got %"PRIu64", expecting %"PRIu64,
+                       rx_seq_num, client->sequence_num);
+          goto err;
+        }
+
+      if(zsocket_rcvmore(client->broker_socket) == 0)
+        {
+          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Invalid reply message (missing request type)");
+          goto err;
+        }
+
+      /* check the request type against what we sent */
+      if((rx_req_type = tsmq_recv_request_type(client->broker_socket))
+         != req_type)
+        {
+          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Invalid request type in response."
+                       " Got %d, expecting %d",
+                       rx_req_type, req_type);
+          goto err;
+
+        }
+
+      /* all that is left is the payload (there MUST be payload) */
+      if(zsocket_rcvmore(client->broker_socket) == 0)
+        {
+          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Invalid reply message (missing payload)");
+          goto err;
+        }
+      return REPLY_SUCCESS;
+    }
+
+  /* no luck, perhaps retry the request */
+  return REPLY_TIMEOUT;
 
  err:
-  zframe_destroy(&frame);
-  zmsg_destroy(&msg);
-  return NULL;
+  return REPLY_ERROR;
 
  interrupt:
-  /* we were interrupted */
-  zframe_destroy(&frame);
-  zmsg_destroy(&msg);
   tsmq_set_err(client->tsmq, TSMQ_ERR_INTERRUPT, "Caught SIGINT");
+  return REPLY_ERROR;
+}
+
+static tsmq_client_key_t *key_init()
+{
+  tsmq_client_key_t *key = NULL;
+
+  if((key = malloc(sizeof(tsmq_client_key_t))) == NULL)
+    {
+      goto err;
+    }
+
+  if(zmq_msg_init(&key->server_id) == -1)
+    {
+      goto err;
+    }
+
+  if(zmq_msg_init(&key->server_key_id) == -1)
+    {
+      goto err;
+    }
+
+  return key;
+
+ err:
+  tsmq_client_key_free(&key);
   return NULL;
+}
+
+static int key_recv(tsmq_client_t *client, tsmq_client_key_t *key)
+{
+  /* we expect two messages, one with the server id and one with the key id */
+
+  if(zmq_msg_recv(&key->server_id, client->broker_socket, 0) == -1)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed reply (missing server id)");
+      return -1;
+    }
+
+  /* now there should be one more frame with the key id */
+  if(zmq_msg_recv(&key->server_key_id, client->broker_socket, 0) == -1)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed reply (missing server key id)");
+      return -1;
+    }
+
+  return 0;
 }
 
 /* ---------- PUBLIC FUNCTIONS BELOW HERE ---------- */
@@ -325,186 +381,123 @@ void tsmq_client_set_request_retries(tsmq_client_t *client,
 tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
 					  const char *key)
 {
-  zmsg_t *msg = NULL;
-  zframe_t*frame = NULL;
-  tsmq_client_key_t *response = NULL;
+  tsmq_client_key_t *key_info = NULL;
+  size_t key_len = strlen(key);
 
-  if((msg = zmsg_new()) == NULL)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to malloc key lookup message");
-      return NULL;
-    }
+  SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP)
+  {
+    /* send the key */
+    if(zmq_send_const(client->broker_socket, key, key_len, 0) != key_len)
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to add key to lookup message");
+        goto err;
+      }
+  }
+  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP);
 
-  if(zmsg_addstr(msg, key) != 0)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to add key to lookup message");
-      zmsg_destroy(&msg);
-      return NULL;
-    }
-
-  /*fprintf(stderr, "DEBUG: Sending request!\n");*/
-  /* now hand our message to the execute_request function which will return us a
-     message with the response from the appropriate server */
-  if((msg =
-      execute_request(client, TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP, &msg)) == NULL)
-    {
-      /* err will already be set */
-      return NULL;
-    }
+  /* there is a payload waiting on the socket, grab it */
 
   /* create a new key info structure */
-  if((response = malloc(sizeof(tsmq_client_key_t))) == NULL)
+  if((key_info = key_init()) == NULL)
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to malloc key response");
+                     "Failed to init key");
       goto err;
     }
 
-  /* decode the message into a new tsmq_client_key_t message */
-  /* we expect two frames, one with the server id and one with the key id */
-  if((frame = zmsg_pop(msg)) == NULL)
+  if(key_recv(client, key_info) != 0)
     {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-		   "Malformed request response (missing server id)");
       goto err;
     }
 
-  response->server_id_len = zframe_size(frame);
-  if((response->server_id = malloc(response->server_id_len)) == NULL)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to malloc server id");
-      goto err;
-    }
-  memcpy(response->server_id, zframe_data(frame), response->server_id_len);
-  zframe_destroy(&frame);
-
-  /* now there should be one more frame with the key id */
-  if((frame = zmsg_pop(msg)) == NULL)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-		   "Malformed request response (missing key id)");
-      goto err;
-    }
-
-  response->server_key_id_len = zframe_size(frame);
-  if((response->server_key_id = malloc(response->server_key_id_len)) == NULL)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to malloc server key id");
-      goto err;
-    }
-  memcpy(response->server_key_id, zframe_data(frame),
-	 response->server_key_id_len);
-
-  zframe_destroy(&frame);
-  zmsg_destroy(&msg);
-
-  return response;
+  return key_info;
 
  err:
-  tsmq_client_key_free(&response);
-  zframe_destroy(&frame);
-  zmsg_destroy(&msg);
+  tsmq_client_key_free(&key_info);
   return NULL;
-}
-
-void tsmq_client_key_free(tsmq_client_key_t **key_p)
-{
-  tsmq_client_key_t *key = *key_p;
-
-  if(key == NULL)
-    {
-      return;
-    }
-
-  free(key->server_id);
-  key->server_id = NULL;
-  key->server_id_len = 0;
-
-  free(key->server_key_id);
-  key->server_key_id = NULL;
-  key->server_key_id_len = 0;
-
-  free(key);
-
-  *key_p = NULL;
 }
 
 int tsmq_client_key_set_single(tsmq_client_t *client,
 			       tsmq_client_key_t *key,
 			       tsmq_val_t value, tsmq_time_t time)
 {
-  zmsg_t *msg;
+  zmq_msg_t msg_cpy;
 
-  /* body structure will be:
+  /* payload structure will be:
      TIME          (4)
-     SERVER_ID     (?)
-     SERVER_KEY_ID (?)
      VALUE         (8)
+     SERVER_ID     (?) //TODO
+     SERVER_KEY_ID (?)
   */
 
-  /* for set multiple...
-     TIME
-     SERVER_ID
-     SERVER_KEY_ID
-     VALUE
-     SERVER_ID
-     SERVER_KEY_ID
-     VALUE
-     SERVER_ID
-     SERVER_KEY_ID
-     VALUE
-     ... */
+  SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE)
+  {
+    /* add the time */
+    if(zmq_send_const(client->broker_socket, &time, sizeof(tsmq_time_t),
+                      ZMQ_SNDMORE) != sizeof(tsmq_time_t))
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send time in set single");
+        goto err;
+      }
 
-  if((msg = zmsg_new()) == NULL)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to malloc set value message");
-      return -1;
-    }
+    /* add the value */
+    if(zmq_send_const(client->broker_socket, &value, sizeof(tsmq_val_t),
+                      ZMQ_SNDMORE) != sizeof(tsmq_val_t))
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send value in set single");
+        goto err;
+      }
 
-  /* add the time */
-  if(zmsg_addmem(msg, &time, sizeof(tsmq_time_t)) != 0)
+    /* add the key */
+    if(zmq_msg_init(&msg_cpy) == -1 ||
+       zmq_msg_copy(&msg_cpy, &key->server_key_id) == -1)
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to copy key id in set single");
+        goto err;
+      }
+    if(zmq_msg_send(&msg_cpy, client->broker_socket, 0) == -1)
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send key id in set single");
+        goto err;
+      }
+  }
+  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE);
+
+  /* there should be a single empty message, just pop it */
+  if(zmq_recv(client->broker_socket, NULL, 0, 0) != 0)
     {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to add time to message");
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed set single reply");
       goto err;
     }
 
-  /* add the value */
-  if(zmsg_addmem(msg, &value, sizeof(tsmq_val_t)) != 0)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to add value to message");
-      goto err;
-    }
-
-  /* add the key */
-  if(zmsg_addmem(msg, key->server_key_id, key->server_key_id_len) != 0)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-		   "Failed to add key id to message");
-      goto err;
-    }
-
-  /*fprintf(stderr, "DEBUG: Sending request!\n");*/
-  if((msg = execute_request(client,
-                            TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE,
-                            &msg)) == NULL)
-    {
-      /* err will already be set */
-      goto err;
-    }
-
-  /* the reply contains a single empty frame */
-  assert(zmsg_size(msg) == 1);
-  zmsg_destroy(&msg);
   return 0;
 
  err:
-  zmsg_destroy(&msg);
   return -1;
+}
+
+void tsmq_client_key_free(tsmq_client_key_t **key_p)
+{
+  tsmq_client_key_t *key;
+
+  assert(key_p != NULL);
+  key = *key_p;
+  if(key == NULL)
+    {
+      return;
+    }
+
+  zmq_msg_close(&key->server_id);
+  zmq_msg_close(&key->server_key_id);
+
+  free(key);
+
+  *key_p = NULL;
+  return;
 }
