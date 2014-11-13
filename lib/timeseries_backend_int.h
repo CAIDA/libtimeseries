@@ -78,6 +78,12 @@
                                                        size_t id_len,   \
                                                        uint64_t value,  \
                                                        uint32_t time);  \
+  int timeseries_backend_##provname##_set_bulk_by_id(timeseries_backend_t *backend, \
+                                                     uint32_t key_cnt,  \
+                                                     uint8_t **ids,     \
+                                                     size_t *id_lens,   \
+                                                     uint64_t *values,  \
+                                                     uint32_t time);    \
   size_t timeseries_backend_##provname##_resolve_key(timeseries_backend_t *backend, \
                                                      const char *key,   \
                                                      uint8_t **backend_key);
@@ -95,6 +101,7 @@
     timeseries_backend_##provname##_kp_flush,		\
     timeseries_backend_##provname##_set_single,		\
     timeseries_backend_##provname##_set_single_by_id,   \
+    timeseries_backend_##provname##_set_bulk_by_id,   \
     timeseries_backend_##provname##_resolve_key,        \
     0, NULL
 
@@ -241,6 +248,22 @@ struct timeseries_backend
   int (*set_single_by_id)(timeseries_backend_t *backend,
                           uint8_t *id, size_t id_len,
                           uint64_t value, uint32_t time);
+
+  /** Write the value for a set of key IDs (retrieved using resolve_key) to the
+   * database
+   *
+   * @param backend     Pointer to the backend instance to write to
+   * @param key_cnt     Number of elements in each of the following arrays
+   * @param ids         Pointer to an array of backend key ID byte arrays
+   * @param id_lens     Pointer to an array of the length of the corresponding
+   *                    key in the ID byte array
+   * @param values      Pointer to an array of values to set
+   * @param time        The time slot to set the values for
+   * @return 0 if the values were set successfully, -1 otherwise
+   */
+  int (*set_bulk_by_id)(timeseries_backend_t *backend, uint32_t key_cnt,
+                        uint8_t **ids, size_t *id_lens,
+                        uint64_t *values, uint32_t time);
 
   /** Resolve the given key into a backend-specific opaque ID.
    *

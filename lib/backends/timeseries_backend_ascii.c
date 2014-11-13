@@ -292,6 +292,15 @@ int timeseries_backend_ascii_set_single_by_id(timeseries_backend_t *backend,
   return timeseries_backend_ascii_set_single(backend, (char*)id, value, time);
 }
 
+int timeseries_backend_ascii_set_bulk_by_id(timeseries_backend_t *backend,
+                                            uint32_t key_cnt,
+                                            uint8_t **ids, size_t *id_lens,
+                                            uint64_t *values, uint32_t time)
+{
+  fprintf(stderr, "DEBUG: Setting bulk for %d keys\n", key_cnt);
+  return 0;
+}
+
 size_t timeseries_backend_ascii_resolve_key(timeseries_backend_t *backend,
                                             const char *key,
                                             uint8_t **backend_key)
