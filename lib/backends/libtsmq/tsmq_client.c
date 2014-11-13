@@ -563,6 +563,7 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
 			       tsmq_val_t value, tsmq_time_t time)
 {
   tsmq_time_t ntime;
+  uint32_t cnt = htonl(1);
 
   /* payload structure will be:
      TIME          (4)
@@ -577,6 +578,14 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
     ntime = htonl(time);
     if(zmq_send_const(client->broker_socket, &ntime, sizeof(tsmq_time_t),
                       ZMQ_SNDMORE) != sizeof(tsmq_time_t))
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send time in set single");
+        goto err;
+      }
+
+    if(zmq_send_const(client->broker_socket, &cnt, sizeof(uint32_t),
+                      ZMQ_SNDMORE) != sizeof(uint32_t))
       {
         tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
                      "Failed to send time in set single");
@@ -612,6 +621,7 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
   int id;
   tsmq_client_key_t *key_info = NULL;
   tsmq_time_t ntime;
+  uint32_t key_cnt = htonl(timeseries_kp_size(kp));
 
   /* payload structure will be:
      TIME          (4)
@@ -626,6 +636,14 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
     ntime = htonl(time);
     if(zmq_send_const(client->broker_socket, &ntime, sizeof(tsmq_time_t),
                       ZMQ_SNDMORE) != sizeof(tsmq_time_t))
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send time in set single");
+        goto err;
+      }
+
+    if(zmq_send_const(client->broker_socket, &key_cnt, sizeof(uint32_t),
+                      ZMQ_SNDMORE) != sizeof(uint32_t))
       {
         tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
                      "Failed to send time in set single");

@@ -216,8 +216,9 @@ static int recv_key_val(tsmq_server_t *server,
 
 static int handle_set_bulk(tsmq_server_t *server)
 {
-  tsmq_val_t value;
   tsmq_time_t time;
+  uint32_t key_cnt;
+  tsmq_val_t value;
   zmq_msg_t key_msg;
   int rc;
 
@@ -234,20 +235,34 @@ static int handle_set_bulk(tsmq_server_t *server)
   if(zsocket_rcvmore(server->broker_socket) == 0)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Invalid 'set single' message (missing time)");
+                   "Invalid 'value set' message (missing time)");
       goto err;
     }
   if(zmq_recv(server->broker_socket, &time, sizeof(tsmq_time_t), 0)
      != sizeof(tsmq_time_t))
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Malformed set single request (invalid time)");
+                   "Malformed 'value set' request (invalid time)");
       goto err;
     }
   time = ntohl(time);
 
-  /* @todo get the number of keys in this message (to decide whether we should
-     use set_single, or set_many */
+  /* get the number of keys in this message (to decide whether we should use
+     set_single, or set_many */
+  if(zsocket_rcvmore(server->broker_socket) == 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid 'value set' message (missing key cnt)");
+      goto err;
+    }
+  if(zmq_recv(server->broker_socket, &key_cnt, sizeof(uint32_t), 0)
+     != sizeof(uint32_t))
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed 'value set' request (invalid key cnt)");
+      goto err;
+    }
+  key_cnt = ntohl(key_cnt);
 
   while(1)
     {
