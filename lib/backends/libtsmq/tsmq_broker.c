@@ -632,12 +632,6 @@ tsmq_broker_t *tsmq_broker_init()
       goto err;
     }
 
-  /* initialize the reactor */
-  if(init_reactor(broker) != 0)
-    {
-      goto err;
-    }
-
   return broker;
 
  err:
@@ -647,6 +641,11 @@ tsmq_broker_t *tsmq_broker_init()
 
 int tsmq_broker_start(tsmq_broker_t *broker)
 {
+  /* initialize the reactor */
+  if(init_reactor(broker) != 0)
+    {
+      return -1;
+    }
 
   if(server_bind(broker) != 0)
     {
