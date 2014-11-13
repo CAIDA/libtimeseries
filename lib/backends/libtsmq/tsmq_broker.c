@@ -515,9 +515,11 @@ static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg)
           continue;
         }
       server = kh_val(broker->servers, k);
-      assert(server != NULL);
       break;
     }
+
+  /* stuff will BREAK if there are no servers connected */
+  assert(server != NULL);
 
   /* send the server id frame */
   if(server_send_headers(broker, server, TSMQ_MSG_TYPE_REQUEST, ZMQ_SNDMORE) != 0)
@@ -674,7 +676,7 @@ void tsmq_broker_free(tsmq_broker_t **broker_p)
     }
   *broker_p = NULL;
 
-  assert(broker->tsmq != NULL);
+  zloop_destroy(&broker->loop);
 
   free(broker->client_uri);
   broker->client_uri = NULL;
@@ -691,6 +693,7 @@ void tsmq_broker_free(tsmq_broker_t **broker_p)
   servers_free(broker);
 
   /* will call zctx_destroy which will destroy our sockets too */
+  assert(broker->tsmq != NULL);
   tsmq_free(broker->tsmq);
   free(broker);
 

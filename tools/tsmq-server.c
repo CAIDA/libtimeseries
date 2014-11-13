@@ -264,6 +264,7 @@ int main(int argc, char **argv)
   tsmq_server_perr(server);
 
   /* cleanup */
+  timeseries_free(&timeseries);
   tsmq_server_free(server);
 
   /* complete successfully */
