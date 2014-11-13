@@ -91,8 +91,7 @@ static int broker_connect(tsmq_client_t *client)
       return -1;
     }
 
-  /** @todo enable this instead of zmq_poll */
-  /*zsocket_set_rcvtimeo(client->server_socket, client->request_timeout);*/
+  zsocket_set_rcvtimeo(client->broker_socket, client->request_timeout);
 
   if(zsocket_connect(client->broker_socket, "%s", client->broker_uri) < 0)
     {
@@ -166,75 +165,71 @@ static int recv_reply_headers(tsmq_client_t *client,
   uint64_t rx_seq_num;
   tsmq_request_msg_type_t rx_req_type;
 
-  zmq_pollitem_t poll_items[] = {
-    { client->broker_socket, 0, ZMQ_POLLIN, 0 },
-  };
-  if(zmq_poll(poll_items, 1,
-              client->request_timeout * ZMQ_POLL_MSEC) == -1)
-    {
-      goto interrupt;
-    }
+  /* Msg Format:
+     SEQ_NUM
+     REQ_TYPE
+     PAYLOAD
+  */
 
-  /* process a server reply and exit our loop if the reply is valid */
-  if(poll_items[0].revents & ZMQ_POLLIN)
+  /* got a reply from the broker, must match the sequence number */
+  if(zmq_recv(client->broker_socket, &rx_seq_num, sizeof(uint64_t), 0)
+     != sizeof(uint64_t))
     {
-      /* Msg Format:
-         SEQ_NUM
-         REQ_TYPE
-         PAYLOAD
-      */
-
-      /* got a reply from the broker, must match the sequence number */
-      if(zmq_recv(client->broker_socket, &rx_seq_num, sizeof(uint64_t), 0)
-         != sizeof(uint64_t))
+      switch(errno)
         {
+        case EAGAIN:
+          return REPLY_TIMEOUT;
+          break;
+
+        case ETERM:
+        case EINTR:
+          goto interrupt;
+          break;
+
+        default:
           tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
                        "Malformed request reply (missing seq num)");
           goto err;
         }
-      rx_seq_num = ntohll(rx_seq_num);
+    }
+  rx_seq_num = ntohll(rx_seq_num);
 
-      /* check the sequence number against what we have */
-      if(rx_seq_num != client->sequence_num)
-        {
-          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-                       "Invalid sequence number received."
-                       " Got %"PRIu64", expecting %"PRIu64,
-                       rx_seq_num, client->sequence_num);
-          goto err;
-        }
-
-      if(zsocket_rcvmore(client->broker_socket) == 0)
-        {
-          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-                       "Invalid reply message (missing request type)");
-          goto err;
-        }
-
-      /* check the request type against what we sent */
-      if((rx_req_type = tsmq_recv_request_type(client->broker_socket))
-         != req_type)
-        {
-          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-                       "Invalid request type in response."
-                       " Got %d, expecting %d",
-                       rx_req_type, req_type);
-          goto err;
-
-        }
-
-      /* all that is left is the payload (there MUST be payload) */
-      if(zsocket_rcvmore(client->broker_socket) == 0)
-        {
-          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-                       "Invalid reply message (missing payload)");
-          goto err;
-        }
-      return REPLY_SUCCESS;
+  /* check the sequence number against what we have */
+  if(rx_seq_num != client->sequence_num)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid sequence number received."
+                   " Got %"PRIu64", expecting %"PRIu64,
+                   rx_seq_num, client->sequence_num);
+      goto err;
     }
 
-  /* no luck, perhaps retry the request */
-  return REPLY_TIMEOUT;
+  if(zsocket_rcvmore(client->broker_socket) == 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid reply message (missing request type)");
+      goto err;
+    }
+
+  /* check the request type against what we sent */
+  if((rx_req_type = tsmq_recv_request_type(client->broker_socket))
+     != req_type)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid request type in response."
+                   " Got %d, expecting %d",
+                   rx_req_type, req_type);
+      goto err;
+    }
+
+  /* all that is left is the payload (there MUST be payload) */
+  if(zsocket_rcvmore(client->broker_socket) == 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid reply message (missing payload)");
+      goto err;
+    }
+  return REPLY_SUCCESS;
 
  err:
   return REPLY_ERROR;
