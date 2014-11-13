@@ -202,28 +202,11 @@ int timeseries_backend_tsmq_kp_ki_update(timeseries_backend_t *backend,
 					 timeseries_kp_t *kp)
 {
   timeseries_backend_tsmq_state_t *state = STATE(backend);
-  timeseries_kp_ki_t *ki = NULL;
-  tsmq_client_key_t *tsmq_key = NULL;
-  const char *key = NULL;
-  int id;
 
-  /** @todo make this easier for backends */
-  /* foreach KI, find those that have NULL state, build resolution table */
-  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+  if(tsmq_client_key_lookup_bulk(state->client, kp, 0) != 0)
     {
-      /* @todo resolve many */
-      if(timeseries_kp_ki_get_backend_state(ki, backend->id) == NULL)
-	{
-	  key = timeseries_kp_ki_get_key(ki);
-	  assert(key != NULL);
-	  /*fprintf(stderr, "INFO: Resolving key for %s\n", key);*/
-	  if((tsmq_key = tsmq_client_key_lookup(state->client, key)) == NULL)
-	    {
-              tsmq_client_perr(state->client);
-	      return -1;
-	    }
-	  timeseries_kp_ki_set_backend_state(ki, backend->id, tsmq_key);
-	}
+      tsmq_client_perr(state->client);
+      return -1;
     }
 
   return 0;

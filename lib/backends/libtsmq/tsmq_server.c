@@ -83,22 +83,26 @@ static int handle_key_lookup(tsmq_server_t *server)
   uint8_t *server_key = NULL;
   size_t server_key_len = 0;
 
-  /* send our server id */
-  /** @todo replace with user-specified id */
-  if(zmq_send(server->broker_socket, SERVER_ID, server_id_len,
-              ZMQ_SNDMORE) != server_id_len)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                   "Failed to send server id in reply message");
-      goto err;
-    }
-
   /* grab the key from the message */
   if((key = tsmq_recv_str(server->broker_socket)) == NULL)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
                    "Malformed key lookup request (missing key)");
       goto err;
+    }
+
+  /* to support bulk lookup, we have to know if the next message is empty */
+  if(key[0] == '\0')
+    {
+      /* no more keys */
+      if(zmq_send(server->broker_socket, "", 0, 0) != 0)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                       "Failed to send lookup completion message");
+          goto err;
+        }
+      free(key);
+      return 0;
     }
 
   /* do the actual lookup */
@@ -110,8 +114,18 @@ static int handle_key_lookup(tsmq_server_t *server)
       goto err;
     }
 
+  /* send our server id */
+  /** @todo replace with user-specified id */
+  if(zmq_send(server->broker_socket, SERVER_ID, server_id_len,
+              ZMQ_SNDMORE) != server_id_len)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                   "Failed to send server id in reply message");
+      goto err;
+    }
+
   /* send the backend-specific key */
-  if(zmq_send(server->broker_socket, server_key, server_key_len, 0)
+  if(zmq_send(server->broker_socket, server_key, server_key_len, ZMQ_SNDMORE)
      != server_key_len)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
@@ -121,12 +135,29 @@ static int handle_key_lookup(tsmq_server_t *server)
 
   free(key);
   free(server_key);
-  return 0;
+  /* this might become a problem if we need zero-len keys */
+  return server_key_len;
 
  err:
   free(key);
   free(server_key);
   return -1;
+}
+
+static int handle_key_lookup_bulk(tsmq_server_t *server)
+{
+  int rc;
+
+  /* receive all the queries */
+  while(1)
+    {
+      if((rc = handle_key_lookup(server)) <= 0)
+        {
+          break;
+        }
+    }
+
+  return rc;
 }
 
 static int handle_set_single(tsmq_server_t *server)
@@ -297,7 +328,8 @@ static int handle_request(tsmq_server_t *server)
   switch(req_type)
     {
     case TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP:
-      return handle_key_lookup(server);
+    case TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK:
+      return handle_key_lookup_bulk(server);
       break;
 
     case TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE:

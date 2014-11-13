@@ -28,6 +28,8 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "timeseries_kp_int.h"
+
 #include "tsmq_client_int.h"
 
 #include "utils.h"
@@ -382,16 +384,25 @@ tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
   SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP)
   {
     /* send the key */
-    if(zmq_send_const(client->broker_socket, key, key_len, 0) != key_len)
+    if(zmq_send_const(client->broker_socket, key, key_len, ZMQ_SNDMORE)
+       != key_len)
       {
         tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
                      "Failed to add key to lookup message");
         goto err;
       }
+
+    /* send an empty message indicating the end of the request */
+    if(zmq_send(client->broker_socket, "", 0, 0) != 0)
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send request completion message");
+        goto err;
+      }
   }
   HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP);
 
-  /* there is a payload waiting on the socket, grab it */
+  /* there is payload waiting on the socket, grab it */
 
   /* create a new key info structure */
   if((key_info = key_init()) == NULL)
@@ -406,11 +417,116 @@ tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
       goto err;
     }
 
+  if(zsocket_rcvmore(client->broker_socket) == 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid reply message (missing EOS)");
+      goto err;
+    }
+
+  if(zmq_recv(client->broker_socket, NULL, 0, 0) != 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed resolve bulk reply");
+      goto err;
+    }
+
   return key_info;
 
  err:
   tsmq_client_key_free(&key_info);
   return NULL;
+}
+
+int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
+                                timeseries_kp_t *kp,
+                                int force)
+{
+  timeseries_kp_ki_t *ki = NULL;
+  int id;
+  const char *key = NULL;
+  size_t key_len;
+  tsmq_client_key_t *key_info = NULL;
+
+  SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK)
+  {
+    /* send each key that needs to be resolved */
+    TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+      {
+        if(force != 0 ||
+           timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
+           == NULL)
+          {
+            /* needs to be resolved */
+            key = timeseries_kp_ki_get_key(ki);
+            key_len = strlen(key);
+            if(zmq_send_const(client->broker_socket, key, key_len, ZMQ_SNDMORE)
+               != key_len)
+              {
+                tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                             "Failed to add key to lookup message");
+                goto err;
+              }
+          }
+      }
+
+    /* send an empty message indicating the end of the batch of keys */
+    if(zmq_send(client->broker_socket, "", 0, 0) != 0)
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send batch completion message");
+        goto err;
+      }
+  }
+  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK);
+
+  /* there is payload waiting on the socket, grab it */
+
+  /* iterate over the kp and recv for each key that needs to be resolved */
+  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+    {
+      if(force != 0 ||
+         timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
+         == NULL)
+        {
+          /* create a new key info structure */
+          if((key_info = key_init()) == NULL)
+            {
+              tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                           "Failed to init key");
+              goto err;
+            }
+
+          if(key_recv(client, key_info) != 0)
+            {
+              goto err;
+            }
+
+          if(zsocket_rcvmore(client->broker_socket) == 0)
+            {
+              tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                           "Invalid reply message (missing key info)");
+              goto err;
+            }
+
+          timeseries_kp_ki_set_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ,
+                                             key_info);
+        }
+    }
+
+  /* remove the end-of-stream empty message */
+  if(zmq_recv(client->broker_socket, NULL, 0, 0) != 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed resolve bulk reply");
+      goto err;
+    }
+
+  return 0;
+
+ err:
+  tsmq_client_key_free(&key_info);
+  return -1;
 }
 
 int tsmq_client_key_set_single(tsmq_client_t *client,

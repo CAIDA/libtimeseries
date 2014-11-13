@@ -107,16 +107,22 @@ typedef enum {
 
 typedef enum {
   /** Invalid request type */
-  TSMQ_REQUEST_MSG_TYPE_UNKNOWN    = 0,
+  TSMQ_REQUEST_MSG_TYPE_UNKNOWN         = 0,
 
   /** Key lookup request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP = 1,
+  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP      = 1,
+
+  /** Bulk Key lookup request */
+  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK = 2,
 
   /** Key storage request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE = 2,
+  TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE  = 3,
+
+  /** Bulk Key storage request */
+  TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK    = 4,
 
   /** Highest request type in use */
-  TSMQ_REQUEST_MSG_TYPE_MAX = TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE,
+  TSMQ_REQUEST_MSG_TYPE_MAX = TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK,
 } tsmq_request_msg_type_t;
 
 #define tsmq_request_msg_type_size_t sizeof(uint8_t)

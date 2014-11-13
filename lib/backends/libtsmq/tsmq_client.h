@@ -26,6 +26,8 @@
 #ifndef __TSMQ_CLIENT_H
 #define __TSMQ_CLIENT_H
 
+#include <timeseries.h>
+
 #include <tsmq_common.h>
 
 /** @file
@@ -131,6 +133,19 @@ void tsmq_client_set_request_retries(tsmq_client_t *client,
  */
 tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
 					  const char *key);
+
+/** Given an key package, issue a request to resolve string keys to
+ * backend-specific ids.
+ *
+ * @param client        pointer to a tsmq md client instance to query
+ * @param kp            pointer to a Key Package
+ * @param force         if set to 1, all keys will be looked up, even if they
+ *                      are already resolved
+ * @return 0 if all keys were resolved successfully, -1 otherwise
+ */
+int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
+                                timeseries_kp_t *kp,
+                                int force);
 
 /** Write the value for a single key to the database(s)
  *
