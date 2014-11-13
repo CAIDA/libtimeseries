@@ -43,11 +43,6 @@
    backend. e.g. a dbats db, or a whisper store */
 #define SERVER_ID "darknet.ucsd-nt"
 
-enum {
-  POLL_ITEM_BROKER = 0,
-  POLL_ITEM_CNT    = 1,
-};
-
 static int server_connect(tsmq_server_t *server)
 {
   uint8_t msg_type_p;
@@ -59,6 +54,8 @@ static int server_connect(tsmq_server_t *server)
 		   "Failed to create broker connection");
       return -1;
     }
+
+  zsocket_set_rcvtimeo(server->broker_socket, server->heartbeat_interval);
 
   if(zsocket_connect(server->broker_socket, "%s", server->broker_uri) < 0)
     {
@@ -315,39 +312,62 @@ static int handle_request(tsmq_server_t *server)
     }
 }
 
+static void broker_reconnect(tsmq_server_t *server)
+{
+  fprintf(stderr, "WARN: heartbeat failure, can't reach broker\n");
+  fprintf(stderr, "WARN: reconnecting in %"PRIu64" msec…\n",
+          server->reconnect_interval_next);
+
+  zclock_sleep(server->reconnect_interval_next);
+
+  if(server->reconnect_interval_next <
+     server->reconnect_interval_max)
+    {
+      server->reconnect_interval_next *= 2;
+    }
+
+  zsocket_destroy(CTX, server->broker_socket);
+  server_connect(server);
+
+  server->heartbeat_liveness_remaining = server->heartbeat_liveness;
+}
+
 static int run_server(tsmq_server_t *server)
 {
-  zmq_pollitem_t poll_items[] = {
-    {server->broker_socket, 0, ZMQ_POLLIN, 0}, /* POLL_ITEM_BROKER */
-  };
-  int rc;
-
   tsmq_msg_type_t msg_type;
   uint8_t msg_type_p;
 
-  if((rc = zmq_poll(poll_items, POLL_ITEM_CNT,
-		    server->heartbeat_interval * ZMQ_POLL_MSEC)) == -1)
+  /*  Get message
+   *  - 4-part: REQUEST + [client.id + empty + content] => request
+   *  - 1-part: HEARTBEAT => heartbeat
+   */
+
+  msg_type = tsmq_recv_type(server->broker_socket);
+  switch(msg_type)
     {
-      goto interrupt;
-    }
+    case TSMQ_MSG_TYPE_REQUEST:
+      handle_request(server);
+      /* fall through to heartbeat */
 
-  if(poll_items[POLL_ITEM_BROKER].revents & ZMQ_POLLIN)
-    {
-      /*  Get message
-       *  - 4-part: REQUEST + [client.id + empty + content] => request
-       *  - 1-part: HEARTBEAT => heartbeat
-       */
+    case TSMQ_MSG_TYPE_HEARTBEAT:
+      server->heartbeat_liveness_remaining = server->heartbeat_liveness;
+      server->reconnect_interval_next = server->reconnect_interval_min;
+      break;
 
-      msg_type = tsmq_recv_type(server->broker_socket);
-
-      switch(msg_type)
+    default:
+      switch(errno)
         {
-        case TSMQ_MSG_TYPE_REQUEST:
-          handle_request(server);
-          break;
+       case EAGAIN:
+         if(--server->heartbeat_liveness_remaining == 0)
+           {
+             broker_reconnect(server);
+           }
+         /* by here we have reconnected */
+         break;
 
-        case TSMQ_MSG_TYPE_HEARTBEAT:
-          /* nothing to do here */
+        case ETERM:
+        case EINTR:
+          goto interrupt;
           break;
 
         default:
@@ -357,28 +377,7 @@ static int run_server(tsmq_server_t *server)
           goto err;
           break;
         }
-
-      server->heartbeat_liveness_remaining = server->heartbeat_liveness;
-      server->reconnect_interval_next = server->reconnect_interval_min;
-
-    }
-  else if(--server->heartbeat_liveness_remaining == 0)
-    {
-      fprintf(stderr, "WARN: heartbeat failure, can't reach broker\n");
-      fprintf(stderr, "WARN: reconnecting in %"PRIu64" msec…\n",
-	      server->reconnect_interval_next);
-
-      zclock_sleep(server->reconnect_interval_next);
-
-      if(server->reconnect_interval_next < server->reconnect_interval_max)
-	{
-	  server->reconnect_interval_next *= 2;
-	}
-
-      zsocket_destroy(CTX, server->broker_socket);
-      server_connect(server);
-
-      server->heartbeat_liveness_remaining = server->heartbeat_liveness;
+      break;
     }
 
   /* send heartbeat to queue if it is time */
@@ -457,9 +456,12 @@ int tsmq_server_start(tsmq_server_t *server)
   server->heartbeat_next = zclock_time() + server->heartbeat_interval;
 
   /* start processing requests */
-  while(run_server(server) == 0)
+  while(1)
     {
-      /* nothing here */
+      if(run_server(server) != 0)
+        {
+          break;
+        }
     }
 
   return -1;
