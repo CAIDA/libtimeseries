@@ -154,6 +154,14 @@ int main(int argc, char **argv)
 
   tsmq_server_t *server = NULL;
 
+  /* better just grab a pointer to lts before anybody goes crazy and starts
+     dumping usage strings */
+  if((timeseries = timeseries_init()) == NULL)
+    {
+      fprintf(stderr, "ERROR: Could not initialize libtimeseries\n");
+      return -1;
+    }
+
   while(prevoptind = optind,
 	(opt = getopt(argc, argv, ":b:i:l:r:R:t:v?")) >= 0)
     {
@@ -212,14 +220,6 @@ int main(int argc, char **argv)
 
   /* NB: once getopt completes, optind points to the first non-option
      argument */
-
-  /* better just grab a pointer to lts before anybody goes crazy and starts
-     dumping usage strings */
-  if((timeseries = timeseries_init()) == NULL)
-    {
-      fprintf(stderr, "ERROR: Could not initialize libtimeseries\n");
-      return -1;
-    }
 
   if(ts_backend == NULL)
     {
