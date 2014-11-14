@@ -423,7 +423,7 @@ static int handle_request(tsmq_server_t *server)
 static void broker_reconnect(tsmq_server_t *server)
 {
   fprintf(stderr, "WARN: heartbeat failure, can't reach broker\n");
-  fprintf(stderr, "WARN: reconnecting in %"PRIu64" msec…\n",
+  fprintf(stderr, "WARN: reconnecting in %"PRIu64" msec...\n",
           server->reconnect_interval_next);
 
   zclock_sleep(server->reconnect_interval_next);
@@ -469,6 +469,8 @@ static int run_server(tsmq_server_t *server)
       switch(errno)
         {
        case EAGAIN:
+         fprintf(stderr, "DEBUG: Heartbeat missed, %d lives remain\n",
+                 server->heartbeat_liveness_remaining);
          if(--server->heartbeat_liveness_remaining == 0)
            {
              broker_reconnect(server);
@@ -618,7 +620,7 @@ void tsmq_server_set_heartbeat_liveness(tsmq_server_t *server,
 {
   assert(server != NULL);
 
-  server->heartbeat_liveness = beats;
+  server->heartbeat_liveness_remaining = server->heartbeat_liveness = beats;
 }
 
 void tsmq_server_set_reconnect_interval_min(tsmq_server_t *server,

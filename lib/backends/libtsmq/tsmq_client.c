@@ -638,7 +638,7 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
                       ZMQ_SNDMORE) != sizeof(tsmq_time_t))
       {
         tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to send time in set single");
+                     "Failed to send time in set bulk");
         goto err;
       }
 
@@ -646,7 +646,7 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
                       ZMQ_SNDMORE) != sizeof(uint32_t))
       {
         tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to send time in set single");
+                     "Failed to send time in set bulk");
         goto err;
       }
 
@@ -668,7 +668,7 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
   if(zmq_recv(client->broker_socket, NULL, 0, 0) != 0)
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Malformed set single reply");
+                   "Malformed set bulk reply");
       goto err;
     }
 
