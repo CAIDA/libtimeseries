@@ -68,8 +68,13 @@ typedef struct timeseries_backend_ascii_state {
   /** The compression level to use of the outfile is compressed */
   int compress_level;
 
+  /** The number of values received for the current bulk set */
   uint32_t bulk_cnt;
+
+  /** The time for the current bulk set */
   uint32_t bulk_time;
+
+  /** The expected number of values in the current bulk set */
   uint32_t bulk_expect;
 
 } timeseries_backend_ascii_state_t;

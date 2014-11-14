@@ -23,7 +23,6 @@
  *
  */
 #include "config.h"
-#include "libtimeseries_int.h"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -39,6 +38,9 @@
 #include "utils.h"
 #include "wandio_utils.h"
 
+#include "timeseries_backend_int.h"
+#include "timeseries_kp_int.h"
+#include "timeseries_log_int.h"
 #include "timeseries_backend_dbats.h"
 
 #define BACKEND_NAME "dbats"
@@ -69,6 +71,15 @@ typedef struct timeseries_backend_dbats_state {
 
   /** Flags to be passed to dbats_open */
   uint32_t dbats_flags;
+
+  /** The number of values received for the current bulk set */
+  uint32_t bulk_cnt;
+
+  /** The time for the current bulk set */
+  uint32_t bulk_time;
+
+  /** The expected number of values in the current bulk set */
+  uint32_t bulk_expect;
 
 } timeseries_backend_dbats_state_t;
 
@@ -232,6 +243,73 @@ void timeseries_backend_dbats_free(timeseries_backend_t *backend)
   return;
 }
 
+int timeseries_backend_dbats_kp_init(timeseries_backend_t *backend,
+                                     timeseries_kp_t *kp,
+                                     void **kp_state_p)
+{
+  /* we do not need any state */
+  assert(kp_state_p != NULL);
+  *kp_state_p = NULL;
+  return 0;
+}
+
+void timeseries_backend_dbats_kp_free(timeseries_backend_t *backend,
+                                      timeseries_kp_t *kp,
+                                      void *kp_state)
+{
+  /* we did not allocate any state */
+  assert(kp_state == NULL);
+  return;
+}
+
+int timeseries_backend_dbats_kp_ki_update(timeseries_backend_t *backend,
+					  timeseries_kp_t *kp)
+{
+  timeseries_backend_dbats_state_t *state = STATE(backend);
+  timeseries_kp_ki_t *ki = NULL;
+  int id;
+  uint32_t *dbats_key_id;
+
+  /* foreach KI, if the backend state is null, get the key id */
+  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+    {
+      if(timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_DBATS)
+         != NULL)
+        {
+          continue;
+        }
+
+      if((dbats_key_id = malloc(sizeof(uint32_t))) == NULL)
+        {
+          timeseries_log(__func__, "Could not allocate DBATS Key");
+	  return -1;
+        }
+
+      /* lookup this key */
+      /** @todo bulk key lookup */
+      if(dbats_get_key_id(state->dbats_handler, NULL,
+                          timeseries_kp_ki_get_key(ki),
+                          dbats_key_id, DBATS_CREATE) != 0)
+        {
+          timeseries_log(__func__, "Could not resolve DBATS key ID");
+	  return -1;
+        }
+
+      /* this is a little abusive. we store a uint32 int a void* */
+      timeseries_kp_ki_set_backend_state(ki, TIMESERIES_BACKEND_ID_DBATS,
+                                         dbats_key_id);
+    }
+  return 0;
+}
+
+void timeseries_backend_dbats_kp_ki_free(timeseries_backend_t *backend,
+                                       timeseries_kp_t *kp,
+				       timeseries_kp_ki_t *ki,
+                                       void *ki_state)
+{
+  free(ki_state);
+  return;
+}
 
 int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
 				      timeseries_kp_t *kp,
@@ -240,7 +318,10 @@ int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
   timeseries_backend_dbats_state_t *state = STATE(backend);
   dbats_snapshot *snapshot;
   dbats_value val;
-  int i, rc;
+  int rc;
+  timeseries_kp_ki_t *ki = NULL;
+  int id;
+  uint32_t *dbats_id;
 
   /* we re-enter here if the set deadlocks */
  retry:
@@ -252,6 +333,7 @@ int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
       return -1;
     }
 
+#if 0
   /* if this is our first flush (or they have sneakily inserted more keys), we
      ask dbats for key ids for each key */
   if(kp->backend_ids_cnt != kp->keys_cnt)
@@ -274,7 +356,28 @@ int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
 	  return -1;
 	}
     }
+#endif
 
+  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+    {
+      dbats_id = (uint32_t*)
+        timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_DBATS);
+
+      val.u64 = timeseries_kp_ki_get_value(ki);
+      if((rc = dbats_set(snapshot, *dbats_id, &val)) != 0)
+	{
+	  dbats_abort_snap(snapshot);
+	  if(rc == DB_LOCK_DEADLOCK)
+	    {
+	      timeseries_log(__func__, "deadlock in dbats_set");
+	      goto retry;
+	    }
+	  timeseries_log(__func__, "dbats_set failed");
+	  return -1;
+	}
+    }
+
+#if 0
   /* now we dump out the values */
   for(i=0; i<kp->backend_ids_cnt; i++)
     {
@@ -291,6 +394,7 @@ int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
 	  return -1;
 	}
     }
+#endif
 
   /* now we commit the snapshot */
   if((rc = dbats_commit_snap(snapshot)) != 0)
