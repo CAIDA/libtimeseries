@@ -78,12 +78,13 @@
                                                        size_t id_len,   \
                                                        uint64_t value,  \
                                                        uint32_t time);  \
+  int timeseries_backend_##provname##_set_bulk_init(timeseries_backend_t *backend, \
+                                                    uint32_t key_cnt,   \
+                                                    uint32_t time);     \
   int timeseries_backend_##provname##_set_bulk_by_id(timeseries_backend_t *backend, \
-                                                     uint32_t key_cnt,  \
-                                                     uint8_t **ids,     \
-                                                     size_t *id_lens,   \
-                                                     uint64_t *values,  \
-                                                     uint32_t time);    \
+                                                     uint8_t *id,       \
+                                                     size_t id_len,     \
+                                                     uint64_t value);   \
   size_t timeseries_backend_##provname##_resolve_key(timeseries_backend_t *backend, \
                                                      const char *key,   \
                                                      uint8_t **backend_key);
@@ -101,7 +102,8 @@
     timeseries_backend_##provname##_kp_flush,		\
     timeseries_backend_##provname##_set_single,		\
     timeseries_backend_##provname##_set_single_by_id,   \
-    timeseries_backend_##provname##_set_bulk_by_id,   \
+    timeseries_backend_##provname##_set_bulk_init,      \
+    timeseries_backend_##provname##_set_bulk_by_id,     \
     timeseries_backend_##provname##_resolve_key,        \
     0, NULL
 
@@ -249,21 +251,34 @@ struct timeseries_backend
                           uint8_t *id, size_t id_len,
                           uint64_t value, uint32_t time);
 
-  /** Write the value for a set of key IDs (retrieved using resolve_key) to the
-   * database
+  /** Prepare to write a bulk set of values to the database
    *
    * @param backend     Pointer to the backend instance to write to
-   * @param key_cnt     Number of elements in each of the following arrays
-   * @param ids         Pointer to an array of backend key ID byte arrays
-   * @param id_lens     Pointer to an array of the length of the corresponding
-   *                    key in the ID byte array
-   * @param values      Pointer to an array of values to set
+   * @param key_cnt     Number of keys (expect key_cnt set_bulk_by_id calls
+   *                    before flushing)
    * @param time        The time slot to set the values for
    * @return 0 if the values were set successfully, -1 otherwise
+   *
+   * @note the backend only guarantees to flush the values once key_cnt calls to
+   * set_bulk_by_id have been received after calling this function. Users should
+   * call set_bulk_init with the number of values they will store, and then call
+   * set_bulk_by_id for each of them.
    */
-  int (*set_bulk_by_id)(timeseries_backend_t *backend, uint32_t key_cnt,
-                        uint8_t **ids, size_t *id_lens,
-                        uint64_t *values, uint32_t time);
+  int (*set_bulk_init)(timeseries_backend_t *backend, uint32_t key_cnt,
+                       uint32_t time);
+
+  /** Queue the value for a key ID (retrieved using resolve_key) for writing to
+   * the database. Must follow a call to set_bulk_init
+   *
+   * @param backend     Pointer to the backend instance to write to
+   * @param id          Pointer to the backend-specific key ID byte array
+   * @param id_len      Length of the key ID byte array
+   * @param value       Value to set
+   * @return 0 if the value was set successfully, -1 otherwise
+   */
+  int (*set_bulk_by_id)(timeseries_backend_t *backend,
+                        uint8_t *id, size_t id_len,
+                        uint64_t value);
 
   /** Resolve the given key into a backend-specific opaque ID.
    *

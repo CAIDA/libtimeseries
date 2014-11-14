@@ -36,6 +36,8 @@
 
 #include "utils.h"
 
+#define BULK_KEY_THRESHOLD 1
+
 #define CTX server->tsmq->ctx
 
 /* @todo: make this configurable, and generate a sane default. should be
@@ -264,6 +266,17 @@ static int handle_set_bulk(tsmq_server_t *server)
     }
   key_cnt = ntohl(key_cnt);
 
+  if(key_cnt > BULK_KEY_THRESHOLD)
+    {
+      /* bulk set start */
+      if(server->backend->set_bulk_init(server->backend, key_cnt, time) != 0)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                       "Set bulk init failed\n");
+          goto err;
+        }
+    }
+
   while(1)
     {
       if((rc = recv_key_val(server, &key_msg, &value)) <= 0)
@@ -271,14 +284,29 @@ static int handle_set_bulk(tsmq_server_t *server)
           break;
         }
 
-      if(server->backend->set_single_by_id(server->backend,
-                                           zmq_msg_data(&key_msg),
-                                           zmq_msg_size(&key_msg),
-                                           value, time) != 0)
+      if(key_cnt <= BULK_KEY_THRESHOLD)
         {
-          tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
-                       "Set single failed\n");
-          goto err;
+          if(server->backend->set_single_by_id(server->backend,
+                                               zmq_msg_data(&key_msg),
+                                               zmq_msg_size(&key_msg),
+                                               value, time) != 0)
+            {
+              tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                           "Set single failed\n");
+              goto err;
+            }
+        }
+      else
+        {
+          if(server->backend->set_bulk_by_id(server->backend,
+                                             zmq_msg_data(&key_msg),
+                                             zmq_msg_size(&key_msg),
+                                             value) != 0)
+            {
+              tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                           "Set bulk failed\n");
+              goto err;
+            }
         }
 
       zmq_msg_close(&key_msg);

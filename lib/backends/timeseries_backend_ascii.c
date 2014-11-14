@@ -68,6 +68,10 @@ typedef struct timeseries_backend_ascii_state {
   /** The compression level to use of the outfile is compressed */
   int compress_level;
 
+  uint32_t bulk_cnt;
+  uint32_t bulk_time;
+  uint32_t bulk_expect;
+
 } timeseries_backend_ascii_state_t;
 
 /** Print usage information to stderr */
@@ -292,12 +296,36 @@ int timeseries_backend_ascii_set_single_by_id(timeseries_backend_t *backend,
   return timeseries_backend_ascii_set_single(backend, (char*)id, value, time);
 }
 
-int timeseries_backend_ascii_set_bulk_by_id(timeseries_backend_t *backend,
-                                            uint32_t key_cnt,
-                                            uint8_t **ids, size_t *id_lens,
-                                            uint64_t *values, uint32_t time)
+int timeseries_backend_ascii_set_bulk_init(timeseries_backend_t *backend,
+                                           uint32_t key_cnt, uint32_t time)
 {
-  fprintf(stderr, "DEBUG: Setting bulk for %d keys\n", key_cnt);
+  timeseries_backend_ascii_state_t *state = STATE(backend);
+
+  assert(state->bulk_expect == 0 && state->bulk_cnt == 0);
+  state->bulk_expect = key_cnt;
+  state->bulk_time = time;
+  return 0;
+}
+
+int timeseries_backend_ascii_set_bulk_by_id(timeseries_backend_t *backend,
+                                            uint8_t *id, size_t id_len,
+                                            uint64_t value)
+{
+  timeseries_backend_ascii_state_t *state = STATE(backend);
+  assert(state->bulk_expect > 0);
+
+  if(timeseries_backend_ascii_set_single_by_id(backend, id, id_len,
+                                               value, state->bulk_time) != 0)
+    {
+      return -1;
+    }
+
+  if(++state->bulk_cnt == state->bulk_expect)
+    {
+      state->bulk_cnt = 0;
+      state->bulk_time = 0;
+      state->bulk_expect = 0;
+    }
   return 0;
 }
 

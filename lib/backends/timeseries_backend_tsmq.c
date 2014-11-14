@@ -273,10 +273,18 @@ int timeseries_backend_tsmq_set_single_by_id(timeseries_backend_t *backend,
   return -1;
 }
 
+int timeseries_backend_tsmq_set_bulk_init(timeseries_backend_t *backend,
+                                          uint32_t key_cnt, uint32_t time)
+{
+  /* this would happen when chaining tsmq instances.
+     think some more about what this means */
+  assert(0 && "unimplemented");
+  return -1;
+}
+
 int timeseries_backend_tsmq_set_bulk_by_id(timeseries_backend_t *backend,
-                                           uint32_t key_cnt,
-                                           uint8_t **ids, size_t *id_lens,
-                                           uint64_t *values, uint32_t time)
+                                           uint8_t *id, size_t id_len,
+                                           uint64_t value)
 {
   /* this would happen when chaining tsmq instances.
      think some more about what this means */
