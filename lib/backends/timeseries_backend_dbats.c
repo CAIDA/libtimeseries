@@ -81,6 +81,9 @@ typedef struct timeseries_backend_dbats_state {
   /** The expected number of values in the current bulk set */
   uint32_t bulk_expect;
 
+  /** The snapshot for the current bulk set */
+  dbats_snapshot *bulk_snap;
+
 } timeseries_backend_dbats_state_t;
 
 /** Print usage information to stderr */
@@ -230,6 +233,12 @@ void timeseries_backend_dbats_free(timeseries_backend_t *backend)
 	  state->dbats_path = NULL;
 	}
 
+      if(state->bulk_snap != NULL)
+	{
+	  dbats_abort_snap(state->bulk_snap);
+	  state->bulk_snap = NULL;
+	}
+
       if(state->dbats_handler != NULL)
 	{
 	  dbats_close(state->dbats_handler);
@@ -268,7 +277,7 @@ int timeseries_backend_dbats_kp_ki_update(timeseries_backend_t *backend,
   timeseries_backend_dbats_state_t *state = STATE(backend);
   timeseries_kp_ki_t *ki = NULL;
   int id;
-  uint32_t *dbats_key_id;
+  uint32_t *dbats_id;
 
   /* foreach KI, if the backend state is null, get the key id */
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
@@ -279,7 +288,7 @@ int timeseries_backend_dbats_kp_ki_update(timeseries_backend_t *backend,
           continue;
         }
 
-      if((dbats_key_id = malloc(sizeof(uint32_t))) == NULL)
+      if((dbats_id = malloc(sizeof(uint32_t))) == NULL)
         {
           timeseries_log(__func__, "Could not allocate DBATS Key");
 	  return -1;
@@ -289,13 +298,12 @@ int timeseries_backend_dbats_kp_ki_update(timeseries_backend_t *backend,
       /** @todo bulk key lookup */
       if(dbats_get_key_id(state->dbats_handler, NULL,
                           timeseries_kp_ki_get_key(ki),
-                          dbats_key_id, DBATS_CREATE) != 0)
+                          dbats_id, DBATS_CREATE) != 0)
         {
           timeseries_log(__func__, "Could not resolve DBATS key ID");
 	  return -1;
         }
 
-      /* this is a little abusive. we store a uint32 int a void* */
       timeseries_kp_ki_set_backend_state(ki, TIMESERIES_BACKEND_ID_DBATS,
                                          dbats_key_id);
     }
@@ -307,6 +315,7 @@ void timeseries_backend_dbats_kp_ki_free(timeseries_backend_t *backend,
 				       timeseries_kp_ki_t *ki,
                                        void *ki_state)
 {
+  /* ki_state is a (uint32_t*) */
   free(ki_state);
   return;
 }
@@ -333,31 +342,6 @@ int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
       return -1;
     }
 
-#if 0
-  /* if this is our first flush (or they have sneakily inserted more keys), we
-     ask dbats for key ids for each key */
-  if(kp->backend_ids_cnt != kp->keys_cnt)
-    {
-      /* realloc the backend_ids array */
-      if((kp->backend_ids = realloc(kp->backend_ids,
-				    sizeof(uint32_t)*(kp->keys_cnt))) == NULL)
-	{
-	  timeseries_log(__func__, "could not realloc backend_ids array");
-	  return -1;
-	}
-      kp->backend_ids_cnt = kp->keys_cnt;
-
-      /* ask dbats for the key ids */
-      if(dbats_bulk_get_key_id(state->dbats_handler, snapshot,
-			       &kp->keys_cnt, (const char * const *)kp->keys,
-			       kp->backend_ids, DBATS_CREATE) != 0)
-	{
-	  timeseries_log(__func__, "dbats_bulk_get_key_id failed");
-	  return -1;
-	}
-    }
-#endif
-
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
       dbats_id = (uint32_t*)
@@ -376,25 +360,6 @@ int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
 	  return -1;
 	}
     }
-
-#if 0
-  /* now we dump out the values */
-  for(i=0; i<kp->backend_ids_cnt; i++)
-    {
-      val.u64 = kp->values[i];
-      if((rc = dbats_set(snapshot, kp->backend_ids[i], &val)) != 0)
-	{
-	  dbats_abort_snap(snapshot);
-	  if(rc == DB_LOCK_DEADLOCK)
-	    {
-	      timeseries_log(__func__, "deadlock in dbats_set");
-	      goto retry;
-	    }
-	  timeseries_log(__func__, "dbats_set failed");
-	  return -1;
-	}
-    }
-#endif
 
   /* now we commit the snapshot */
   if((rc = dbats_commit_snap(snapshot)) != 0)
@@ -457,4 +422,143 @@ int timeseries_backend_dbats_set_single(timeseries_backend_t *backend,
     }
 
   return 0;
+}
+
+int timeseries_backend_dbats_set_single_by_id(timeseries_backend_t *backend,
+                                              uint8_t *id, size_t id_len,
+                                              uint64_t value, uint32_t time)
+{
+  timeseries_backend_dbats_state_t *state = STATE(backend);
+  dbats_snapshot *snapshot;
+  uint32_t dbats_id;
+  dbats_value val;
+  int rc;
+
+  /* we re-enter here if the set deadlocks */
+ retry:
+
+  /* select the snapshot */
+  if(dbats_select_snap(state->dbats_handler, &snapshot, time, 0) != 0)
+    {
+      timeseries_log(__func__, "dbats_select_snap failed");
+      return -1;
+    }
+
+  /* set the value */
+  assert(id_len == sizeof(uint32_t));
+  memcpy(&dbats_id, id, sizeof(uint32_t));
+  val.u64 = value;
+  if((rc = dbats_set(snapshot, dbats_id, &val)) != 0)
+    {
+      dbats_abort_snap(snapshot);
+      if(rc == DB_LOCK_DEADLOCK)
+	{
+	  timeseries_log(__func__, "deadlock in dbats_set_by_key");
+	  goto retry;
+	}
+      timeseries_log(__func__, "dbats_set_by_key failed");
+      return -1;
+    }
+
+  /* commit the snapshot */
+  if((rc = dbats_commit_snap(snapshot)) != 0)
+    {
+      if(rc == DB_LOCK_DEADLOCK)
+	{
+	  timeseries_log(__func__, "deadlock in dbats_commit_snap");
+	  goto retry;
+	}
+      timeseries_log(__func__, "dbats_commit_snap failed");
+      return -1;
+    }
+
+  return 0;
+}
+
+int timeseries_backend_dbats_set_bulk_init(timeseries_backend_t *backend,
+                                           uint32_t key_cnt, uint32_t time)
+{
+  timeseries_backend_ascii_state_t *state = STATE(backend);
+  assert(state->bulk_expect == 0 && state->bulk_cnt == 0 &&
+	 state->bulk_snap == NULL);
+
+  state->bulk_expect = key_cnt;
+  state->bulk_time = time;
+
+  /* select the snapshot */
+  if(dbats_select_snap(state->dbats_handler, &state->bulk_snap, time, 0) != 0)
+    {
+      timeseries_log(__func__, "dbats_select_snap failed");
+      return -1;
+    }
+
+  return 0;
+}
+
+int timeseries_backend_dbats_set_bulk_by_id(timeseries_backend_t *backend,
+                                            uint8_t *id, size_t id_len,
+                                            uint64_t value)
+{
+  timeseries_backend_ascii_state_t *state = STATE(backend);
+  uint32_t dbats_id;
+  int rc;
+
+  assert(state->bulk_expect > 0);
+
+  assert(id_len == sizeof(uint32_t));
+  memcpy(&dbats_id, id, sizeof(uin32_t));
+  val.u64 = value;
+  if((rc = dbats_set(state->bulk_snap, *dbats_id, &val)) != 0)
+    {
+      dbats_abort_snap(snapshot);
+      if(rc == DB_LOCK_DEADLOCK)
+	{
+	  timeseries_log(__func__, "deadlock in dbats_set");
+	  goto retry;
+	}
+      timeseries_log(__func__, "dbats_set failed");
+      return -1;
+    }
+
+  if(++state->bulk_cnt == state->bulk_expect)
+    {
+      /* commit the snapshot */
+      if((rc = dbats_commit_snap(snapshot)) != 0)
+	{
+	  if(rc == DB_LOCK_DEADLOCK)
+	    {
+	      timeseries_log(__func__, "deadlock in dbats_commit_snap");
+	    }
+	  timeseries_log(__func__, "dbats_commit_snap failed");
+	  return -1;
+	}
+
+      state->bulk_cnt = 0;
+      state->bulk_time = 0;
+      state->bulk_expect = 0;
+      state->bulk_snap = NULL;
+    }
+  return 0;
+}
+
+size_t timeseries_backend_dbats_resolve_key(timeseries_backend_t *backend,
+                                            const char *key,
+                                            uint8_t **backend_key)
+{
+  uint32_t *dbats_id = NULL;
+
+  if((dbats_id = malloc(sizeof(uint32_t))) == NULL)
+    {
+      timeseries_log(__func__, "Could not allocate DBATS Key");
+      return -1;
+    }
+
+  if(dbats_get_key_id(state->dbats_handler, NULL, key,
+		      dbats_id, DBATS_CREATE) != 0)
+    {
+      timeseries_log(__func__, "Could not resolve DBATS key ID");
+      return -1;
+    }
+
+  return sizeof(uint32_t);
 }
