@@ -305,7 +305,7 @@ int timeseries_backend_dbats_kp_ki_update(timeseries_backend_t *backend,
         }
 
       timeseries_kp_ki_set_backend_state(ki, TIMESERIES_BACKEND_ID_DBATS,
-                                         dbats_key_id);
+                                         dbats_id);
     }
   return 0;
 }
@@ -478,7 +478,7 @@ int timeseries_backend_dbats_set_single_by_id(timeseries_backend_t *backend,
 int timeseries_backend_dbats_set_bulk_init(timeseries_backend_t *backend,
                                            uint32_t key_cnt, uint32_t time)
 {
-  timeseries_backend_ascii_state_t *state = STATE(backend);
+  timeseries_backend_dbats_state_t *state = STATE(backend);
   assert(state->bulk_expect == 0 && state->bulk_cnt == 0 &&
 	 state->bulk_snap == NULL);
 
@@ -499,22 +499,23 @@ int timeseries_backend_dbats_set_bulk_by_id(timeseries_backend_t *backend,
                                             uint8_t *id, size_t id_len,
                                             uint64_t value)
 {
-  timeseries_backend_ascii_state_t *state = STATE(backend);
+  timeseries_backend_dbats_state_t *state = STATE(backend);
   uint32_t dbats_id;
+  dbats_value val;
   int rc;
 
   assert(state->bulk_expect > 0);
 
   assert(id_len == sizeof(uint32_t));
-  memcpy(&dbats_id, id, sizeof(uin32_t));
+  memcpy(&dbats_id, id, sizeof(uint32_t));
   val.u64 = value;
-  if((rc = dbats_set(state->bulk_snap, *dbats_id, &val)) != 0)
+  if((rc = dbats_set(state->bulk_snap, dbats_id, &val)) != 0)
     {
-      dbats_abort_snap(snapshot);
+      dbats_abort_snap(state->bulk_snap);
       if(rc == DB_LOCK_DEADLOCK)
 	{
 	  timeseries_log(__func__, "deadlock in dbats_set");
-	  goto retry;
+          /* can't retry, just fail */
 	}
       timeseries_log(__func__, "dbats_set failed");
       return -1;
@@ -523,11 +524,12 @@ int timeseries_backend_dbats_set_bulk_by_id(timeseries_backend_t *backend,
   if(++state->bulk_cnt == state->bulk_expect)
     {
       /* commit the snapshot */
-      if((rc = dbats_commit_snap(snapshot)) != 0)
+      if((rc = dbats_commit_snap(state->bulk_snap)) != 0)
 	{
 	  if(rc == DB_LOCK_DEADLOCK)
 	    {
 	      timeseries_log(__func__, "deadlock in dbats_commit_snap");
+              /* can't retry, just fail */
 	    }
 	  timeseries_log(__func__, "dbats_commit_snap failed");
 	  return -1;
@@ -545,6 +547,7 @@ size_t timeseries_backend_dbats_resolve_key(timeseries_backend_t *backend,
                                             const char *key,
                                             uint8_t **backend_key)
 {
+  timeseries_backend_dbats_state_t *state = STATE(backend);
   uint32_t *dbats_id = NULL;
 
   if((dbats_id = malloc(sizeof(uint32_t))) == NULL)
@@ -559,6 +562,8 @@ size_t timeseries_backend_dbats_resolve_key(timeseries_backend_t *backend,
       timeseries_log(__func__, "Could not resolve DBATS key ID");
       return -1;
     }
+
+  *backend_key = (uint8_t*)dbats_id;
 
   return sizeof(uint32_t);
 }
