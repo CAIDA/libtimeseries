@@ -500,17 +500,17 @@ int timeseries_backend_dbats_set_bulk_by_id(timeseries_backend_t *backend,
                                             uint64_t value)
 {
   timeseries_backend_dbats_state_t *state = STATE(backend);
-  uint32_t dbats_id;
+  uint32_t *dbats_id;
   dbats_value val;
   int rc;
 
   assert(state->bulk_expect > 0);
 
   assert(id_len == sizeof(uint32_t));
-  /** @todo just use a fancy cast here instead of nasty memcpy */
-  memcpy(&dbats_id, id, sizeof(uint32_t));
+  dbats_id = (uint32_t*)id;
+
   val.u64 = value;
-  if((rc = dbats_set(state->bulk_snap, dbats_id, &val)) != 0)
+  if((rc = dbats_set(state->bulk_snap, *dbats_id, &val)) != 0)
     {
       dbats_abort_snap(state->bulk_snap);
       if(rc == DB_LOCK_DEADLOCK)
