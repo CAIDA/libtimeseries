@@ -507,6 +507,7 @@ int timeseries_backend_dbats_set_bulk_by_id(timeseries_backend_t *backend,
   assert(state->bulk_expect > 0);
 
   assert(id_len == sizeof(uint32_t));
+  /** @todo just use a fancy cast here instead of nasty memcpy */
   memcpy(&dbats_id, id, sizeof(uint32_t));
   val.u64 = value;
   if((rc = dbats_set(state->bulk_snap, dbats_id, &val)) != 0)
@@ -566,4 +567,45 @@ size_t timeseries_backend_dbats_resolve_key(timeseries_backend_t *backend,
   *backend_key = (uint8_t*)dbats_id;
 
   return sizeof(uint32_t);
+}
+
+int timeseries_backend_dbats_resolve_key_bulk(timeseries_backend_t *backend,
+                                              uint32_t keys_cnt,
+                                              const char * const *keys,
+                                              uint8_t **backend_keys,
+                                              size_t *backend_key_lens,
+                                              int *contig_alloc)
+{
+  timeseries_backend_dbats_state_t *state = STATE(backend);
+  int i;
+
+  uint32_t *dbats_ids = NULL;
+  uint32_t dbats_keys_cnt = keys_cnt;
+
+  /** allocate an array of uint32s to store the result from dbats */
+  if((dbats_ids = malloc(sizeof(uint32_t)*keys_cnt)) == NULL)
+    {
+      timeseries_log(__func__, "Could not allocate DBATS Key array");
+      return -1;
+    }
+
+  /* ask dbats to do the lookup */
+  if(dbats_bulk_get_key_id(state->dbats_handler, NULL, &dbats_keys_cnt, keys,
+                           dbats_ids, DBATS_CREATE) != 0)
+    {
+      timeseries_log(__func__, "Could not resolve DBATS key IDs");
+      return -1;
+    }
+  assert(dbats_keys_cnt == keys_cnt);
+
+  for(i=0; i<keys_cnt; i++)
+    {
+      backend_keys[i] = (uint8_t*)(&dbats_ids[i]);
+      backend_key_lens[i] = sizeof(uint32_t);
+    }
+
+  assert(contig_alloc != NULL);
+  *contig_alloc = 1;
+
+  return 0;
 }

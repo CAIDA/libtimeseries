@@ -257,10 +257,12 @@ static tsmq_client_key_t *key_init()
       goto err;
     }
 
+#if 0
   if(zmq_msg_init(&key->server_id) == -1)
     {
       goto err;
     }
+#endif
 
   if(zmq_msg_init(&key->server_key_id) == -1)
     {
@@ -276,16 +278,7 @@ static tsmq_client_key_t *key_init()
 
 static int key_recv(tsmq_client_t *client, tsmq_client_key_t *key)
 {
-  /* we expect two messages, one with the server id and one with the key id */
-
-  if(zmq_msg_recv(&key->server_id, client->broker_socket, 0) == -1)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Malformed reply (missing server id)");
-      return -1;
-    }
-
-  /* now there should be one more frame with the key id */
+  /* just one frame with the key id */
   if(zmq_msg_recv(&key->server_key_id, client->broker_socket, 0) == -1)
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
@@ -425,9 +418,18 @@ tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
 {
   tsmq_client_key_t *key_info = NULL;
   size_t key_len = strlen(key);
+  uint32_t key_cnt = htonl(1);
 
   SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP)
   {
+    if(zmq_send_const(client->broker_socket, &key_cnt, sizeof(uint32_t),
+                      ZMQ_SNDMORE) != sizeof(uint32_t))
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send key cnt in key lookup");
+        goto err;
+      }
+
     /* send the key */
     if(zmq_send_const(client->broker_socket, key, key_len, ZMQ_SNDMORE)
        != key_len)
@@ -484,9 +486,33 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
   const char *key = NULL;
   size_t key_len;
   tsmq_client_key_t *key_info = NULL;
+  uint32_t key_cnt = 0;
+
+  /* first, count the number of keys to be looked up (ugh) */
+  {
+  TIMESERIES_KP_FOREACH_KI(kp, ki, id)
+    {
+      if(force != 0 ||
+         timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
+         == NULL)
+        {
+          key_cnt++;
+        }
+    }
+  }
+  key_cnt = htonl(key_cnt);
 
   SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK)
   {
+    /* send the number of keys first */
+    if(zmq_send_const(client->broker_socket, &key_cnt, sizeof(uint32_t),
+                      ZMQ_SNDMORE) != sizeof(uint32_t))
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send key cnt in key lookup bulk");
+        goto err;
+      }
+
     /* send each key that needs to be resolved */
     TIMESERIES_KP_FOREACH_KI(kp, ki, id)
       {
@@ -588,7 +614,7 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
                       ZMQ_SNDMORE) != sizeof(uint32_t))
       {
         tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to send time in set single");
+                     "Failed to send key cnt in set single");
         goto err;
       }
 
@@ -646,7 +672,7 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
                       ZMQ_SNDMORE) != sizeof(uint32_t))
       {
         tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                     "Failed to send time in set bulk");
+                     "Failed to send key cnt in set bulk");
         goto err;
       }
 
@@ -689,7 +715,7 @@ void tsmq_client_key_free(tsmq_client_key_t **key_p)
       return;
     }
 
-  zmq_msg_close(&key->server_id);
+  /*zmq_msg_close(&key->server_id);*/
   zmq_msg_close(&key->server_key_id);
 
   free(key);

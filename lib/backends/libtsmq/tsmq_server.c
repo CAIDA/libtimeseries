@@ -78,88 +78,149 @@ static int server_connect(tsmq_server_t *server)
   return 0;
 }
 
-static int handle_key_lookup(tsmq_server_t *server)
-{
-  char *key = NULL;
-  size_t server_id_len = strlen(SERVER_ID);
-  uint8_t *server_key = NULL;
-  size_t server_key_len = 0;
-
-  /* grab the key from the message */
-  if((key = tsmq_recv_str(server->broker_socket)) == NULL)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                   "Malformed key lookup request (missing key)");
-      goto err;
-    }
-
-  /* to support bulk lookup, we have to know if the next message is empty */
-  if(key[0] == '\0')
-    {
-      /* no more keys */
-      if(zmq_send(server->broker_socket, "", 0, 0) != 0)
-        {
-          tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                       "Failed to send lookup completion message");
-          goto err;
-        }
-      free(key);
-      return 0;
-    }
-
-  /* do the actual lookup */
-  if((server_key_len =
-      server->backend->resolve_key(server->backend, key, &server_key)) == 0)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
-                   "Key lookup failed");
-      goto err;
-    }
-
-  /* send our server id */
-  /** @todo replace with user-specified id */
-  if(zmq_send(server->broker_socket, SERVER_ID, server_id_len,
-              ZMQ_SNDMORE) != server_id_len)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                   "Failed to send server id in reply message");
-      goto err;
-    }
-
-  /* send the backend-specific key */
-  if(zmq_send(server->broker_socket, server_key, server_key_len, ZMQ_SNDMORE)
-     != server_key_len)
-    {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                   "Failed to send server key id");
-      goto err;
-    }
-
-  free(key);
-  free(server_key);
-  /* this might become a problem if we need zero-len keys */
-  return server_key_len;
-
- err:
-  free(key);
-  free(server_key);
-  return -1;
-}
-
 static int handle_key_lookup_bulk(tsmq_server_t *server)
 {
-  int rc;
+  char *key = NULL;     /* temp storage */
+  char **keys = NULL;   /* passed to backend */
+  uint32_t keys_cnt = 0; /* expected num to rx */
+  uint32_t keys_rx = 0; /* num actually rx'd */
+
+  uint8_t **key_ids = NULL;
+  size_t *key_id_lens = NULL;
+  int contig_alloc = 0;
+
+  int i;
+
+  /* receive the number of keys */
+  if(zsocket_rcvmore(server->broker_socket) == 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid 'key lookup' message (missing key cnt)");
+      goto err;
+    }
+  if(zmq_recv(server->broker_socket, &keys_cnt, sizeof(uint32_t), 0)
+     != sizeof(uint32_t))
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Malformed 'key lookup' request (invalid key cnt)");
+      goto err;
+    }
+  keys_cnt = ntohl(keys_cnt);
+
+  /* do the mallocs */
+  /** @todo reuse some memory? */
+  if(((keys = malloc(sizeof(char*)*keys_cnt)) == NULL) ||
+     ((key_ids = malloc(sizeof(uint8_t*)*keys_cnt)) == NULL) ||
+     ((key_id_lens = malloc(sizeof(size_t)*keys_cnt)) == NULL))
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                   "Could not init key lookup arrays");
+      goto err;
+    }
 
   /* receive all the queries */
   while(1)
     {
-      if((rc = handle_key_lookup(server)) <= 0)
+      if(zsocket_rcvmore(server->broker_socket) == 0)
         {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Invalid 'key lookup' message (missing key)");
+          goto err;
+        }
+
+      /* grab the key from the message */
+      if((key = tsmq_recv_str(server->broker_socket)) == NULL)
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Malformed key lookup request (missing key)");
+          goto err;
+        }
+
+      /* to support bulk lookup, we have to know if the next message is empty */
+      if(key[0] == '\0')
+        {
+          /* no more keys */
+          free(key);
           break;
+        }
+
+      keys[keys_rx++] = key;
+    }
+
+  if(zsocket_rcvmore(server->broker_socket) != 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid 'key lookup' message (extra frames)");
+      goto err;
+    }
+
+  /* did we get the correct number of keys? */
+  if(keys_cnt != keys_rx)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Expecting %"PRIu32" keys to lookup, received %"PRIu32,
+                   keys_cnt, keys_rx);
+      goto err;
+    }
+
+  /* do the actual lookup */
+  if(server->backend->resolve_key_bulk(server->backend, keys_cnt,
+                                       (const char* const *)keys,
+                                       key_ids, key_id_lens,
+                                       &contig_alloc) != 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                   "Bulk key lookup failed");
+      goto err;
+    }
+
+  /* send each result */
+  for(i=0; i<keys_cnt; i++)
+    {
+      assert(key_ids[i] != NULL);
+      assert(key_id_lens[i] > 0);
+      /* send the backend-specific key */
+      if(zmq_send(server->broker_socket, key_ids[i], key_id_lens[i], ZMQ_SNDMORE)
+         != key_id_lens[i])
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                       "Failed to send server key id");
+          goto err;
+        }
+
+      /* allocated by us */
+      free(keys[i]);
+
+      /* these things allocated by the backend */
+      if(contig_alloc == 0)
+        {
+          free(key_ids[i]);
         }
     }
 
-  return rc;
+  /* end of stream */
+  if(zmq_send(server->broker_socket, "", 0, 0) != 0)
+    {
+      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                   "Failed to send lookup completion message");
+      goto err;
+    }
+
+  if(contig_alloc != 0)
+    {
+      free(key_ids[0]);
+    }
+  free(keys);
+  free(key_ids);
+  free(key_id_lens);
+
+  return 0;
+
+ err:
+  free(keys);
+  free(key_ids);
+  free(key_id_lens);
+  return -1;
 }
 
 static int recv_key_val(tsmq_server_t *server,

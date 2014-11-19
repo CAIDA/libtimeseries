@@ -87,7 +87,13 @@
                                                      uint64_t value);   \
   size_t timeseries_backend_##provname##_resolve_key(timeseries_backend_t *backend, \
                                                      const char *key,   \
-                                                     uint8_t **backend_key);
+                                                     uint8_t **backend_key);\
+  int timeseries_backend_##provname##_resolve_key_bulk(timeseries_backend_t *backend, \
+                                                       uint32_t keys_cnt, \
+                                                       const char * const *keys, \
+                                                       uint8_t **backend_keys, \
+                                                       size_t *backend_key_lens, \
+                                                       int *contig_alloc);
 
 /** Convenience macro that defines all the function pointers for the timeseries
  * backend API
@@ -105,6 +111,7 @@
     timeseries_backend_##provname##_set_bulk_init,      \
     timeseries_backend_##provname##_set_bulk_by_id,     \
     timeseries_backend_##provname##_resolve_key,        \
+    timeseries_backend_##provname##_resolve_key_bulk,   \
     0, NULL
 
 /** Structure which represents a metadata backend */
@@ -293,6 +300,35 @@ struct timeseries_backend
    */
   size_t (*resolve_key)(timeseries_backend_t *backend, const char *key,
                         uint8_t **backend_key);
+
+  /** Resolve the given set of keys into backend-specific opaque IDs.
+   *
+   * @param backend           Pointer to the backend to resolve the key for
+   * @param keys_cnt          Number of keys to resolve
+   * @param keys              Array of string key names
+   * @param backend_keys[out] Array to store results of lookups in
+   * @param backend_key_lens[out]  Array to store length of each key result
+   * @param contig_alloc[out] Set to 1 if all backend_key arrays are allocated
+   *                          contiguously, 0 otherwise
+   * @return 0 if all keys were successfully resolved, -1 otherwise
+   *
+   * Each key in the `keys` array will be looked up, and a backend-specific byte
+   * array will be stored in the corresponding element of the backend_keys
+   * array. Memory for this byte array is owned by the caller of this function
+   * (see note below). The length of each byte array is to be stored in the
+   * corresponding element of the backend_key_lens array. If no key exists, the
+   * backend should dynamically create it and return the id.
+   *
+   * @note if contig_alloc is set, only the first backend key byte array should
+   * be freed by the caller, as all other arrays are stored in the same memory
+   * allocation. However, if contig_alloc is 0, then each backend key byte array
+   * must be freed individually.
+   */
+  int (*resolve_key_bulk)(timeseries_backend_t *backend, uint32_t keys_cnt,
+                          const char * const *keys,
+                          uint8_t **backend_keys,
+                          size_t *backend_key_lens,
+                          int *contig_alloc);
 
   /** }@ */
 

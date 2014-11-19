@@ -344,3 +344,30 @@ size_t timeseries_backend_ascii_resolve_key(timeseries_backend_t *backend,
     }
   return strlen(key)+1;
 }
+
+int timeseries_backend_ascii_resolve_key_bulk(timeseries_backend_t *backend,
+                                              uint32_t keys_cnt,
+                                              const char * const *keys,
+                                              uint8_t **backend_keys,
+                                              size_t *backend_key_lens,
+                                              int *contig_alloc)
+{
+  int i;
+
+  for(i=0; i<keys_cnt; i++)
+    {
+      if((backend_key_lens[i] =
+          timeseries_backend_ascii_resolve_key(backend,
+                                               keys[i],
+                                               &(backend_keys[i]))) == 0)
+        {
+          timeseries_log(__func__, "Could not resolve key ID");
+          return -1;
+        }
+    }
+
+  assert(contig_alloc != NULL);
+  *contig_alloc = 0;
+
+  return 0;
+}

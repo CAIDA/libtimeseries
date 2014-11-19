@@ -300,3 +300,15 @@ size_t timeseries_backend_tsmq_resolve_key(timeseries_backend_t *backend,
   assert(0 && "unimplemented");
   return -1;
 }
+
+int timeseries_backend_tsmq_resolve_key_bulk(timeseries_backend_t *backend,
+                                             uint32_t keys_cnt,
+                                             const char * const *keys,
+                                             uint8_t **backend_keys,
+                                             size_t *backend_key_lens,
+                                             int *contig_alloc)
+{
+  /* as with above */
+  assert(0 && "unimplemented");
+  return -1;
+}

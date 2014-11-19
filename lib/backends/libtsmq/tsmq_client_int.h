@@ -63,9 +63,10 @@ struct tsmq_client {
  * subsequent writes
  */
 struct tsmq_client_key {
+#if 0
   /** Backend server ID */
   zmq_msg_t server_id;
-
+#endif
   /** Backend key ID
    * FYI: for dbats this will be a uint64, for 'ascii' this will be a copy
    * of the string key
