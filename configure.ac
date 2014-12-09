@@ -24,10 +24,10 @@
 
 AC_PREREQ([2.68])
 
-AC_INIT([libtimeseries], [0.1.0], [corsaro-info@caida.org])
+AC_INIT([libtimeseries], [0.2.0], [corsaro-info@caida.org])
 
 LIBTIMESERIES_MAJOR_VERSION=0
-LIBTIMESERIES_MID_VERSION=1
+LIBTIMESERIES_MID_VERSION=2
 LIBTIMESERIES_MINOR_VERSION=0
 
 # since libtimeseries is only a library, the version numbers are only used to
