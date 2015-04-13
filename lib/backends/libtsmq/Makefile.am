@@ -51,7 +51,7 @@ libtsmq_la_SOURCES = 		\
 
 libtsmq_la_LIBADD =
 
-libtsmq_la_LDFLAGS = -version-info @TSMQ_MAJOR_VERSION@:@TSMQ_MID_VERSION@:@TSMQ_MINOR_VERSION@
+libtsmq_la_LDFLAGS =
 
 ACLOCAL_AMFLAGS = -I m4
 
