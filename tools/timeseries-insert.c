@@ -44,6 +44,7 @@
 
 static timeseries_t *timeseries = NULL;
 static timeseries_kp_t *kp = NULL;
+static int points_pending = 0;
 
 static int batch_mode = 0;
 static int gtime = 0;
@@ -132,6 +133,7 @@ static int insert(char *line)
 	      return -1;
 	    }
 	  gtime = time;
+          points_pending = 0;
 	}
 
       /* attempt to get id for this key */
@@ -144,6 +146,7 @@ static int insert(char *line)
       assert(key_id >= 0);
 
       timeseries_kp_set(kp, key_id, value);
+      points_pending++;
     }
 
   return 0;
@@ -365,7 +368,7 @@ int main(int argc, char **argv)
 	}
     }
 
-  if(batch_mode != 0)
+  if(batch_mode != 0 && points_pending > 0)
     {
       fprintf(stderr, "Flushing final table at time %d\n", gtime);
       if(timeseries_kp_flush(kp, gtime) != 0)
