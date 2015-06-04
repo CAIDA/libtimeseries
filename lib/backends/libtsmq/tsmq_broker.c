@@ -524,10 +524,11 @@ static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg)
     }
 
   /* stuff will BREAK if there are no servers connected */
-  assert(server != NULL);
+  /*assert(server != NULL);*/
 
   /* send the server id frame */
-  if(server_send_headers(broker, server, TSMQ_MSG_TYPE_REQUEST, ZMQ_SNDMORE) != 0)
+  if(server != NULL &&
+     server_send_headers(broker, server, TSMQ_MSG_TYPE_REQUEST, ZMQ_SNDMORE) != 0)
     {
       goto err;
     }
@@ -550,12 +551,19 @@ static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg)
       /** @todo for key set, just pub it! */
 
       /* tx the message */
-      if(zmq_msg_send(&proxy, broker->server_socket, more) == -1)
+      if(server == NULL)
         {
           zmq_msg_close(&proxy);
-          tsmq_set_err(broker->tsmq, errno,
-                       "Could not send message to server");
-          goto err;
+        }
+      else
+        {
+          if(zmq_msg_send(&proxy, broker->server_socket, more) == -1)
+            {
+              zmq_msg_close(&proxy);
+              tsmq_set_err(broker->tsmq, errno,
+                           "Could not send message to server");
+              goto err;
+            }
         }
 
       if(more == 0)
