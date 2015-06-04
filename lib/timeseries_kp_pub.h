@@ -114,6 +114,22 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key);
  */
 int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key);
 
+/** Disable the given key in a Key Package
+ *
+ * @param kp            Pointer to the KP
+ * @param key           Index of the key (as returned by kp_add_key) to
+ *                      disable
+ */
+void timeseries_kp_disable_key(timeseries_kp_t *kp, uint32_t key);
+
+/** Enable the given key in a Key Package
+ *
+ * @param kp            Pointer to the KP
+ * @param key           Index of the key (as returned by kp_add_key) to
+ *                      enable
+ */
+void timeseries_kp_enable_key(timeseries_kp_t *kp, uint32_t key);
+
 /** Set the current value for the given key in a Key Package
  *
  * @param kp            Pointer to the KP to set the value on

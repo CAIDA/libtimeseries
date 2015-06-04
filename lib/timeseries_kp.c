@@ -57,6 +57,9 @@ struct timeseries_kp_ki
    */
   void *backend_state[TIMESERIES_BACKEND_ID_LAST];
 
+  /** Should this KI be skipped? */
+  uint8_t disabled;
+
 };
 
 /** Structure which holds state for a Key Package */
@@ -161,6 +164,7 @@ static int kp_ki_init(timeseries_kp_ki_t *ki, timeseries_kp_t *kp,
 
   /* zero out the structure */
   ki->value = 0;
+  ki->disabled = 0;
   memset(&ki->backend_state, 0, sizeof(void*)*TIMESERIES_BACKEND_ID_LAST);
 
   return 0;
@@ -225,6 +229,11 @@ uint64_t timeseries_kp_ki_get_value(timeseries_kp_ki_t *ki)
 {
   assert(ki != NULL);
   return ki->value;
+}
+
+int timeseries_kp_ki_enabled(timeseries_kp_ki_t *ki)
+{
+  return !ki->disabled;
 }
 
 void *timeseries_kp_ki_get_backend_state(timeseries_kp_ki_t *ki,
@@ -377,6 +386,16 @@ int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key)
       return -1;
     }
   return kh_val(kp->key_id_hash, k);
+}
+
+void timeseries_kp_disable_key(timeseries_kp_t *kp, uint32_t key)
+{
+  kp->key_infos[key].disabled = 1;
+}
+
+void timeseries_kp_enable_key(timeseries_kp_t *kp, uint32_t key)
+{
+  kp->key_infos[key].disabled = 0;
 }
 
 void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value)

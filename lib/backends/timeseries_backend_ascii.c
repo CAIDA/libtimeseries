@@ -267,10 +267,13 @@ int timeseries_backend_ascii_kp_flush(timeseries_backend_t *backend,
 
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
-      DUMP_METRIC(state,
-		  timeseries_kp_ki_get_key(ki),
-		  timeseries_kp_ki_get_value(ki),
-		  time_buffer);
+      if(timeseries_kp_ki_enabled(ki) != 0)
+        {
+          DUMP_METRIC(state,
+                      timeseries_kp_ki_get_key(ki),
+                      timeseries_kp_ki_get_value(ki),
+                      time_buffer);
+        }
     }
 
   return 0;
