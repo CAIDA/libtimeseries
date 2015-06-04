@@ -252,6 +252,11 @@ static int server_send_headers(tsmq_broker_t *broker,
                                int sndmore)
 {
   zmq_msg_t id_cpy;
+  if(server == NULL)
+    {
+      fprintf(stderr, "No connected server\n");
+      return 0;
+    }
 
   if(zmq_msg_init(&id_cpy) == -1 ||
      zmq_msg_copy(&id_cpy, &server->identity) == -1)
