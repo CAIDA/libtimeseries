@@ -81,12 +81,8 @@ static int server_connect(tsmq_server_t *server)
 static int handle_key_lookup_bulk(tsmq_server_t *server)
 {
   char *key = NULL;     /* temp storage */
-  char **keys = NULL;   /* passed to backend */
   uint32_t keys_cnt = 0; /* expected num to rx */
   uint32_t keys_rx = 0; /* num actually rx'd */
-
-  uint8_t **key_ids = NULL;
-  size_t *key_id_lens = NULL;
   int contig_alloc = 0;
 
   int i;
@@ -150,7 +146,8 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
           break;
         }
 
-      keys[keys_rx++] = key;
+      assert(keys_rx+1 <= keys_cnt);
+      server->keys[keys_rx++] = key;
     }
 
   if(zsocket_rcvmore(server->broker_socket) != 0)
@@ -171,8 +168,8 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
 
   /* do the actual lookup */
   if(server->backend->resolve_key_bulk(server->backend, keys_cnt,
-                                       (const char* const *)keys,
-                                       key_ids, key_id_lens,
+                                       (const char* const *)server->keys,
+                                       server->key_ids, server->key_id_lens,
                                        &contig_alloc) != 0)
     {
       tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
@@ -183,11 +180,12 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
   /* send each result */
   for(i=0; i<keys_cnt; i++)
     {
-      assert(key_ids[i] != NULL);
-      assert(key_id_lens[i] > 0);
+      assert(server->key_ids[i] != NULL);
+      assert(server->key_id_lens[i] > 0);
       /* send the backend-specific key */
-      if(zmq_send(server->broker_socket, key_ids[i], key_id_lens[i], ZMQ_SNDMORE)
-         != key_id_lens[i])
+      if(zmq_send(server->broker_socket,
+                  server->key_ids[i], server->key_id_lens[i], ZMQ_SNDMORE)
+         != server->key_id_lens[i])
         {
           tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
                        "Failed to send server key id");
@@ -195,12 +193,12 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
         }
 
       /* allocated by us */
-      free(keys[i]);
+      free(server->keys[i]);
 
       /* these things allocated by the backend */
       if(contig_alloc == 0)
         {
-          free(key_ids[i]);
+          free(server->key_ids[i]);
         }
     }
 
@@ -214,7 +212,7 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
 
   if(contig_alloc != 0)
     {
-      free(key_ids[0]);
+      free(server->key_ids[0]);
     }
 
   return 0;
