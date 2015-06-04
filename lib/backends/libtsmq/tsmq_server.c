@@ -107,15 +107,21 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
     }
   keys_cnt = ntohl(keys_cnt);
 
-  /* do the mallocs */
-  /** @todo reuse some memory? */
-  if(((keys = malloc(sizeof(char*)*keys_cnt)) == NULL) ||
-     ((key_ids = malloc(sizeof(uint8_t*)*keys_cnt)) == NULL) ||
-     ((key_id_lens = malloc(sizeof(size_t)*keys_cnt)) == NULL))
+  if(keys_cnt > server->key_alloc_cnt)
     {
-      tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                   "Could not init key lookup arrays");
-      goto err;
+      /* do the mallocs */
+      if(((server->keys =
+           realloc(server->keys, sizeof(char*)*keys_cnt)) == NULL) ||
+         ((server->key_ids =
+           realloc(server->key_ids, sizeof(uint8_t*)*keys_cnt)) == NULL) ||
+         ((server->key_id_lens =
+           realloc(server->key_id_lens, sizeof(size_t)*keys_cnt)) == NULL))
+        {
+          tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
+                       "Could not init key lookup arrays");
+          goto err;
+        }
+      server->key_alloc_cnt = keys_cnt;
     }
 
   /* receive all the queries */
@@ -210,16 +216,10 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
     {
       free(key_ids[0]);
     }
-  free(keys);
-  free(key_ids);
-  free(key_id_lens);
 
   return 0;
 
  err:
-  free(keys);
-  free(key_ids);
-  free(key_id_lens);
   return -1;
 }
 
@@ -651,6 +651,17 @@ void tsmq_server_free(tsmq_server_t *server)
 
   /* free'd by tsmq_free */
   server->broker_socket = NULL;
+
+  free(server->keys);
+  server->keys = NULL;
+
+  free(server->key_ids);
+  server->key_ids = NULL;
+
+  free(server->key_id_lens);
+  server->key_id_lens = NULL;
+
+  server->key_alloc_cnt = 0;
 
   /* will call zctx_destroy which will destroy our sockets too */
   tsmq_free(server->tsmq);

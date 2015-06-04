@@ -74,6 +74,18 @@ struct tsmq_server {
 
   /** The time before we will next attempt to reconnect */
   uint64_t reconnect_interval_next;
+
+  /** Re-used array of keys for bulk lookups */
+  char **keys;
+
+  /** Re-used array of key IDs for bulk lookups */
+  uint8_t **key_ids;
+
+  /** Re-used array of key ID lens for bulk lookups */
+  size_t *key_id_lens;
+
+  /** Number of elements allocated in the above three arrays */
+  size_t key_alloc_cnt;
 };
 
 #endif /* __TSMQ_SERVER_INT_H */
