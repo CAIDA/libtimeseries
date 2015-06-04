@@ -59,7 +59,7 @@ typedef struct timeseries_kp_ki timeseries_kp_ki_t;
 #define TIMESERIES_KP_FOREACH_KI(kp, ki, id)			\
   int cnt = timeseries_kp_size(kp);				\
   for(id=0, (ki=timeseries_kp_get_ki(kp, id));			\
-      id<cnt;							\
+      id<cnt;                                                   \
       id++, (ki=timeseries_kp_get_ki(kp, id)))
 
 
@@ -84,6 +84,13 @@ const char *timeseries_kp_ki_get_key(timeseries_kp_ki_t *ki);
  * @return current value for the given Key Info
  */
 uint64_t timeseries_kp_ki_get_value(timeseries_kp_ki_t *ki);
+
+/** Is this KI enabled?
+ *
+ * @param ki            pointer to a Key Package Key Info object
+ * @return 1 if the KI is enabled (should be dumped), 0 otherwise
+ */
+int timeseries_kp_ki_enabled(timeseries_kp_ki_t *ki);
 
 /** Get the backend state of the given Key Info object
  *

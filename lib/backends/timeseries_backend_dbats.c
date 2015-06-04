@@ -282,7 +282,8 @@ int timeseries_backend_dbats_kp_ki_update(timeseries_backend_t *backend,
   /* foreach KI, if the backend state is null, get the key id */
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
-      if(timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_DBATS)
+      if(timeseries_kp_ki_enabled(ki) == 0 ||
+         timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_DBATS)
          != NULL)
         {
           continue;
@@ -344,6 +345,11 @@ int timeseries_backend_dbats_kp_flush(timeseries_backend_t *backend,
 
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
+      if(timeseries_kp_ki_enabled(ki) == 0)
+        {
+          continue;
+        }
+
       dbats_id = (uint32_t*)
         timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_DBATS);
 

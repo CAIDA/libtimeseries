@@ -492,9 +492,10 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
   {
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
-      if(force != 0 ||
-         timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
-         == NULL)
+      if(timeseries_kp_ki_enabled(ki) != 0 &&
+         (force != 0 ||
+          timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
+          == NULL))
         {
           key_cnt++;
         }
@@ -516,9 +517,10 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
     /* send each key that needs to be resolved */
     TIMESERIES_KP_FOREACH_KI(kp, ki, id)
       {
-        if(force != 0 ||
-           timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
-           == NULL)
+        if(timeseries_kp_ki_enabled(ki) != 0 &&
+           (force != 0 ||
+            timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
+            == NULL))
           {
             /* needs to be resolved */
             key = timeseries_kp_ki_get_key(ki);
@@ -540,9 +542,10 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
   /* iterate over the kp and recv for each key that needs to be resolved */
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
-      if(force != 0 ||
-         timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
-         == NULL)
+      if(timeseries_kp_ki_enabled(ki) != 0 &&
+         (force != 0 ||
+          timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
+          == NULL))
         {
           /* create a new key info structure */
           if((key_info = key_init()) == NULL)
@@ -678,6 +681,10 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
 
     TIMESERIES_KP_FOREACH_KI(kp, ki, id)
       {
+        if(timeseries_kp_ki_enabled(ki) == 0)
+          {
+            continue;
+          }
         key_info = (tsmq_client_key_t*)
           timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ);
         assert(key_info != NULL);
