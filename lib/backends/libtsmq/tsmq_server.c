@@ -166,6 +166,8 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
       goto err;
     }
 
+  fprintf(stderr, "INFO: Resolving %"PRIu32" keys\n", keys_cnt);
+
   /* do the actual lookup */
   if(server->backend->resolve_key_bulk(server->backend, keys_cnt,
                                        (const char* const *)server->keys,
@@ -328,6 +330,7 @@ static int handle_set_bulk(tsmq_server_t *server)
   if(key_cnt > BULK_KEY_THRESHOLD)
     {
       /* bulk set start */
+      fprintf(stderr, "INFO: Setting %"PRIu32" values\n", key_cnt);
       if(server->backend->set_bulk_init(server->backend, key_cnt, time) != 0)
         {
           tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
