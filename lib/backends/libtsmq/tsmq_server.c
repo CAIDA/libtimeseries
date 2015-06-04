@@ -340,6 +340,7 @@ static int handle_set_bulk(tsmq_server_t *server)
     {
       if((rc = recv_key_val(server, &key_msg, &value)) <= 0)
         {
+          zmq_msg_close(&key_msg);
           break;
         }
 
