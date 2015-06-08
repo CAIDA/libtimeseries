@@ -156,28 +156,6 @@ tsmq_msg_type_t tsmq_recv_type(void *src)
   return type;
 }
 
-tsmq_request_msg_type_t tsmq_request_msg_type(zmsg_t *msg)
-{
-  zframe_t *frame;
-  uint8_t type;
-
-  /* first frame should be our type */
-  if((frame = zmsg_pop(msg)) == NULL)
-    {
-      return TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
-    }
-
-  if((type = *zframe_data(frame)) > TSMQ_REQUEST_MSG_TYPE_MAX)
-    {
-      zframe_destroy(&frame);
-      return TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
-    }
-
-  zframe_destroy(&frame);
-
-  return (tsmq_request_msg_type_t)type;
-}
-
 tsmq_request_msg_type_t tsmq_recv_request_type(void *src)
 {
   tsmq_request_msg_type_t type = TSMQ_REQUEST_MSG_TYPE_UNKNOWN;

@@ -202,15 +202,6 @@ int tsmq_is_err(tsmq_t *tsmq);
  */
 void tsmq_perr(tsmq_t *tsmq);
 
-/** Decodes the message type for the given message
- *
- * @param msg           zmsg object to inspect
- * @return the type of the message, or TSMQ_MSG_TYPE_UNKNOWN if an error occurred
- *
- * This function will pop the type frame from the beginning of the message
- */
-tsmq_msg_type_t tsmq_msg_type(zmsg_t *msg);
-
 /** Receives a single message and decodes as a message type
  *
  * @param src           socket to receive message on
