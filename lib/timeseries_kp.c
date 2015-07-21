@@ -77,6 +77,9 @@ struct timeseries_kp
   /** Number of keys in the Key Package */
   uint32_t key_infos_cnt;
 
+  /** Number of enabled keys in the Key Package */
+  uint32_t key_infos_enabled_cnt;
+
   /** Per-backend state about this key package
    *
    *  Backends may use this to store any information they require.
@@ -207,6 +210,11 @@ int timeseries_kp_size(timeseries_kp_t *kp)
 {
   assert(kp != NULL);
   return kp->key_infos_cnt;
+}
+
+int timeseries_kp_enabled_size(timeseries_kp_t *kp)
+{
+  return kp->key_infos_enabled_cnt;
 }
 
 timeseries_kp_ki_t *timeseries_kp_get_ki(timeseries_kp_t *kp, int id)
@@ -368,6 +376,7 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
   kh_val(kp->key_id_hash, k) = this_id;
 
   kp->key_infos_cnt++;
+  kp->key_infos_enabled_cnt++;
 
   /* backends will need to update their state */
   kp->dirty = 1;
@@ -390,12 +399,20 @@ int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key)
 
 void timeseries_kp_disable_key(timeseries_kp_t *kp, uint32_t key)
 {
-  kp->key_infos[key].disabled = 1;
+  if(kp->key_infos[key].disabled == 0)
+    {
+      kp->key_infos[key].disabled = 1;
+      kp->key_infos_enabled_cnt--;
+    }
 }
 
 void timeseries_kp_enable_key(timeseries_kp_t *kp, uint32_t key)
 {
-  kp->key_infos[key].disabled = 0;
+  if(kp->key_infos[key].disabled != 0)
+    {
+      kp->key_infos[key].disabled = 0;
+      kp->key_infos_enabled_cnt++;
+    }
 }
 
 void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value)
