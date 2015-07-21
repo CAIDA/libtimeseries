@@ -156,4 +156,11 @@ int timeseries_kp_flush(timeseries_kp_t *kp, uint32_t time);
  */
 int timeseries_kp_size(timeseries_kp_t *kp);
 
+/** Get the number of enabled Keys in the given Key Package
+ *
+ * @param kp            pointer to a Key Package
+ * @return the number of enabled keys in the given key package
+ */
+int timeseries_kp_enabled_size(timeseries_kp_t *kp);
+
 #endif /* __TIMESERIES_KP_PUB_H */

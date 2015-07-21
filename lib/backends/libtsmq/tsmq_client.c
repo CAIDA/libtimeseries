@@ -650,7 +650,7 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
   int id;
   tsmq_client_key_t *key_info = NULL;
   tsmq_time_t ntime;
-  uint32_t key_cnt = htonl(timeseries_kp_size(kp));
+  uint32_t key_cnt = htonl(timeseries_kp_enabled_size(kp));
 
   /* payload structure will be:
      TIME          (4)
