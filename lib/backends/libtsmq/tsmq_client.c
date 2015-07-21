@@ -501,6 +501,13 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
         }
     }
   }
+
+  /* don't bother if there are no keys to resolve */
+  if(key_cnt == 0)
+    {
+      return 0;
+    }
+
   key_cnt = htonl(key_cnt);
 
   SEND_REQUEST(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK)
@@ -650,7 +657,14 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
   int id;
   tsmq_client_key_t *key_info = NULL;
   tsmq_time_t ntime;
-  uint32_t key_cnt = htonl(timeseries_kp_enabled_size(kp));
+  uint32_t key_cnt = timeseries_kp_enabled_size(kp);
+
+  if(key_cnt == 0)
+    {
+      return 0;
+    }
+
+  key_cnt = htonl(key_cnt);
 
   /* payload structure will be:
      TIME          (4)
