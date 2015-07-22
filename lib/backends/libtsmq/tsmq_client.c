@@ -492,10 +492,10 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
   {
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
-      if(timeseries_kp_ki_enabled(ki) != 0 &&
-         (force != 0 ||
+      /* resolve every key, even if disabled */
+      if(force != 0 ||
           timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
-          == NULL))
+          == NULL)
         {
           key_cnt++;
         }
