@@ -524,10 +524,9 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
     /* send each key that needs to be resolved */
     TIMESERIES_KP_FOREACH_KI(kp, ki, id)
       {
-        if(timeseries_kp_ki_enabled(ki) != 0 &&
-           (force != 0 ||
+        if(force != 0 ||
             timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
-            == NULL))
+            == NULL)
           {
             /* needs to be resolved */
             key = timeseries_kp_ki_get_key(ki);
@@ -549,10 +548,9 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
   /* iterate over the kp and recv for each key that needs to be resolved */
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
     {
-      if(timeseries_kp_ki_enabled(ki) != 0 &&
-         (force != 0 ||
+      if(force != 0 ||
           timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ)
-          == NULL))
+          == NULL)
         {
           /* create a new key info structure */
           if((key_info = key_init()) == NULL)
