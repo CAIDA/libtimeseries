@@ -130,6 +130,14 @@ void timeseries_kp_disable_key(timeseries_kp_t *kp, uint32_t key);
  */
 void timeseries_kp_enable_key(timeseries_kp_t *kp, uint32_t key);
 
+/** Get the current value for the given key in a Key Package
+ *
+ * @param kp            Pointer to the KP to get the value for
+ * @param key           Index of the key (as returned by kp_add_key) to
+ *                      get the value for
+ */
+uint64_t timeseries_kp_get(timeseries_kp_t *kp, uint32_t key);
+
 /** Set the current value for the given key in a Key Package
  *
  * @param kp            Pointer to the KP to set the value on

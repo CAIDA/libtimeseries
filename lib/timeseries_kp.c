@@ -199,8 +199,12 @@ static void kp_ki_free(timeseries_kp_ki_t *ki, timeseries_kp_t *kp)
 
 static void kp_ki_set(timeseries_kp_ki_t *ki, uint64_t value)
 {
-  assert(ki != NULL);
   ki->value = value;
+}
+
+static uint64_t kp_ki_get(timeseries_kp_ki_t *ki)
+{
+  return ki->value;
 }
 
 
@@ -413,6 +417,11 @@ void timeseries_kp_enable_key(timeseries_kp_t *kp, uint32_t key)
       kp->key_infos[key].disabled = 0;
       kp->key_infos_enabled_cnt++;
     }
+}
+
+uint64_t timeseries_kp_get(timeseries_kp_t *kp, uint32_t key)
+{
+  return kp_ki_get(&kp->key_infos[key]);
 }
 
 void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value)
