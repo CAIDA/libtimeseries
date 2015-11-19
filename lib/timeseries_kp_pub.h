@@ -130,6 +130,14 @@ void timeseries_kp_disable_key(timeseries_kp_t *kp, uint32_t key);
  */
 void timeseries_kp_enable_key(timeseries_kp_t *kp, uint32_t key);
 
+/** Get the current value for the given key in a Key Package
+ *
+ * @param kp            Pointer to the KP to get the value for
+ * @param key           Index of the key (as returned by kp_add_key) to
+ *                      get the value for
+ */
+uint64_t timeseries_kp_get(timeseries_kp_t *kp, uint32_t key);
+
 /** Set the current value for the given key in a Key Package
  *
  * @param kp            Pointer to the KP to set the value on
@@ -138,6 +146,19 @@ void timeseries_kp_enable_key(timeseries_kp_t *kp, uint32_t key);
  * @param value         Value to set the key to
  */
 void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value);
+
+/** Force the backends to resolve all keys in the key package (if needed)
+ *
+ * @param kp            Pointer to the KP to resolve keys for
+ * @return 0 if the keys were resolved successfully, -1 otherwise.
+ *
+ * This can be helpful when creating a key package with a large number of keys
+ * and using a backend that is slow to resolve keys (e.g. TSMQ+DBATS). Rather
+ * than blocking when performing the first flush, the caller can choose to
+ * resolve the keys after initialization and before entering time-critical
+ * processing.
+ */
+int timeseries_kp_resolve(timeseries_kp_t *kp);
 
 /** Flush the current values in the given Key Package to all enabled backends
  *

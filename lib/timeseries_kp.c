@@ -199,8 +199,12 @@ static void kp_ki_free(timeseries_kp_ki_t *ki, timeseries_kp_t *kp)
 
 static void kp_ki_set(timeseries_kp_ki_t *ki, uint64_t value)
 {
-  assert(ki != NULL);
   ki->value = value;
+}
+
+static uint64_t kp_ki_get(timeseries_kp_ki_t *ki)
+{
+  return ki->value;
 }
 
 
@@ -415,12 +419,39 @@ void timeseries_kp_enable_key(timeseries_kp_t *kp, uint32_t key)
     }
 }
 
+uint64_t timeseries_kp_get(timeseries_kp_t *kp, uint32_t key)
+{
+  return kp_ki_get(&kp->key_infos[key]);
+}
+
 void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value)
 {
   assert(kp != NULL);
   assert(key < kp->key_infos_cnt);
 
   kp_ki_set(&kp->key_infos[key], value);
+}
+
+int timeseries_kp_resolve(timeseries_kp_t *kp)
+{
+  int id;
+  timeseries_backend_t *backend;
+  timeseries_t *timeseries = kp_get_timeseries(kp);
+  assert(timeseries != NULL);
+
+  /* this is a forced resolve, so we always resolve, but we mark the KP as not
+     dirty */
+  kp->dirty = 0;
+
+  TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)
+    {
+      if(backend->kp_ki_update(backend, kp) != 0)
+	{
+	  return -1;
+	}
+    }
+
+  return 0;
 }
 
 int timeseries_kp_flush(timeseries_kp_t *kp,
