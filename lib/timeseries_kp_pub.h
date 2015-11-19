@@ -157,8 +157,6 @@ void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value);
  * than blocking when performing the first flush, the caller can choose to
  * resolve the keys after initialization and before entering time-critical
  * processing.
- *
- * @note any values that have been set and not flushed **will be lost**.
  */
 int timeseries_kp_resolve(timeseries_kp_t *kp);
 

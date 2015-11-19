@@ -436,22 +436,21 @@ int timeseries_kp_resolve(timeseries_kp_t *kp)
 {
   int id;
   timeseries_backend_t *backend;
-  int dirty;
   timeseries_t *timeseries = kp_get_timeseries(kp);
   assert(timeseries != NULL);
 
-  dirty = kp->dirty;
+  /* this is a forced resolve, so we always resolve, but we mark the KP as not
+     dirty */
   kp->dirty = 0;
 
   TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)
     {
-      if(dirty != 0 && backend->kp_ki_update(backend, kp) != 0)
+      if(backend->kp_ki_update(backend, kp) != 0)
 	{
 	  return -1;
 	}
     }
 
-  kp_reset(kp);
   return 0;
 }
 
