@@ -31,7 +31,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <tsmq_client.h>
+#include "tsmq_client.h"
 
 #define KEY_LOOKUP_CNT 1
 
@@ -44,13 +44,19 @@ static void usage(const char *name)
           "       -n <key-cnt>       Number of keys to lookup and insert fake data for (default: %d)\n"
 	  "       -r <retries>       Number of times to resend a request\n"
 	  "                          (default: %d)\n"
-	  "       -t <timeout>       Time to wait before resending a request\n"
-	  "                          (default: %d)\n",
+	  "       -a <ack-timeout>     Time to wait for request ack\n"
+          "                            (default: %d)\n"
+	  "       -l <lookup-timeout>  Time to wait for key lookups\n"
+          "                            (default: %d)\n"
+          "       -s <set-timeout>     Time to wait for key set\n"
+          "                            (default: %d)\n",
 	  name,
 	  TSMQ_CLIENT_BROKER_URI_DEFAULT,
           KEY_LOOKUP_CNT,
 	  TSMQ_CLIENT_REQUEST_RETRIES,
-	  TSMQ_CLIENT_REQUEST_TIMEOUT);
+	  TSMQ_CLIENT_REQUEST_ACK_TIMEOUT,
+          TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT,
+          TSMQ_CLIENT_KEY_SET_TIMEOUT);
 }
 
 int main(int argc, char **argv)
@@ -63,7 +69,9 @@ int main(int argc, char **argv)
   const char *broker_uri = NULL;
 
   int retries = TSMQ_CLIENT_REQUEST_RETRIES;
-  int timeout = TSMQ_CLIENT_REQUEST_TIMEOUT;
+  int ack_timeout = TSMQ_CLIENT_REQUEST_ACK_TIMEOUT;
+  int lookup_timeout = TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT;
+  int set_timeout = TSMQ_CLIENT_KEY_SET_TIMEOUT;
 
   int key_cnt = KEY_LOOKUP_CNT;
 
@@ -72,7 +80,7 @@ int main(int argc, char **argv)
   int i;
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":b:n:r:t:v?")) >= 0)
+	(opt = getopt(argc, argv, ":b:n:r:a:l:s:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -98,8 +106,16 @@ int main(int argc, char **argv)
 	  retries = atoi(optarg);
 	  break;
 
-	case 't':
-	  timeout = atoi(optarg);
+	case 'a':
+	  ack_timeout = atoi(optarg);
+	  break;
+
+        case 'l':
+	  lookup_timeout = atoi(optarg);
+	  break;
+
+        case 's':
+	  set_timeout = atoi(optarg);
 	  break;
 
 	case '?':
@@ -133,7 +149,9 @@ int main(int argc, char **argv)
       tsmq_client_set_broker_uri(client, broker_uri);
     }
 
-  tsmq_client_set_request_timeout(client, timeout);
+  tsmq_client_set_request_ack_timeout(client, ack_timeout);
+  tsmq_client_set_key_lookup_timeout(client, lookup_timeout);
+  tsmq_client_set_key_set_timeout(client, set_timeout);
 
   tsmq_client_set_request_retries(client, retries);
 

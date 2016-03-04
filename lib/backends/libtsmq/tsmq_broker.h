@@ -26,7 +26,7 @@
 #ifndef __TSMQ_BROKER_H
 #define __TSMQ_BROKER_H
 
-#include <tsmq_common.h>
+#include "tsmq_common.h"
 
 /** @file
  *

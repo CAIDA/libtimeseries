@@ -26,9 +26,9 @@
 #ifndef __TSMQ_CLIENT_H
 #define __TSMQ_CLIENT_H
 
-#include <timeseries.h>
+#include "timeseries.h"
 
-#include <tsmq_common.h>
+#include "tsmq_common.h"
 
 /** @file
  *
@@ -47,8 +47,22 @@
 /** Default URI for the client -> broker connection */
 #define TSMQ_CLIENT_BROKER_URI_DEFAULT "tcp://127.0.0.1:7300"
 
-/** Default the client request timeout to 2.5 seconds */
-#define TSMQ_CLIENT_REQUEST_TIMEOUT 2500
+/** Default the client request ack timeout to 60 seconds.  This is the time that
+ * we wait until we get a message from the broker saying "I'm working on your
+ * request". It should normally be super fast, but just in case the broker takes
+ * a while to receive the request, we set it to 1 min.
+ */
+#define TSMQ_CLIENT_REQUEST_ACK_TIMEOUT (60*1000)
+
+/** Default the client key lookup timeout to 30 mins (this can take a *long*
+ * time if there are a lot of keys and if the server is busy
+ */
+#define TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT (30*60*1000)
+
+/** Default the client key set timeout to 2 minutes. This is probably much too
+ * long, but this timer only kicks in once the request ack has been received.
+ */
+#define TSMQ_CLIENT_KEY_SET_TIMEOUT (2*60*1000)
 
 /** Default the client request retry count to 3 */
 #define TSMQ_CLIENT_REQUEST_RETRIES 3
@@ -100,15 +114,35 @@ void tsmq_client_free(tsmq_client_t **client_p);
  */
 void tsmq_client_set_broker_uri(tsmq_client_t *client, const char *uri);
 
-/** Set the request timeout
+/** Set the request ACK timeout
  *
  * @param client        pointer to a tsmq client instance to update
  * @param timeout_ms    time in ms before request is retried
  *
- * @note defaults to TSMQ_CLIENT_REQUEST_TIMEOUT
+ * @note defaults to TSMQ_CLIENT_REQUEST_ACK_TIMEOUT
  */
-void tsmq_client_set_request_timeout(tsmq_client_t *client,
-				     uint64_t timeout_ms);
+void tsmq_client_set_request_ack_timeout(tsmq_client_t *client,
+                                         uint64_t timeout_ms);
+
+/** Set the key lookup timeout
+ *
+ * @param client        pointer to a tsmq client instance to update
+ * @param timeout_ms    time in ms before request is retried
+ *
+ * @note defaults to TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT
+ */
+void tsmq_client_set_key_lookup_timeout(tsmq_client_t *client,
+                                        uint64_t timeout_ms);
+
+/** Set the key set timeout
+ *
+ * @param client        pointer to a tsmq client instance to update
+ * @param timeout_ms    time in ms before request is retried
+ *
+ * @note defaults to TSMQ_CLIENT_KEY_SET_TIMEOUT
+ */
+void tsmq_client_set_key_set_timeout(tsmq_client_t *client,
+                                     uint64_t timeout_ms);
 
 /** Set the number of request retries before a request is abandoned
  *

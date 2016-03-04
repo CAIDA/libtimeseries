@@ -26,7 +26,7 @@
 #ifndef __TSMQ_CLIENT_INT_H
 #define __TSMQ_CLIENT_INT_H
 
-#include <tsmq_client.h>
+#include "tsmq_client.h"
 #include "tsmq_int.h"
 
 /** @file
@@ -51,11 +51,20 @@ struct tsmq_client {
   /** Request sequence number */
   uint64_t sequence_num;
 
-  /** Request timeout in msec */
-  uint64_t request_timeout;
+  /** Request ACK timeout in msec */
+  uint64_t request_ack_timeout;
+
+  /** Key resolution request timeout in msec */
+  uint64_t key_lookup_timeout;
+
+  /** Key set request timeout in msec */
+  uint64_t key_set_timeout;
 
   /** Request retries */
   int request_retries;
+
+  /** Time that we will give up waiting for the current request */
+  uint64_t give_up_at;
 };
 
 /** Structure that represents a single metric key.

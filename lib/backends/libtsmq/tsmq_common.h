@@ -58,8 +58,8 @@
 /** Default the broker/server heartbeat interval to 1 second */
 #define TSMQ_HEARTBEAT_INTERVAL_DEFAULT 1000
 
-/** Default the broker/server heartbeat liveness to 3 beats */
-#define TSMQ_HEARTBEAT_LIVENESS_DEFAULT 3
+/** Default the broker/server heartbeat liveness to 3600 beats */
+#define TSMQ_HEARTBEAT_LIVENESS_DEFAULT 3600
 
 /** Default the reconnect minimum interval to 1 second */
 #define TSMQ_RECONNECT_INTERVAL_MIN 1000

@@ -26,7 +26,7 @@
 #ifndef __TSMQ_SERVER_INT_H
 #define __TSMQ_SERVER_INT_H
 
-#include <tsmq_server.h>
+#include "tsmq_server.h"
 #include "tsmq_int.h"
 
 /** @file

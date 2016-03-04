@@ -27,8 +27,8 @@
 #ifndef __TIMESERIES_H
 #define __TIMESERIES_H
 
-#include <timeseries_pub.h>
-#include <timeseries_backend_pub.h>
-#include <timeseries_kp_pub.h>
+#include "timeseries_pub.h"
+#include "timeseries_backend_pub.h"
+#include "timeseries_kp_pub.h"
 
 #endif /* __TIMESERIES_H */

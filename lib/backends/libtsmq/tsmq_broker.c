@@ -506,7 +506,10 @@ static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg)
   tsmq_broker_server_t *server = NULL;
   khiter_t k;
   zmq_msg_t proxy;
+  zmq_msg_t copy;
   int more = 0;
+  int frame_cnt = 0;
+  uint8_t ack_type = TSMQ_REQUEST_MSG_TYPE_ACK;
 
   /** @todo handle no servers (queue) */
 
@@ -557,6 +560,21 @@ static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg)
         }
       else
         {
+          /* mirror the first three frames to both server and client */
+          if(frame_cnt < 3)
+            {
+              if(zmq_msg_init(&copy) == -1 ||
+                 zmq_msg_copy(&copy, &proxy) == -1)
+                {
+                  zmq_msg_close(&copy);
+                  goto err;
+                }
+              if(zmq_msg_send(&copy, broker->client_socket, ZMQ_SNDMORE) == -1)
+                {
+                  zmq_msg_close(&copy);
+                  goto err;
+                }
+            }
           if(zmq_msg_send(&proxy, broker->server_socket, more) == -1)
             {
               zmq_msg_close(&proxy);
@@ -570,6 +588,16 @@ static int handle_client_msg(zloop_t *loop, zsock_t *reader, void *arg)
         {
           break;
         }
+      frame_cnt++;
+    }
+
+  /* now finish up the request ack for the client */
+  if(zmq_send(broker->client_socket, &ack_type, sizeof(uint8_t), 0)
+     != sizeof(uint8_t))
+    {
+      tsmq_set_err(broker->tsmq, errno,
+                   "Could not send request type message");
+      return -1;
     }
 
   return 0;

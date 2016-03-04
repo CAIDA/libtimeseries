@@ -36,25 +36,30 @@
 
 #define CTX client->tsmq->ctx
 
+/* check for timeouts after this amount of time (means that real timeouts cannot
+   be less than this value */
+#define SOCKET_TIMEOUT 500
+
 enum {
   REPLY_ERROR   = -1,
   REPLY_SUCCESS =  0,
   REPLY_TIMEOUT =  1,
 };
 
-#define SEND_REQUEST(req_type)                                  \
-  int retries_remaining = client->request_retries;              \
-  int reply_rx = -1;                                            \
-  while(retries_remaining > 0 && zctx_interrupted == 0)         \
-    {                                                           \
-  /* send the message headers */                                \
-  if(send_request_headers(client, req_type, ZMQ_SNDMORE) != 0)  \
-    {                                                           \
-      /* err will already be set */                             \
-      goto err;                                                 \
-    }
+#define SEND_REQUEST(req_type)                                          \
+  int retries_remaining = client->request_retries;                      \
+  int reply_rx = -1;                                                    \
+  while(retries_remaining > 0 && zctx_interrupted == 0)                 \
+    {                                                                   \
+      /* send the message headers */                                    \
+      if(send_request_headers(client, req_type, ZMQ_SNDMORE) != 0)      \
+        {                                                               \
+          /* err will already be set */                                 \
+          goto err;                                                     \
+        }
 
-#define HANDLE_REQUEST_REPLY(req_type)                                  \
+#define HANDLE_REQUEST_REPLY(req_type, timeout)                         \
+  /* user request sending code goes here ^^^ */                         \
   /* send an empty message indicating the end of the request */         \
   if(zmq_send(client->broker_socket, "", 0, 0) != 0)                    \
     {                                                                   \
@@ -62,12 +67,17 @@ enum {
                    "Failed to send EOS message");                       \
       goto err;                                                         \
     }                                                                   \
-  /* wait for a reply */                                                \
-  if((reply_rx = recv_reply_headers(client, req_type)) == REPLY_ERROR)  \
+  /* wait for the request ack */                                        \
+  if((reply_rx = recv_req_ack(client)) == REPLY_ERROR)         \
     {                                                                   \
       goto err;                                                         \
     }                                                                   \
-  if(reply_rx == REPLY_SUCCESS)                                         \
+  if((reply_rx == REPLY_SUCCESS) &&/* means we got the req ack */       \
+     (reply_rx = recv_reply_headers(client, req_type, timeout)) == REPLY_ERROR) \
+    {                                                                   \
+      goto err;                                                         \
+    }                                                                   \
+  if(reply_rx == REPLY_SUCCESS) /* means we got the real reply */       \
     {                                                                   \
       break;                                                            \
     }                                                                   \
@@ -93,14 +103,14 @@ enum {
 static int broker_connect(tsmq_client_t *client)
 {
   /* connect to broker socket */
-  if((client->broker_socket = zsocket_new(CTX, ZMQ_REQ)) == NULL)
+  if((client->broker_socket = zsocket_new(CTX, ZMQ_DEALER)) == NULL)
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_START_FAILED,
 		   "Failed to create broker connection");
       return -1;
     }
 
-  zsocket_set_rcvtimeo(client->broker_socket, client->request_timeout);
+  zsocket_set_rcvtimeo(client->broker_socket, SOCKET_TIMEOUT);
 
   if(zsocket_connect(client->broker_socket, "%s", client->broker_uri) < 0)
     {
@@ -132,11 +142,19 @@ static int send_request_headers(tsmq_client_t *client,
 {
   uint64_t seq_num;
   /* request format:
+     EMPTY
      SEQUENCE
      REQUEST_TYPE
      REQUEST_BODY
      ...
   */
+
+  if(zmq_send(client->broker_socket, "", 0, ZMQ_SNDMORE) != 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                   "Failed to send empty message");
+      return -1;
+    }
 
   seq_num = htonll(client->sequence_num);
   /* send the sequence number */
@@ -161,15 +179,13 @@ static int send_request_headers(tsmq_client_t *client,
   return 0;
 }
 
-/** Block waiting for a reply
+/** Block waiting for a request ack
  *
  * @param client
- * @param req_type      expected type of the reply
- * @return 0 if the headers were received correctly, 1 if not (needs re-tx),
+ * @return 0 if the ack was received correctly, 1 if not (needs re-tx),
  *         -1 if an error occurred
  */
-static int recv_reply_headers(tsmq_client_t *client,
-                              tsmq_request_msg_type_t req_type)
+static int recv_req_ack(tsmq_client_t *client)
 {
   uint64_t rx_seq_num;
   tsmq_request_msg_type_t rx_req_type;
@@ -180,14 +196,21 @@ static int recv_reply_headers(tsmq_client_t *client,
      PAYLOAD
   */
 
+  client->give_up_at = zclock_time() + client->request_ack_timeout;
+
   /* got a reply from the broker, must match the sequence number */
+ again:
   if(zmq_recv(client->broker_socket, &rx_seq_num, sizeof(uint64_t), 0)
      != sizeof(uint64_t))
     {
       switch(errno)
         {
         case EAGAIN:
-          return REPLY_TIMEOUT;
+          if(zclock_time() >= client->give_up_at)
+            {
+              return REPLY_TIMEOUT;
+            }
+          goto again;
           break;
 
         case ETERM:
@@ -197,7 +220,103 @@ static int recv_reply_headers(tsmq_client_t *client,
 
         default:
           tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
-                       "Malformed request reply (missing seq num)");
+                       "Malformed request ack (missing seq num)");
+          goto err;
+        }
+    }
+  rx_seq_num = ntohll(rx_seq_num);
+
+  /* check the sequence number against what we have */
+  if(rx_seq_num != client->sequence_num)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid sequence number received."
+                   " Got %"PRIu64", expecting %"PRIu64,
+                   rx_seq_num, client->sequence_num);
+      goto err;
+    }
+
+  if(zsocket_rcvmore(client->broker_socket) == 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid ack message (missing request type)");
+      goto err;
+    }
+
+  /* check the request type against what we sent */
+  if((rx_req_type = tsmq_recv_request_type(client->broker_socket))
+     != TSMQ_REQUEST_MSG_TYPE_ACK)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                   "Invalid request type in ack response."
+                   " Got %d, expecting %d",
+                   rx_req_type, TSMQ_REQUEST_MSG_TYPE_ACK);
+      goto err;
+    }
+
+  /* ensure there is no payload */
+  if(zsocket_rcvmore(client->broker_socket) != 0)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL, "Invalid request ACK");
+      goto err;
+    }
+
+  return REPLY_SUCCESS;
+
+ err:
+  return REPLY_ERROR;
+
+ interrupt:
+  tsmq_set_err(client->tsmq, TSMQ_ERR_INTERRUPT, "Caught SIGINT");
+  return REPLY_ERROR;
+}
+
+/** Block waiting for a reply
+ *
+ * @param client
+ * @param req_type      expected type of the reply
+ * @return 0 if the headers were received correctly, 1 if not (needs re-tx),
+ *         -1 if an error occurred
+ */
+static int recv_reply_headers(tsmq_client_t *client,
+                              tsmq_request_msg_type_t req_type,
+                              uint64_t timeout)
+{
+  uint64_t rx_seq_num;
+  tsmq_request_msg_type_t rx_req_type;
+
+  /* Msg Format:
+     SEQ_NUM
+     REQ_TYPE
+     PAYLOAD
+  */
+
+  /* set the actual data timeout */
+  client->give_up_at = zclock_time() + timeout;
+
+  /* got a reply from the broker, must match the sequence number */
+ again:
+  if(zmq_recv(client->broker_socket, &rx_seq_num, sizeof(uint64_t), 0)
+     != sizeof(uint64_t))
+    {
+      switch(errno)
+        {
+        case EAGAIN:
+          if(zclock_time() >= client->give_up_at)
+            {
+              return REPLY_TIMEOUT;
+            }
+          goto again;
+          break;
+
+        case ETERM:
+        case EINTR:
+          goto interrupt;
+          break;
+
+        default:
+          tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
+                       "Malformed request reply");
           goto err;
         }
     }
@@ -350,7 +469,11 @@ tsmq_client_t *tsmq_client_init()
 
   client->broker_uri = strdup(TSMQ_CLIENT_BROKER_URI_DEFAULT);
 
-  client->request_timeout = TSMQ_CLIENT_REQUEST_TIMEOUT;
+  client->request_ack_timeout = TSMQ_CLIENT_REQUEST_ACK_TIMEOUT;
+
+  client->key_lookup_timeout = TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT;
+
+  client->key_set_timeout = TSMQ_CLIENT_KEY_SET_TIMEOUT;
 
   client->request_retries = TSMQ_CLIENT_REQUEST_RETRIES;
 
@@ -397,12 +520,28 @@ void tsmq_client_set_broker_uri(tsmq_client_t *client, const char *uri)
   assert(client->broker_uri != NULL);
 }
 
-void tsmq_client_set_request_timeout(tsmq_client_t *client,
-				     uint64_t timeout_ms)
+void tsmq_client_set_request_ack_timeout(tsmq_client_t *client,
+                                         uint64_t timeout_ms)
 {
   assert(client != NULL);
 
-  client->request_timeout = timeout_ms;
+  client->request_ack_timeout = timeout_ms;
+}
+
+void tsmq_client_set_key_lookup_timeout(tsmq_client_t *client,
+                                        uint64_t timeout_ms)
+{
+  assert(client != NULL);
+
+  client->key_lookup_timeout = timeout_ms;
+}
+
+void tsmq_client_set_key_set_timeout(tsmq_client_t *client,
+                                     uint64_t timeout_ms)
+{
+  assert(client != NULL);
+
+  client->key_set_timeout = timeout_ms;
 }
 
 void tsmq_client_set_request_retries(tsmq_client_t *client,
@@ -439,7 +578,8 @@ tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
         goto err;
       }
   }
-  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP);
+  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP,
+                       client->key_lookup_timeout);
 
   /* there is payload waiting on the socket, grab it */
 
@@ -541,7 +681,8 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
           }
       }
   }
-  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK);
+  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK,
+                       client->key_lookup_timeout);
 
   /* there is payload waiting on the socket, grab it */
 
@@ -631,7 +772,8 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
         goto err;
       }
   }
-  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE);
+  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE,
+                       client->key_set_timeout);
 
   /* there should be a single empty message, just pop it */
   if(zmq_recv(client->broker_socket, NULL, 0, 0) != 0)
@@ -707,7 +849,8 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
           }
       }
   }
-  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK);
+  HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK,
+                       client->key_set_timeout);
 
   /* there should be a single empty message, just pop it */
   if(zmq_recv(client->broker_socket, NULL, 0, 0) != 0)

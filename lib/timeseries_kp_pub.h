@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include <timeseries_pub.h>
+#include "timeseries_pub.h"
 
 /** @file
  *
