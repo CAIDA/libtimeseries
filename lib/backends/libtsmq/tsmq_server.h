@@ -26,9 +26,9 @@
 #ifndef __TSMQ_SERVER_H
 #define __TSMQ_SERVER_H
 
-#include <timeseries.h>
+#include "timeseries.h"
 
-#include <tsmq_common.h>
+#include "tsmq_common.h"
 
 /** @file
  *

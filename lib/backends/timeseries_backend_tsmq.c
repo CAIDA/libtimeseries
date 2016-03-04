@@ -33,7 +33,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <tsmq_client.h>
+#include "tsmq_client.h"
 
 #include "utils.h"
 
@@ -66,16 +66,22 @@ static void usage(timeseries_backend_t *backend)
 {
   fprintf(stderr,
 	  "backend usage: %s [<options>]\n"
-	  "       -b <broker-uri>    0MQ-style URI to connect to broker on\n"
-	  "                          (default: %s)\n"
-	  "       -r <retries>       Number of times to resend a request\n"
-	  "                          (default: %d)\n"
-	  "       -t <timeout>       Time to wait before resending a request\n"
-	  "                          (default: %d)\n",
+	  "       -b <broker-uri>      0MQ-style URI to connect to broker on\n"
+	  "                            (default: %s)\n"
+	  "       -r <retries>         Number of times to resend a request\n"
+	  "                            (default: %d)\n"
+	  "       -a <ack-timeout>     Time to wait for request ack\n"
+          "                            (default: %d)\n"
+	  "       -l <lookup-timeout>  Time to wait for key lookups\n"
+          "                            (default: %d)\n"
+          "       -s <set-timeout>     Time to wait for key set\n"
+          "                            (default: %d)\n",
 	  backend->name,
 	  TSMQ_CLIENT_BROKER_URI_DEFAULT,
 	  TSMQ_CLIENT_REQUEST_RETRIES,
-	  TSMQ_CLIENT_REQUEST_TIMEOUT);
+	  TSMQ_CLIENT_REQUEST_ACK_TIMEOUT,
+          TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT,
+          TSMQ_CLIENT_KEY_SET_TIMEOUT);
 }
 
 
@@ -94,7 +100,7 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
   assert(state->client != NULL);
 
-  while((opt = getopt(argc, argv, ":b:r:t:?")) >= 0)
+  while((opt = getopt(argc, argv, ":b:r:a:l:s:?")) >= 0)
     {
       switch(opt)
 	{
@@ -106,8 +112,16 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 	  tsmq_client_set_request_retries(state->client, atoi(optarg));
 	  break;
 
-	case 't':
-	  tsmq_client_set_request_timeout(state->client, atoi(optarg));
+	case 'a':
+	  tsmq_client_set_request_ack_timeout(state->client, atoi(optarg));
+	  break;
+
+        case 'l':
+	  tsmq_client_set_key_lookup_timeout(state->client, atoi(optarg));
+	  break;
+
+        case 's':
+	  tsmq_client_set_key_set_timeout(state->client, atoi(optarg));
 	  break;
 
 	case '?':

@@ -31,7 +31,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <tsmq_broker.h>
+#include "tsmq_broker.h"
 
 static void usage(const char *name)
 {

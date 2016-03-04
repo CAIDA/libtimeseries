@@ -36,7 +36,7 @@
 #include <wandio.h>
 #include <wandio_utils.h>
 
-#include <timeseries.h>
+#include "timeseries.h"
 
 #include "config.h"
 

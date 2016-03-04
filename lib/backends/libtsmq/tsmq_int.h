@@ -30,7 +30,7 @@
 
 #include "klist.h"
 
-#include <tsmq_common.h>
+#include "tsmq_common.h"
 
 /** @file
  *
@@ -109,17 +109,20 @@ typedef enum {
   /** Invalid request type */
   TSMQ_REQUEST_MSG_TYPE_UNKNOWN         = 0,
 
+  /** Request ACK type (only sent *to* clients) */
+  TSMQ_REQUEST_MSG_TYPE_ACK             = 1,
+
   /** Key lookup request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP      = 1,
+  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP      = 2,
 
   /** Bulk Key lookup request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK = 2,
+  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK = 3,
 
   /** Key storage request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE  = 3,
+  TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE  = 4,
 
   /** Bulk Key storage request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK    = 4,
+  TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK    = 5,
 
   /** Highest request type in use */
   TSMQ_REQUEST_MSG_TYPE_MAX = TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK,

@@ -31,9 +31,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <tsmq_server.h>
+#include "tsmq_server.h"
 
-#include <timeseries.h>
+#include "timeseries.h"
 
 #include "config.h"
 

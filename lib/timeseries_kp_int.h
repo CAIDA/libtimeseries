@@ -29,7 +29,7 @@
 
 #include <inttypes.h>
 
-#include <timeseries_kp_pub.h>
+#include "timeseries_kp_pub.h"
 
 /** @file
  *
