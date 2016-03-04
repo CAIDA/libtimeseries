@@ -470,6 +470,7 @@ int timeseries_kp_flush(timeseries_kp_t *kp,
     {
       if(dirty != 0 && backend->kp_ki_update(backend, kp) != 0)
 	{
+          kp->dirty = 1; /* otherwise the next call won't resolve keys */
 	  return -1;
 	}
 
