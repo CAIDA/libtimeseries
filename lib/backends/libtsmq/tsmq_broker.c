@@ -105,7 +105,7 @@ static int client_bind(tsmq_broker_t *broker)
       return -1;
     }
 
-  zsocket_set_router_mandatory(broker->client_socket, 1);
+  /*zsocket_set_router_mandatory(broker->client_socket, 1);*/
 
   if(zsocket_bind(broker->client_socket, "%s", broker->client_uri) < 0)
     {
