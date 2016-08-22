@@ -81,10 +81,7 @@ struct tsmq_client_key {
    * of the string key
    * @note this is only unique in combination with the server id
    */
-  uint8_t *server_key_id;
-
-  /** Length of the backend key ID */
-  uint16_t server_key_id_len;
+  zmq_msg_t server_key_id;
 };
 
 #endif /* __TSMQ_CLIENT_INT_H */

@@ -223,7 +223,6 @@ static int handle_key_lookup_bulk(tsmq_server_t *server)
   return -1;
 }
 
-#if 0
 static int recv_key_val(tsmq_server_t *server,
                         zmq_msg_t *key_msg_out,
                         tsmq_val_t *value_out)
@@ -277,37 +276,6 @@ static int recv_key_val(tsmq_server_t *server,
   zmq_msg_close(key_msg_out);
   return -1;
 }
-#endif
-
-static int read_key_val(uint8_t *buf, size_t len,
-                        uint8_t **key_out, size_t *key_len_out,
-                        tsmq_val_t *value_out)
-{
-  size_t read = 0;
-  uint16_t nkeylen;
-
-  /* suck the value out of the buffer */
-  assert(len > sizeof(tsmq_val_t));
-  memcpy(value_out, buf, sizeof(tsmq_val_t));
-  *value_out = ntohll(*value_out);
-  read += sizeof(tsmq_val_t);
-  buf += sizeof(tsmq_val_t);
-
-  /* grab the key length from the buffer */
-  assert(len > sizeof(nkeylen));
-  memcpy(&nkeylen, buf, sizeof(nkeylen));
-  *key_len_out = ntohs(nkeylen);
-  read += sizeof(nkeylen);
-  buf += sizeof(nkeylen);
-
-  /* grab the key from the buffer */
-  assert(len > *key_len_out);
-  *key_out = buf;
-  read += *key_len_out;
-  buf += *key_len_out;
-
-  return read;
-}
 
 static int handle_set_bulk(tsmq_server_t *server)
 {
@@ -315,15 +283,7 @@ static int handle_set_bulk(tsmq_server_t *server)
   uint32_t key_cnt;
   tsmq_val_t value;
   zmq_msg_t key_msg;
-
-  uint8_t *ptr = NULL;
-  size_t len = 0;
-  size_t read = 0;
-  ssize_t s = 0;
-
-  /* borrowed pointer! */
-  uint8_t *key_buf = NULL;
-  size_t key_buf_len = 0;
+  int rc;
 
   /* ack the request immediately */
   /* send back a single empty message as an ack */
@@ -381,74 +341,41 @@ static int handle_set_bulk(tsmq_server_t *server)
 
   while(1)
     {
-      /* grab the next msg */
-      if(zsocket_rcvmore(server->broker_socket) == 0)
-        {
-          tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                       "Invalid 'key/value' message (missing value)");
-          goto err;
-        }
-      if(zmq_msg_init(&key_msg) == -1)
-        {
-          tsmq_set_err(server->tsmq, TSMQ_ERR_MALLOC,
-                       "Could not init key/val message");
-          goto err;
-        }
-      if(zmq_msg_recv(&key_msg, server->broker_socket, 0) == -1)
-        {
-          tsmq_set_err(server->tsmq, TSMQ_ERR_PROTOCOL,
-                       "Malformed request (missing value)");
-          goto err;
-        }
-
-      /* if it is empty, we're done */
-      len = zmq_msg_size(&key_msg);
-      if(len == 0)
+      if((rc = recv_key_val(server, &key_msg, &value)) <= 0)
         {
           zmq_msg_close(&key_msg);
           break;
         }
-      ptr = zmq_msg_data(&key_msg);
 
-      /* otherwise, it is full of val/key pairs */
-      while(read < len)
+      if(key_cnt <= BULK_KEY_THRESHOLD)
         {
-          if((s = read_key_val(ptr, (len-read), &key_buf, &key_buf_len,
-                               &value)) < 0)
+          if(server->backend->set_single_by_id(server->backend,
+                                               zmq_msg_data(&key_msg),
+                                               zmq_msg_size(&key_msg),
+                                               value, time) != 0)
             {
+              tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                           "Set single failed\n");
               goto err;
             }
-          read += s;
-          ptr += s;
-
-          if(key_cnt <= BULK_KEY_THRESHOLD)
+        }
+      else
+        {
+          if(server->backend->set_bulk_by_id(server->backend,
+                                             zmq_msg_data(&key_msg),
+                                             zmq_msg_size(&key_msg),
+                                             value) != 0)
             {
-              if(server->backend->set_single_by_id(server->backend,
-                                                   key_buf, key_buf_len,
-                                                   value, time) != 0)
-                {
-                  tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
-                               "Set single failed\n");
-                  goto err;
-                }
-            }
-          else
-            {
-              if(server->backend->set_bulk_by_id(server->backend,
-                                                 key_buf, key_buf_len,
-                                                 value) != 0)
-                {
-                  tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
-                               "Set bulk failed\n");
-                  goto err;
-                }
+              tsmq_set_err(server->tsmq, TSMQ_ERR_TIMESERIES,
+                           "Set bulk failed\n");
+              goto err;
             }
         }
 
       zmq_msg_close(&key_msg);
     }
 
-  return 0;
+  return rc;
 
  err:
   zmq_msg_close(&key_msg);
