@@ -40,6 +40,9 @@
    be less than this value */
 #define SOCKET_TIMEOUT 500
 
+/** Approx half will be used for key/val messages (hence the extra *2) */
+#define BUFFER_LEN ((1024 * 64) * 2)
+
 enum {
   REPLY_ERROR   = -1,
   REPLY_SUCCESS =  0,
@@ -99,6 +102,13 @@ enum {
          goto err;                                                      \
        }                                                                \
    } while(0)
+
+#define SEND_IF_FULL(sock, buf, written, ptr, len)      \
+  do {                                                  \
+    if(written > ((len) / 2))                           \
+      {                                                 \
+      }                                                 \
+  } while (0)
 
 static int broker_connect(tsmq_client_t *client)
 {
@@ -371,19 +381,7 @@ static tsmq_client_key_t *key_init()
 {
   tsmq_client_key_t *key = NULL;
 
-  if((key = malloc(sizeof(tsmq_client_key_t))) == NULL)
-    {
-      goto err;
-    }
-
-#if 0
-  if(zmq_msg_init(&key->server_id) == -1)
-    {
-      goto err;
-    }
-#endif
-
-  if(zmq_msg_init(&key->server_key_id) == -1)
+  if((key = malloc_zero(sizeof(tsmq_client_key_t))) == NULL)
     {
       goto err;
     }
@@ -398,52 +396,68 @@ static tsmq_client_key_t *key_init()
 static int key_recv(tsmq_client_t *client, tsmq_client_key_t *key)
 {
   /* just one frame with the key id */
-  if(zmq_msg_recv(&key->server_key_id, client->broker_socket, 0) == -1)
+  zmq_msg_t msg;
+
+  if(zmq_msg_init(&msg) == -1)
+    {
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC, "Failed to init msg");
+      goto err;
+    }
+
+  if(zmq_msg_recv(&msg, client->broker_socket, 0) == -1)
     {
       tsmq_set_err(client->tsmq, TSMQ_ERR_PROTOCOL,
                    "Malformed reply (missing server key id)");
       return -1;
     }
 
-  return 0;
-}
-
-static int key_val_send(tsmq_client_t *client, tsmq_client_key_t *key,
-                        tsmq_val_t value)
-{
-  tsmq_val_t nval;
-  zmq_msg_t msg_cpy;
-
-  /* add the value */
-  nval = htonll(value);
-  if(zmq_send(client->broker_socket, &nval, sizeof(tsmq_val_t),
-                    ZMQ_SNDMORE) != sizeof(tsmq_val_t))
+  assert(zmq_msg_size(&msg) < UINT16_MAX);
+  key->server_key_id_len = zmq_msg_size(&msg);
+  if((key->server_key_id = malloc(key->server_key_id_len)) == NULL)
     {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                   "Failed to send value in set single");
+      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC, "Failed to key");
       goto err;
     }
 
-  /* add the key */
-  if(zmq_msg_init(&msg_cpy) == -1 ||
-     zmq_msg_copy(&msg_cpy, &key->server_key_id) == -1)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                   "Failed to copy key id in set single");
-      goto err;
-    }
-  if(zmq_msg_send(&msg_cpy, client->broker_socket, ZMQ_SNDMORE) == -1)
-    {
-      tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
-                   "Failed to send key id in set single");
-      goto err;
-    }
+  memcpy(key->server_key_id, zmq_msg_data(&msg), key->server_key_id_len);
 
+  zmq_msg_close(&msg);
   return 0;
 
  err:
-  zmq_msg_close(&msg_cpy);
+  zmq_msg_close(&msg);
   return -1;
+}
+
+static ssize_t key_val_write(uint8_t *buf, size_t len,
+                             tsmq_client_key_t *key,
+                             tsmq_val_t value)
+{
+  tsmq_val_t nval;
+  uint16_t nkeylen;
+  size_t written = 0;
+
+  /* add the value to the buffer */
+  assert((len - written) > sizeof(tsmq_val_t));
+  nval = htonll(value);
+  memcpy(buf, &nval, sizeof(tsmq_val_t));
+  buf += sizeof(tsmq_val_t);
+  written += sizeof(tsmq_val_t);
+
+  /* add the length of the key */
+  assert((len - written) > sizeof(nkeylen));
+  nkeylen = htons(key->server_key_id_len);
+  memcpy(buf, &nkeylen, sizeof(nkeylen));
+  buf += sizeof(nkeylen);
+  written += sizeof(nkeylen);
+
+  /* add the key */
+  assert((len - written) > key->server_key_id_len);
+  memcpy(buf, key->server_key_id, key->server_key_id_len);
+  buf += key->server_key_id_len;
+  written += key->server_key_id_len;
+
+  return written;
 }
 
 /* ---------- PUBLIC FUNCTIONS BELOW HERE ---------- */
@@ -739,6 +753,8 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
 {
   tsmq_time_t ntime;
   uint32_t cnt = htonl(1);
+  uint8_t buf[BUFFER_LEN];
+  ssize_t written;
 
   /* payload structure will be:
      TIME          (4)
@@ -767,8 +783,16 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
         goto err;
       }
 
-    if(key_val_send(client, key, value) != 0)
+    if((written = key_val_write(buf, BUFFER_LEN, key, value)) < 0)
       {
+        goto err;
+      }
+
+    if(zmq_send(client->broker_socket, buf, written, ZMQ_SNDMORE)
+       != written)
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send single key/value");
         goto err;
       }
   }
@@ -798,6 +822,12 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
   tsmq_client_key_t *key_info = NULL;
   tsmq_time_t ntime;
   uint32_t key_cnt = timeseries_kp_enabled_size(kp);
+
+  /* buffer to hold batch of key/val messages */
+  uint8_t buf[BUFFER_LEN];
+  uint8_t *ptr = buf;
+  size_t written = 0;
+  ssize_t s = 0;
 
   if(key_cnt == 0)
     {
@@ -833,6 +863,9 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
         goto err;
       }
 
+    written = 0;
+    ptr = buf;
+
     TIMESERIES_KP_FOREACH_KI(kp, ki, id)
       {
         if(timeseries_kp_ki_enabled(ki) == 0)
@@ -843,11 +876,41 @@ int tsmq_client_key_set_bulk(tsmq_client_t *client,
           timeseries_kp_ki_get_backend_state(ki, TIMESERIES_BACKEND_ID_TSMQ);
         assert(key_info != NULL);
 
-        if(key_val_send(client, key_info, timeseries_kp_ki_get_value(ki)) != 0)
+        if((s = key_val_write(ptr, (BUFFER_LEN - written), key_info,
+                              timeseries_kp_ki_get_value(ki))) < 0)
           {
             goto err;
           }
+        written += s;
+        ptr += s;
+
+        /* send the buffer if it is full */
+        if(written > BUFFER_LEN/2)
+          {
+            if(zmq_send(client->broker_socket, buf, written, ZMQ_SNDMORE)
+               != written)
+              {
+                tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                             "Failed to send bulk key/value");
+                goto err;
+              }
+
+            written = 0;
+            ptr = buf;
+          }
       }
+
+    /* if the buffer has anything in it, send it now */
+    if(written > 0 &&
+       zmq_send(client->broker_socket, buf, written, ZMQ_SNDMORE)
+       != written)
+      {
+        tsmq_set_err(client->tsmq, TSMQ_ERR_MALLOC,
+                     "Failed to send bulk key/value");
+        goto err;
+      }
+    written = 0;
+    ptr = buf;
   }
   HANDLE_REQUEST_REPLY(TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK,
                        client->key_set_timeout);
@@ -877,8 +940,9 @@ void tsmq_client_key_free(tsmq_client_key_t **key_p)
       return;
     }
 
-  /*zmq_msg_close(&key->server_id);*/
-  zmq_msg_close(&key->server_key_id);
+  free(key->server_key_id);
+  key->server_key_id = NULL;
+  key->server_key_id_len = 0;
 
   free(key);
 
