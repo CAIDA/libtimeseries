@@ -52,6 +52,11 @@
 #include "timeseries_backend_tsmq.h"
 #endif
 
+/* Kafka */
+#ifdef WITH_KAFKA
+#include "timeseries_backend_kafka.h"
+#endif
+
 /* ========== PRIVATE DATA STRUCTURES/FUNCTIONS ========== */
 
 /** Convenience typedef for the backend alloc function type */
@@ -78,6 +83,14 @@ static const backend_alloc_func_t backend_alloc_functions[] = {
     otherwise a NULL pointer to indicate the backend is unavailable */
 #ifdef WITH_TSMQ
   timeseries_backend_tsmq_alloc,
+#else
+  NULL,
+#endif
+
+/** If we are building with Kafka support, point to the kafka alloc function,
+    otherwise a NULL pointer to indicate the backend is unavailable */
+#ifdef WITH_KAFKA
+    timeseries_backend_kafka_alloc,
 #else
   NULL,
 #endif

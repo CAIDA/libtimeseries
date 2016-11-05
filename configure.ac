@@ -141,6 +141,25 @@ AC_CHECK_LIB([czmq], [zctx_new], ,[AC_MSG_ERROR(
 AC_DEFINE([WITH_TSMQ],[1],[Building tsmq backend])
 fi
 
+# shall we build with support for kafka?
+AC_MSG_CHECKING([whether to build kafka backend])
+AC_ARG_WITH([kafka],
+	[AS_HELP_STRING([--without-kafka],
+	  [do not compile the kafka backend])],
+	  [],
+	  [with_kafka=yes])
+AC_MSG_RESULT([$with_kafka])
+
+AM_CONDITIONAL([WITH_KAFKA], [test "x$with_kafka" != xno])
+
+if test x"$with_kafka" = xyes; then
+AC_CHECK_LIB([rdkafka], [rd_kafka_query_watermark_offsets], ,
+               [AC_MSG_ERROR(
+                 [librdkafka is required for kafka (--without-kafka to disable)])])
+
+AC_DEFINE([WITH_KAFKA],[1],[Building kafka backend])
+fi
+
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h inttypes.h limits.h math.h stdlib.h string.h \
 			      time.h sys/time.h])

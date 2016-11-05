@@ -57,6 +57,13 @@ BACKEND_SRCS += \
 BACKEND_LIBS += $(top_builddir)/lib/backends/libtsmq/libtsmq.la
 endif
 
+# Kafka Backend
+if WITH_KAFKA
+BACKEND_SRCS += \
+	timeseries_backend_kafka.c \
+	timeseries_backend_kafka.h
+endif
+
 libtimeseries_backends_la_SOURCES = $(BACKEND_SRCS)
 
 libtimeseries_backends_la_LIBADD = $(BACKEND_LIBS)
