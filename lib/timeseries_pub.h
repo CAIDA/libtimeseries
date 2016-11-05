@@ -23,12 +23,11 @@
  *
  */
 
-
 #ifndef __TIMESERIES_PUB_H
 #define __TIMESERIES_PUB_H
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "timeseries_backend_pub.h"
 
@@ -90,22 +89,23 @@ void timeseries_free(timeseries_t **timeseries);
  *
  * To obtain a pointer to a backend, use the timeseries_get_backend_by_name or
  * timeseries_get_backend_by_id functions. To enumerate a list of available
- * backends, the timeseries_get_all_backends function can be used to get a list of
+ * backends, the timeseries_get_all_backends function can be used to get a list
+ * of
  * all backends and then timeseries_backend_get_name can be used on each to get
  * their name.
  */
 int timeseries_enable_backend(timeseries_backend_t *backend,
-			      const char *options);
+                              const char *options);
 
 /** Retrieve the backend object for the given backend ID
  *
- * @param timeseries    The timeseries object to retrieve the backend object from
+ * @param timeseries    The timeseries object to retrieve the backend object
+ * from
  * @param id            The backend ID to retrieve
  * @return the backend object for the given ID, NULL if there are no matches
  */
 timeseries_backend_t *timeseries_get_backend_by_id(timeseries_t *timeseries,
-						   timeseries_backend_id_t id);
-
+                                                   timeseries_backend_id_t id);
 
 /** Retrieve the backend id for the given backend name
  *
@@ -114,7 +114,7 @@ timeseries_backend_t *timeseries_get_backend_by_id(timeseries_t *timeseries,
  * @return the backend id for the given name, 0 if there are no matches
  */
 timeseries_backend_t *timeseries_get_backend_by_name(timeseries_t *timeseries,
-						     const char *name);
+                                                     const char *name);
 
 /** Get an array of available backends
  *
@@ -141,6 +141,6 @@ timeseries_backend_t **timeseries_get_all_backends(timeseries_t *timeseries);
  * Use with caution
  */
 int timeseries_set_single(timeseries_t *timeseries, const char *key,
-			  uint64_t value, uint32_t time);
+                          uint64_t value, uint32_t time);
 
 #endif /* __TIMESERIES_PUB_H */

@@ -23,12 +23,11 @@
  *
  */
 
-
 #ifndef __TIMESERIES_KP_PUB_H
 #define __TIMESERIES_KP_PUB_H
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "timeseries_pub.h"
 
@@ -54,7 +53,6 @@ typedef struct timeseries_kp timeseries_kp_t;
  * @name Public Data Structures
  *
  * @{ */
-
 
 /** @} */
 
@@ -110,7 +108,8 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key);
  *
  * @param kp            The Key Package to search
  * @param key           Pointer to a string key name to look for
- * @return the ID of the key (to be used with timeseries_kp_set) if it exists, -1 otherwise
+ * @return the ID of the key (to be used with timeseries_kp_set) if it exists,
+ * -1 otherwise
  */
 int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key);
 

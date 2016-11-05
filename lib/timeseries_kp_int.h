@@ -23,7 +23,6 @@
  *
  */
 
-
 #ifndef __TIMESERIES_KP_INT_H
 #define __TIMESERIES_KP_INT_H
 
@@ -56,12 +55,10 @@ typedef struct timeseries_kp_ki timeseries_kp_ki_t;
 
 /** @} */
 
-#define TIMESERIES_KP_FOREACH_KI(kp, ki, id)			\
-  int cnt = timeseries_kp_size(kp);				\
-  for(id=0, (ki=timeseries_kp_get_ki(kp, id));			\
-      id<cnt;                                                   \
-      id++, (ki=timeseries_kp_get_ki(kp, id)))
-
+#define TIMESERIES_KP_FOREACH_KI(kp, ki, id)                                   \
+  int cnt = timeseries_kp_size(kp);                                            \
+  for (id = 0, (ki = timeseries_kp_get_ki(kp, id)); id < cnt;                  \
+       id++, (ki = timeseries_kp_get_ki(kp, id)))
 
 /** Get the Key Info object with the given ID
  *
@@ -99,7 +96,7 @@ int timeseries_kp_ki_enabled(timeseries_kp_ki_t *ki);
  * @return pointer to the state for this backend/info pair
  */
 void *timeseries_kp_ki_get_backend_state(timeseries_kp_ki_t *ki,
-					 timeseries_backend_id_t id);
+                                         timeseries_backend_id_t id);
 
 /** Set the backend state of the given Key Info object
  *
@@ -108,8 +105,7 @@ void *timeseries_kp_ki_get_backend_state(timeseries_kp_ki_t *ki,
  * @param ki_state      pointer to the state to store in the KI object
  */
 void timeseries_kp_ki_set_backend_state(timeseries_kp_ki_t *ki,
-					timeseries_backend_id_t id,
-					void *ki_state);
-
+                                        timeseries_backend_id_t id,
+                                        void *ki_state);
 
 #endif /* __TIMESERIES_KP_INT_H */

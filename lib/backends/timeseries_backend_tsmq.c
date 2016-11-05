@@ -44,15 +44,12 @@
 
 #define BACKEND_NAME "tsmq"
 
-#define STATE(provname)				\
-  (TIMESERIES_BACKEND_STATE(tsmq, provname))
+#define STATE(provname) (TIMESERIES_BACKEND_STATE(tsmq, provname))
 
 /** The basic fields that every instance of this backend have in common */
 static timeseries_backend_t timeseries_backend_tsmq = {
-  TIMESERIES_BACKEND_ID_TSMQ,
-  BACKEND_NAME,
-  TIMESERIES_BACKEND_GENERATE_PTRS(tsmq)
-};
+  TIMESERIES_BACKEND_ID_TSMQ, BACKEND_NAME,
+  TIMESERIES_BACKEND_GENERATE_PTRS(tsmq)};
 
 /** Holds the state for an instance of this backend */
 typedef struct timeseries_backend_tsmq_state {
@@ -65,25 +62,21 @@ typedef struct timeseries_backend_tsmq_state {
 static void usage(timeseries_backend_t *backend)
 {
   fprintf(stderr,
-	  "backend usage: %s [<options>]\n"
-	  "       -b <broker-uri>      0MQ-style URI to connect to broker on\n"
-	  "                            (default: %s)\n"
-	  "       -r <retries>         Number of times to resend a request\n"
-	  "                            (default: %d)\n"
-	  "       -a <ack-timeout>     Time to wait for request ack\n"
+          "backend usage: %s [<options>]\n"
+          "       -b <broker-uri>      0MQ-style URI to connect to broker on\n"
+          "                            (default: %s)\n"
+          "       -r <retries>         Number of times to resend a request\n"
           "                            (default: %d)\n"
-	  "       -l <lookup-timeout>  Time to wait for key lookups\n"
+          "       -a <ack-timeout>     Time to wait for request ack\n"
+          "                            (default: %d)\n"
+          "       -l <lookup-timeout>  Time to wait for key lookups\n"
           "                            (default: %d)\n"
           "       -s <set-timeout>     Time to wait for key set\n"
           "                            (default: %d)\n",
-	  backend->name,
-	  TSMQ_CLIENT_BROKER_URI_DEFAULT,
-	  TSMQ_CLIENT_REQUEST_RETRIES,
-	  TSMQ_CLIENT_REQUEST_ACK_TIMEOUT,
-          TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT,
-          TSMQ_CLIENT_KEY_SET_TIMEOUT);
+          backend->name, TSMQ_CLIENT_BROKER_URI_DEFAULT,
+          TSMQ_CLIENT_REQUEST_RETRIES, TSMQ_CLIENT_REQUEST_ACK_TIMEOUT,
+          TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT, TSMQ_CLIENT_KEY_SET_TIMEOUT);
 }
-
 
 /** Parse the arguments given to the backend */
 static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
@@ -100,37 +93,35 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
   assert(state->client != NULL);
 
-  while((opt = getopt(argc, argv, ":b:r:a:l:s:?")) >= 0)
-    {
-      switch(opt)
-	{
-	case 'b':
-	  tsmq_client_set_broker_uri(state->client, optarg);
-	  break;
+  while ((opt = getopt(argc, argv, ":b:r:a:l:s:?")) >= 0) {
+    switch (opt) {
+    case 'b':
+      tsmq_client_set_broker_uri(state->client, optarg);
+      break;
 
-	case 'r':
-	  tsmq_client_set_request_retries(state->client, atoi(optarg));
-	  break;
+    case 'r':
+      tsmq_client_set_request_retries(state->client, atoi(optarg));
+      break;
 
-	case 'a':
-	  tsmq_client_set_request_ack_timeout(state->client, atoi(optarg));
-	  break;
+    case 'a':
+      tsmq_client_set_request_ack_timeout(state->client, atoi(optarg));
+      break;
 
-        case 'l':
-	  tsmq_client_set_key_lookup_timeout(state->client, atoi(optarg));
-	  break;
+    case 'l':
+      tsmq_client_set_key_lookup_timeout(state->client, atoi(optarg));
+      break;
 
-        case 's':
-	  tsmq_client_set_key_set_timeout(state->client, atoi(optarg));
-	  break;
+    case 's':
+      tsmq_client_set_key_set_timeout(state->client, atoi(optarg));
+      break;
 
-	case '?':
-	case ':':
-	default:
-	  usage(backend);
-	  return -1;
-	}
+    case '?':
+    case ':':
+    default:
+      usage(backend);
+      return -1;
     }
+  }
 
   return 0;
 }
@@ -142,39 +133,34 @@ timeseries_backend_t *timeseries_backend_tsmq_alloc()
   return &timeseries_backend_tsmq;
 }
 
-int timeseries_backend_tsmq_init(timeseries_backend_t *backend,
-				 int argc, char ** argv)
+int timeseries_backend_tsmq_init(timeseries_backend_t *backend, int argc,
+                                 char **argv)
 {
   timeseries_backend_tsmq_state_t *state;
 
   /* allocate our state */
-  if((state = malloc_zero(sizeof(timeseries_backend_tsmq_state_t)))
-     == NULL)
-    {
-      timeseries_log(__func__,
-		  "could not malloc timeseries_backend_tsmq_state_t");
-      return -1;
-    }
+  if ((state = malloc_zero(sizeof(timeseries_backend_tsmq_state_t))) == NULL) {
+    timeseries_log(__func__,
+                   "could not malloc timeseries_backend_tsmq_state_t");
+    return -1;
+  }
   timeseries_backend_register_state(backend, state);
 
   /* create a tsmq client instance (MUST be init before parse_args) */
-  if((state->client = tsmq_client_init()) == NULL)
-    {
-      timeseries_log(__func__, "could not init tsmq client");
-      return -1;
-    }
+  if ((state->client = tsmq_client_init()) == NULL) {
+    timeseries_log(__func__, "could not init tsmq client");
+    return -1;
+  }
 
   /* parse the command line args */
-  if(parse_args(backend, argc, argv) != 0)
-    {
-      return -1;
-    }
+  if (parse_args(backend, argc, argv) != 0) {
+    return -1;
+  }
 
-  if(tsmq_client_start(state->client) != 0)
-    {
-      tsmq_client_perr(state->client);
-      return -1;
-    }
+  if (tsmq_client_start(state->client) != 0) {
+    tsmq_client_perr(state->client);
+    return -1;
+  }
 
   /* ready to rock n roll */
 
@@ -184,18 +170,16 @@ int timeseries_backend_tsmq_init(timeseries_backend_t *backend,
 void timeseries_backend_tsmq_free(timeseries_backend_t *backend)
 {
   timeseries_backend_tsmq_state_t *state = STATE(backend);
-  if(state != NULL)
-    {
-      tsmq_client_free(&state->client);
+  if (state != NULL) {
+    tsmq_client_free(&state->client);
 
-      timeseries_backend_free_state(backend);
-    }
+    timeseries_backend_free_state(backend);
+  }
   return;
 }
 
 int timeseries_backend_tsmq_kp_init(timeseries_backend_t *backend,
-				    timeseries_kp_t *kp,
-				    void **kp_state_p)
+                                    timeseries_kp_t *kp, void **kp_state_p)
 {
   /* we don't need any kp-specific state */
   assert(kp_state_p != NULL);
@@ -204,8 +188,7 @@ int timeseries_backend_tsmq_kp_init(timeseries_backend_t *backend,
 }
 
 void timeseries_backend_tsmq_kp_free(timeseries_backend_t *backend,
-				     timeseries_kp_t *kp,
-				     void *kp_state)
+                                     timeseries_kp_t *kp, void *kp_state)
 {
   /* we stored no state in the kp */
   assert(kp_state == NULL);
@@ -213,73 +196,66 @@ void timeseries_backend_tsmq_kp_free(timeseries_backend_t *backend,
 }
 
 int timeseries_backend_tsmq_kp_ki_update(timeseries_backend_t *backend,
-					 timeseries_kp_t *kp)
+                                         timeseries_kp_t *kp)
 {
   timeseries_backend_tsmq_state_t *state = STATE(backend);
 
-  if(tsmq_client_key_lookup_bulk(state->client, kp, 0) != 0)
-    {
-      tsmq_client_perr(state->client);
-      return -1;
-    }
+  if (tsmq_client_key_lookup_bulk(state->client, kp, 0) != 0) {
+    tsmq_client_perr(state->client);
+    return -1;
+  }
 
   return 0;
 }
 
 void timeseries_backend_tsmq_kp_ki_free(timeseries_backend_t *backend,
-                                       timeseries_kp_t *kp,
-				       timeseries_kp_ki_t *ki,
-                                       void *ki_state)
+                                        timeseries_kp_t *kp,
+                                        timeseries_kp_ki_t *ki, void *ki_state)
 {
-  tsmq_client_key_t *tsmq_key = (tsmq_client_key_t*)ki_state;
+  tsmq_client_key_t *tsmq_key = (tsmq_client_key_t *)ki_state;
   tsmq_client_key_free(&tsmq_key);
   return;
 }
 
 int timeseries_backend_tsmq_kp_flush(timeseries_backend_t *backend,
-				      timeseries_kp_t *kp,
-				      uint32_t time)
+                                     timeseries_kp_t *kp, uint32_t time)
 {
   timeseries_backend_tsmq_state_t *state = STATE(backend);
 
-  if(tsmq_client_key_set_bulk(state->client, kp, time) != 0)
-    {
-      tsmq_client_perr(state->client);
-      return -1;
-    }
+  if (tsmq_client_key_set_bulk(state->client, kp, time) != 0) {
+    tsmq_client_perr(state->client);
+    return -1;
+  }
 
   return 0;
 }
 
 int timeseries_backend_tsmq_set_single(timeseries_backend_t *backend,
-					const char *key,
-					uint64_t value,
-					uint32_t time)
+                                       const char *key, uint64_t value,
+                                       uint32_t time)
 {
   timeseries_backend_tsmq_state_t *state = STATE(backend);
 
   int rc;
   tsmq_client_key_t *ck = NULL;
 
-  if((ck = tsmq_client_key_lookup(state->client, key)) == NULL)
-    {
-      return -1;
-    }
+  if ((ck = tsmq_client_key_lookup(state->client, key)) == NULL) {
+    return -1;
+  }
 
   rc = tsmq_client_key_set_single(state->client, ck, value, time);
 
-  if(tsmq_client_is_err(state->client) != 0)
-    {
-      tsmq_client_perr(state->client);
-    }
+  if (tsmq_client_is_err(state->client) != 0) {
+    tsmq_client_perr(state->client);
+  }
 
   tsmq_client_key_free(&ck);
   return rc;
 }
 
 int timeseries_backend_tsmq_set_single_by_id(timeseries_backend_t *backend,
-                                              uint8_t *id, size_t id_len,
-                                              uint64_t value, uint32_t time)
+                                             uint8_t *id, size_t id_len,
+                                             uint64_t value, uint32_t time)
 {
   /* this would happen when chaining tsmq instances.
      think some more about what this means */
@@ -307,20 +283,17 @@ int timeseries_backend_tsmq_set_bulk_by_id(timeseries_backend_t *backend,
 }
 
 size_t timeseries_backend_tsmq_resolve_key(timeseries_backend_t *backend,
-                                            const char *key,
-                                            uint8_t **backend_key)
+                                           const char *key,
+                                           uint8_t **backend_key)
 {
   /* as with above */
   assert(0 && "unimplemented");
   return -1;
 }
 
-int timeseries_backend_tsmq_resolve_key_bulk(timeseries_backend_t *backend,
-                                             uint32_t keys_cnt,
-                                             const char * const *keys,
-                                             uint8_t **backend_keys,
-                                             size_t *backend_key_lens,
-                                             int *contig_alloc)
+int timeseries_backend_tsmq_resolve_key_bulk(
+  timeseries_backend_t *backend, uint32_t keys_cnt, const char *const *keys,
+  uint8_t **backend_keys, size_t *backend_key_lens, int *contig_alloc)
 {
   /* as with above */
   assert(0 && "unimplemented");

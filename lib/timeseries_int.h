@@ -23,7 +23,6 @@
  *
  */
 
-
 #ifndef __TIMESERIES_INT_H
 #define __TIMESERIES_INT_H
 
@@ -42,14 +41,14 @@
 
 /* Provides a way for internal classes to iterate over the set of possible
    enabled backend IDs */
-#define TIMESERIES_FOREACH_BACKEND_ID(id)					\
-  for(id = TIMESERIES_BACKEND_ID_FIRST; id <= TIMESERIES_BACKEND_ID_LAST; id++)
+#define TIMESERIES_FOREACH_BACKEND_ID(id)                                      \
+  for (id = TIMESERIES_BACKEND_ID_FIRST; id <= TIMESERIES_BACKEND_ID_LAST; id++)
 
-#define TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)	\
-  TIMESERIES_FOREACH_BACKEND_ID(id)					\
-  if((backend = timeseries_get_backend_by_id(timeseries, id)) == NULL || \
-     timeseries_backend_is_enabled(backend) == 0)			\
-    continue;								\
+#define TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)            \
+  TIMESERIES_FOREACH_BACKEND_ID(id)                                            \
+  if ((backend = timeseries_get_backend_by_id(timeseries, id)) == NULL ||      \
+      timeseries_backend_is_enabled(backend) == 0)                             \
+    continue;                                                                  \
   else
 
 /**
@@ -59,7 +58,6 @@
  * be exposed as opaque structures by libtimeseries.h (e.g timeseries_t)
  *
  * @{ */
-
 
 /** @} */
 

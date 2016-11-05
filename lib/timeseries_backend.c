@@ -34,8 +34,8 @@
 #include "utils.h"
 
 #include "timeseries_backend_int.h" /* timeseries_backend_t */
-#include "timeseries_pub.h" /* timeseries_t */
-#include "timeseries_log_int.h" /* timeseries_log */
+#include "timeseries_log_int.h"     /* timeseries_log */
+#include "timeseries_pub.h"         /* timeseries_t */
 
 /* now include the backends */
 
@@ -55,7 +55,7 @@
 /* ========== PRIVATE DATA STRUCTURES/FUNCTIONS ========== */
 
 /** Convenience typedef for the backend alloc function type */
-typedef timeseries_backend_t* (*backend_alloc_func_t)();
+typedef timeseries_backend_t *(*backend_alloc_func_t)();
 
 /** Array of backend allocation functions.
  *
@@ -66,16 +66,16 @@ static const backend_alloc_func_t backend_alloc_functions[] = {
   /** Pointer to ASCII backend alloc function */
   timeseries_backend_ascii_alloc,
 
-  /** If we are building with DBATS support, point to the dbats alloc function,
-      otherwise a NULL pointer to indicate the backend is unavailable */
+/** If we are building with DBATS support, point to the dbats alloc function,
+    otherwise a NULL pointer to indicate the backend is unavailable */
 #ifdef WITH_DBATS
   timeseries_backend_dbats_alloc,
 #else
   NULL,
 #endif
 
-  /** If we are building with TSMQ support, point to the tsmq alloc function,
-      otherwise a NULL pointer to indicate the backend is unavailable */
+/** If we are building with TSMQ support, point to the tsmq alloc function,
+    otherwise a NULL pointer to indicate the backend is unavailable */
 #ifdef WITH_TSMQ
   timeseries_backend_tsmq_alloc,
 #else
@@ -84,8 +84,6 @@ static const backend_alloc_func_t backend_alloc_functions[] = {
 
 };
 
-
-
 /* ========== PROTECTED FUNCTIONS ========== */
 
 timeseries_backend_t *timeseries_backend_alloc(timeseries_backend_id_t id)
@@ -93,54 +91,48 @@ timeseries_backend_t *timeseries_backend_alloc(timeseries_backend_id_t id)
   timeseries_backend_t *backend;
   assert(ARR_CNT(backend_alloc_functions) == TIMESERIES_BACKEND_ID_LAST);
 
-  if(backend_alloc_functions[id-1] == NULL)
-    {
-      return NULL;
-    }
+  if (backend_alloc_functions[id - 1] == NULL) {
+    return NULL;
+  }
 
   /* first, create the struct */
-  if((backend = malloc_zero(sizeof(timeseries_backend_t))) == NULL)
-    {
-      timeseries_log(__func__, "could not malloc timeseries_backend_t");
-      return NULL;
-    }
+  if ((backend = malloc_zero(sizeof(timeseries_backend_t))) == NULL) {
+    timeseries_log(__func__, "could not malloc timeseries_backend_t");
+    return NULL;
+  }
 
   /* get the core backend details (id, name) from the backend plugin */
-  memcpy(backend,
-	 backend_alloc_functions[id-1](),
-	 sizeof(timeseries_backend_t));
+  memcpy(backend, backend_alloc_functions[id - 1](),
+         sizeof(timeseries_backend_t));
 
   return backend;
 }
 
-int timeseries_backend_init(timeseries_backend_t *backend,
-			    int argc, char **argv)
+int timeseries_backend_init(timeseries_backend_t *backend, int argc,
+                            char **argv)
 {
   assert(backend != NULL);
 
   /* if it has already been initialized, then we simply return */
-  if(backend->enabled != 0)
-    {
-      timeseries_log(__func__,
-		 "WARNING: backend (%s) is already initialized, "
-		 "ignoring new settings", backend->name);
-      return 0;
-    }
+  if (backend->enabled != 0) {
+    timeseries_log(__func__, "WARNING: backend (%s) is already initialized, "
+                             "ignoring new settings",
+                   backend->name);
+    return 0;
+  }
 
   /* otherwise, we need to init this plugin */
 
   /* ask the backend to initialize. this will normally mean that it connects to
      some database and prepares state */
-  if(backend->init(backend, argc, argv) != 0)
-    {
-      return -1;
-    }
+  if (backend->init(backend, argc, argv) != 0) {
+    return -1;
+  }
 
   backend->enabled = 1;
 
   return 0;
 }
-
 
 void timeseries_backend_free(timeseries_backend_t **backend_p)
 {
@@ -148,17 +140,15 @@ void timeseries_backend_free(timeseries_backend_t **backend_p)
   timeseries_backend_t *backend = *backend_p;
   *backend_p = NULL;
 
-  if(backend == NULL)
-    {
-      return;
-    }
+  if (backend == NULL) {
+    return;
+  }
 
   /* only free everything if we were enabled */
-  if(backend->enabled != 0)
-    {
-      /* ask the backend to free it's own state */
-      backend->free(backend);
-    }
+  if (backend->enabled != 0) {
+    /* ask the backend to free it's own state */
+    backend->free(backend);
+  }
 
   /* finally, free the actual backend structure */
   free(backend);
@@ -167,7 +157,7 @@ void timeseries_backend_free(timeseries_backend_t **backend_p)
 }
 
 void timeseries_backend_register_state(timeseries_backend_t *backend,
-				       void *state)
+                                       void *state)
 {
   assert(backend != NULL);
   assert(state != NULL);
@@ -191,8 +181,8 @@ inline int timeseries_backend_is_enabled(timeseries_backend_t *backend)
   return backend->enabled;
 }
 
-inline timeseries_backend_id_t timeseries_backend_get_id(
-					      timeseries_backend_t *backend)
+inline timeseries_backend_id_t
+timeseries_backend_get_id(timeseries_backend_t *backend)
 {
   assert(backend != NULL);
 
@@ -205,5 +195,3 @@ inline const char *timeseries_backend_get_name(timeseries_backend_t *backend)
 
   return backend->name;
 }
-
-

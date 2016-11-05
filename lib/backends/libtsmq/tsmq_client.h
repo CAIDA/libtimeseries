@@ -52,17 +52,17 @@
  * request". It should normally be super fast, but just in case the broker takes
  * a while to receive the request, we set it to 1 min.
  */
-#define TSMQ_CLIENT_REQUEST_ACK_TIMEOUT (60*1000)
+#define TSMQ_CLIENT_REQUEST_ACK_TIMEOUT (60 * 1000)
 
 /** Default the client key lookup timeout to 30 mins (this can take a *long*
  * time if there are a lot of keys and if the server is busy
  */
-#define TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT (30*60*1000)
+#define TSMQ_CLIENT_KEY_LOOKUP_TIMEOUT (30 * 60 * 1000)
 
 /** Default the client key set timeout to 2 minutes. This is probably much too
  * long, but this timer only kicks in once the request ack has been received.
  */
-#define TSMQ_CLIENT_KEY_SET_TIMEOUT (2*60*1000)
+#define TSMQ_CLIENT_KEY_SET_TIMEOUT (2 * 60 * 1000)
 
 /** Default the client request retry count to 3 */
 #define TSMQ_CLIENT_REQUEST_RETRIES 3
@@ -151,8 +151,7 @@ void tsmq_client_set_key_set_timeout(tsmq_client_t *client,
  *
  * @note defaults to TSMQ_CLIENT_REQUEST_RETRIES
  */
-void tsmq_client_set_request_retries(tsmq_client_t *client,
-				     int retry_cnt);
+void tsmq_client_set_request_retries(tsmq_client_t *client, int retry_cnt);
 
 /** Given an array of bytes that represent a metric key (probably a string),
  *  issue a request to find the appropriate server and corresponding key id.
@@ -166,7 +165,7 @@ void tsmq_client_set_request_retries(tsmq_client_t *client,
  * backend server based on the backend id in this structure.
  */
 tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
-					  const char *key);
+                                          const char *key);
 
 /** Given an key package, issue a request to resolve string keys to
  * backend-specific ids.
@@ -177,8 +176,7 @@ tsmq_client_key_t *tsmq_client_key_lookup(tsmq_client_t *client,
  *                      are already resolved
  * @return 0 if all keys were resolved successfully, -1 otherwise
  */
-int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
-                                timeseries_kp_t *kp,
+int tsmq_client_key_lookup_bulk(tsmq_client_t *client, timeseries_kp_t *kp,
                                 int force);
 
 /** Write the value for a single key to the database(s)
@@ -189,9 +187,8 @@ int tsmq_client_key_lookup_bulk(tsmq_client_t *client,
  * @param time          time slot to set value for
  * @return 0 if the command was successfully queued, -1 otherwise
  */
-int tsmq_client_key_set_single(tsmq_client_t *client,
-			       tsmq_client_key_t *key,
-			       tsmq_val_t value, tsmq_time_t time);
+int tsmq_client_key_set_single(tsmq_client_t *client, tsmq_client_key_t *key,
+                               tsmq_val_t value, tsmq_time_t time);
 
 /** Write the values for the given Key Package to the database
  *
@@ -200,8 +197,7 @@ int tsmq_client_key_set_single(tsmq_client_t *client,
  * @param time          time to set values for
  * @return 0 if the command was successfully queued, -1 otherwise
  */
-int tsmq_client_key_set_bulk(tsmq_client_t *client,
-                             timeseries_kp_t *kp,
+int tsmq_client_key_set_bulk(tsmq_client_t *client, timeseries_kp_t *kp,
                              tsmq_time_t time);
 
 /** Free a key info structure
@@ -216,9 +212,3 @@ TSMQ_ERR_PROTOS(client)
 /** @} */
 
 #endif /* __TSMQ_CLIENT_H */
-
-
-
-
-
-
