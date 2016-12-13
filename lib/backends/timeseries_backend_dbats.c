@@ -588,6 +588,9 @@ int timeseries_backend_dbats_resolve_key_bulk(timeseries_backend_t *backend,
   uint32_t *dbats_ids = NULL;
   uint32_t dbats_keys_cnt = keys_cnt;
 
+  int retries = 60; // hax until we get deadlock retries into DBATS
+  int rc;
+
   /** allocate an array of uint32s to store the result from dbats */
   if((dbats_ids = malloc(sizeof(uint32_t)*keys_cnt)) == NULL)
     {
@@ -596,12 +599,26 @@ int timeseries_backend_dbats_resolve_key_bulk(timeseries_backend_t *backend,
     }
 
   /* ask dbats to do the lookup */
-  if(dbats_bulk_get_key_id(state->dbats_handler, NULL, &dbats_keys_cnt, keys,
-                           dbats_ids, DBATS_CREATE) != 0)
-    {
-      timeseries_log(__func__, "Could not resolve DBATS key IDs");
-      return -1;
-    }
+  do {
+    rc = dbats_bulk_get_key_id(state->dbats_handler, NULL, &dbats_keys_cnt, keys,
+                             dbats_ids, DBATS_CREATE);
+    if(rc != 0)
+      {
+        retries--;
+        if(retries == 0)
+          {
+            timeseries_log(__func__,
+                           "Could not resolve DBATS key IDs after 60 retries");
+            return -1;
+          }
+        else
+          {
+            timeseries_log(__func__,
+                           "Retrying key lookup for %"PRIu32" keys");
+          }
+      }
+  } while (rc != 0);
+
   assert(dbats_keys_cnt == keys_cnt);
 
   for(i=0; i<keys_cnt; i++)
