@@ -45,31 +45,40 @@
 
 #define BACKEND_NAME "kafka"
 
-#define DEFAULT_COMPRESS_LEVEL 6
+#define DEFAULT_TOPIC "tsk-production"
+
+/** 32K buffer. Approx half will be used, hence the x2 */
+#define BUFFER_LEN ((1024 * 32) * 2)
 
 #define STATE(provname) (TIMESERIES_BACKEND_STATE(kafka, provname))
 
 /** The basic fields that every instance of this backend have in common */
 static timeseries_backend_t timeseries_backend_kafka = {
-  TIMESERIES_BACKEND_ID_KAFKA, BACKEND_NAME,
-  TIMESERIES_BACKEND_GENERATE_PTRS(kafka)};
+  TIMESERIES_BACKEND_ID_KAFKA, //
+  BACKEND_NAME, //
+  TIMESERIES_BACKEND_GENERATE_PTRS(kafka) //
+};
 
 /** Holds the state for an instance of this backend */
 typedef struct timeseries_backend_kafka_state {
-  /** The filename to write metrics out to */
-  char *kafka_file;
 
-  /** A wandio output file pointer to write metrics to */
-  iow_t *outfile;
+  /** Comma-separated list of Kafka brokers to connect to */
+  char *broker_uri;
 
-  /** The compression level to use of the outfile is compressed */
-  int compress_level;
+  /** Name of the channel (DBATS server) to publish metrics to */
+  char *channel_name;
+
+  /** Name of the kafka topic to produce to */
+  char *topic_name;
+
+  /** Reusable message buffer */
+  uint8_t buffer[BUFFER_LEN];
+
+  /** Number of bytes written to the buffer */
+  int buffer_written;
 
   /** The number of values received for the current bulk set */
   uint32_t bulk_cnt;
-
-  /** The time for the current bulk set */
-  uint32_t bulk_time;
 
   /** The expected number of values in the current bulk set */
   uint32_t bulk_expect;
@@ -80,10 +89,12 @@ typedef struct timeseries_backend_kafka_state {
 static void usage(timeseries_backend_t *backend)
 {
   fprintf(stderr,
-          "backend usage: %s [-c compress-level] [-f output-file]\n"
-          "       -c <level>    output compression level to use (default: %d)\n"
-          "       -f            file to write KAFKA timeseries metrics to\n",
-          backend->name, DEFAULT_COMPRESS_LEVEL);
+          "backend usage: %s [-p topic] -b broker-uri -c channel \n"
+          "       -b <broker-uri>    kafka broker URI (required)\n"
+          "       -c <channel>       metric channel to publish to (required)\n"
+          "       -p <topic>         topic to use produce to (default: %s)\n",
+          backend->name, //
+          DEFAULT_TOPIC);
 }
 
 /** Parse the arguments given to the backend */
@@ -99,14 +110,18 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
   /* remember the argv strings DO NOT belong to us */
 
-  while ((opt = getopt(argc, argv, ":c:f:?")) >= 0) {
+  while ((opt = getopt(argc, argv, ":b:c:p:?")) >= 0) {
     switch (opt) {
-    case 'c':
-      state->compress_level = atoi(optarg);
+    case 'b':
+      state->broker_uri = strdup(optarg);
       break;
 
-    case 'f':
-      state->kafka_file = strdup(optarg);
+    case 'c':
+      state->channel_name = strdup(optarg);
+      break;
+
+    case 'p':
+      state->topic_name = strdup(optarg);
       break;
 
     case '?':
@@ -117,23 +132,17 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
     }
   }
 
-  /*
-   * TODO:
-   *  - topic prefix (default: ???)
-   *  - channel??? (i.e. the server to send metrics to)
-   *    prefix + channel = kafka topic
-   *
-   *  - brokers uri
-   *
-   *  - connect to kafka
-   *
-   *  - set_single, send single datapoint as message (but same format as bulk)
-   *  - set_bulk, serialize kp into single* message
-   *    * use standard message batching to split big KPs
-   *
-   *  - header: channel, key count (for x-check), time
-   *  - row: key (in ascii), value
-   */
+  if (state->broker_uri == NULL) {
+    fprintf(stderr, "ERROR: Kafka Broker URI(s) must be specified using -b\n");
+    usage(backend);
+    return -1;
+  }
+
+  if (state->channel_name == NULL) {
+    fprintf(stderr, "ERROR: Metric channel name must be specified using -c\n");
+    usage(backend);
+    return -1;
+  }
 
   return 0;
 }
@@ -158,23 +167,13 @@ int timeseries_backend_kafka_init(timeseries_backend_t *backend, int argc,
   }
   timeseries_backend_register_state(backend, state);
 
-  /* set initial default values (that can be overridden on the command line) */
-  state->compress_level = DEFAULT_COMPRESS_LEVEL;
-
   /* parse the command line args */
   if (parse_args(backend, argc, argv) != 0) {
     return -1;
   }
 
-  /* if specified, open the output file */
-  if (state->kafka_file != NULL &&
-      (state->outfile = wandio_wcreate(
-         state->kafka_file, wandio_detect_compression_type(state->kafka_file),
-         state->compress_level, O_CREAT)) == NULL) {
-    timeseries_log(__func__, "failed to open output file '%s'",
-                   state->kafka_file);
-    return -1;
-  }
+  /* connect to kafka and create producer */
+  /* TODO */
 
   /* ready to rock n roll */
 
@@ -184,19 +183,21 @@ int timeseries_backend_kafka_init(timeseries_backend_t *backend, int argc,
 void timeseries_backend_kafka_free(timeseries_backend_t *backend)
 {
   timeseries_backend_kafka_state_t *state = STATE(backend);
-  if (state != NULL) {
-    if (state->kafka_file != NULL) {
-      free(state->kafka_file);
-      state->kafka_file = NULL;
-    }
 
-    if (state->outfile != NULL) {
-      wandio_wdestroy(state->outfile);
-      state->outfile = NULL;
-    }
-
-    timeseries_backend_free_state(backend);
+  if (state == NULL) {
+    return;
   }
+
+  free(state->broker_uri);
+  state->broker_uri = NULL;
+
+  free(state->channel_name);
+  state->channel_name = NULL;
+
+  free(state->topic_name);
+  state->topic_name = NULL;
+
+  timeseries_backend_free_state(backend);
   return;
 }
 
@@ -240,19 +241,18 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
   timeseries_kp_ki_t *ki = NULL;
   int id;
 
-  /* there are at most 10 digits in a 32bit unix time value, plus the nul */
-  char time_buffer[11];
-
-  /* we really only need to convert the time value to a string once */
-  snprintf(time_buffer, 11, "%" PRIu32, time);
+  /* TODO: produce the header into a buffer */
 
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
   {
-    if (timeseries_kp_ki_enabled(ki) != 0) {
-      DUMP_METRIC(state, timeseries_kp_ki_get_key(ki),
-                  timeseries_kp_ki_get_value(ki), time_buffer);
+    if (timeseries_kp_ki_enabled(ki) == 0) {
+      continue;
     }
+    /* TODO: append timeseries_kp_ki_get_key(ki), timeseries_kp_ki_get_value(ki)
+       to the buffer */
   }
+
+  /* TODO: send the last buf */
 
   return 0;
 }
@@ -263,13 +263,9 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
 {
   timeseries_backend_kafka_state_t *state = STATE(backend);
 
-  /* there are at most 10 digits in a 32bit unix time value, plus the nul */
-  char time_buffer[11];
-
-  /* we really only need to convert the time value to a string once */
-  snprintf(time_buffer, 11, "%" PRIu32, time);
-
-  DUMP_METRIC(state, key, value, time_buffer);
+  /* TODO: produce header into a buffer */
+  /* TODO: append key/val to the buffer */
+  /* TODO: send the message */
   return 0;
 }
 
@@ -288,7 +284,9 @@ int timeseries_backend_kafka_set_bulk_init(timeseries_backend_t *backend,
 
   assert(state->bulk_expect == 0 && state->bulk_cnt == 0);
   state->bulk_expect = key_cnt;
-  state->bulk_time = time;
+
+  /* TODO: produce header into a buffer */
+
   return 0;
 }
 
@@ -299,15 +297,13 @@ int timeseries_backend_kafka_set_bulk_by_id(timeseries_backend_t *backend,
   timeseries_backend_kafka_state_t *state = STATE(backend);
   assert(state->bulk_expect > 0);
 
-  if (timeseries_backend_kafka_set_single_by_id(backend, id, id_len, value,
-                                                state->bulk_time) != 0) {
-    return -1;
-  }
+  /* TODO: produce key/val into buffer */
 
   if (++state->bulk_cnt == state->bulk_expect) {
     state->bulk_cnt = 0;
-    state->bulk_time = 0;
     state->bulk_expect = 0;
+
+    /* flush the buffer */
   }
   return 0;
 }
