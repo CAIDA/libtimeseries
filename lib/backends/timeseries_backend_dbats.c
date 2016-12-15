@@ -600,8 +600,9 @@ int timeseries_backend_dbats_resolve_key_bulk(timeseries_backend_t *backend,
 
   /* ask dbats to do the lookup */
   do {
+    dbats_keys_cnt = keys_cnt; /* reset the number of keys to resolve */
     rc = dbats_bulk_get_key_id(state->dbats_handler, NULL, &dbats_keys_cnt, keys,
-                             dbats_ids, DBATS_CREATE);
+                               dbats_ids, DBATS_CREATE);
     if(rc != 0)
       {
         retries--;
@@ -614,7 +615,8 @@ int timeseries_backend_dbats_resolve_key_bulk(timeseries_backend_t *backend,
         else
           {
             timeseries_log(__func__,
-                           "Retrying key lookup for %"PRIu32" keys");
+                           "Retrying key lookup for %"PRIu32" keys",
+                           dbats_keys_cnt);
           }
       }
   } while (rc != 0);
