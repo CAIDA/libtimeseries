@@ -24,20 +24,18 @@
  */
 
 #include "config.h"
-
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <librdkafka/rdkafka.h>
 #include <wandio.h>
-
 #include "utils.h"
 #include "wandio_utils.h"
-
 #include "timeseries_backend_int.h"
 #include "timeseries_kp_int.h"
 #include "timeseries_log_int.h"
@@ -47,10 +45,65 @@
 
 #define DEFAULT_TOPIC "tsk-production"
 
+#define DEFAULT_PARTITION 0
+
+#define CONNECT_MAX_RETRIES 8
+
 /** 32K buffer. Approx half will be used, hence the x2 */
 #define BUFFER_LEN ((1024 * 32) * 2)
 
+#define IDENTITY_MAX_LEN 1024
+
 #define STATE(provname) (TIMESERIES_BACKEND_STATE(kafka, provname))
+
+#define SERIALIZE_VAL(buf, len, written, from)                          \
+  do {                                                                  \
+    size_t s;                                                           \
+    assert(((len) - (written)) >= sizeof((from)));                      \
+    memcpy((buf), &(from), sizeof(from));                               \
+    s = sizeof(from);                                                   \
+    written += s;                                                       \
+    buf += s;                                                           \
+  } while (0)
+
+#define SEND_MSG(partition, buf, len)                                \
+  do {                                                                         \
+    int success = 0;                                                           \
+    while (success == 0) {                                                     \
+      if (rd_kafka_produce(state->rkt, (partition), RD_KAFKA_MSG_F_COPY,    \
+                           (buf), (len), NULL, 0, NULL) == -1) {               \
+        if (rd_kafka_errno2err(errno) == RD_KAFKA_RESP_ERR__QUEUE_FULL) {      \
+          timeseries_log(__func__, "WARN: producer queue full, retrying...\n"); \
+          if (sleep(1) != 0) {                                                 \
+            goto err;                                                          \
+          }                                                                    \
+        } else {                                                               \
+          timeseries_log(__func__,                                      \
+                         "ERROR: Failed to produce to topic %s partition %i: %s\n", \
+                         rd_kafka_topic_name(state->rkt), (partition),  \
+                         rd_kafka_err2str(rd_kafka_errno2err(errno)));  \
+          rd_kafka_poll(state->rdk_conn, 0);                            \
+          goto err;                                                            \
+        }                                                                      \
+      } else {                                                                 \
+        success = 1;                                                           \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
+#define RESET_BUF(buf, ptr, written)                                           \
+  do {                                                                         \
+    (ptr) = (buf);                                                             \
+    (written) = 0;                                                             \
+  } while (0)
+
+#define SEND_IF_FULL(partition, buf, written, ptr, len)                 \
+  do {                                                                  \
+    if (written > ((len) / 2)) {                                        \
+      SEND_MSG(partition, buf, written);                                \
+      RESET_BUF(buf, ptr, written);                                     \
+    }                                                                   \
+  } while (0)
 
 /** The basic fields that every instance of this backend have in common */
 static timeseries_backend_t timeseries_backend_kafka = {
@@ -69,7 +122,7 @@ typedef struct timeseries_backend_kafka_state {
   char *channel_name;
 
   /** Name of the kafka topic to produce to */
-  char *topic_name;
+  char *topic_prefix;
 
   /** Reusable message buffer */
   uint8_t buffer[BUFFER_LEN];
@@ -83,6 +136,23 @@ typedef struct timeseries_backend_kafka_state {
   /** The expected number of values in the current bulk set */
   uint32_t bulk_expect;
 
+  /* Kafka connection state: */
+
+  /** Are we connected to Kafka? */
+  int connected;
+
+  /** Have we encountered a fatal error? */
+  int fatal_error;
+
+  /** RD Kafka connection handle */
+  rd_kafka_t *rdk_conn;
+
+  /** Fully-qualified name of the topic (<topic_prefix>.<channel_name>) */
+  char topic_name[IDENTITY_MAX_LEN];
+
+  /** RD Kafka topic handle */
+  rd_kafka_topic_t *rkt;
+
 } timeseries_backend_kafka_state_t;
 
 /** Print usage information to stderr */
@@ -92,7 +162,7 @@ static void usage(timeseries_backend_t *backend)
           "backend usage: %s [-p topic] -b broker-uri -c channel \n"
           "       -b <broker-uri>    kafka broker URI (required)\n"
           "       -c <channel>       metric channel to publish to (required)\n"
-          "       -p <topic>         topic to use produce to (default: %s)\n",
+          "       -p <topic-prefix>  topic prefix to use (default: %s)\n",
           backend->name, //
           DEFAULT_TOPIC);
 }
@@ -121,7 +191,7 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
       break;
 
     case 'p':
-      state->topic_name = strdup(optarg);
+      state->topic_prefix = strdup(optarg);
       break;
 
     case '?':
@@ -145,6 +215,222 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
   }
 
   return 0;
+}
+
+static void kafka_error_callback(rd_kafka_t *rk, int err, const char *reason,
+                                 void *opaque)
+{
+  timeseries_backend_t *backend = (timeseries_backend_t *)opaque;
+
+  switch (err) {
+  // fatal errors:
+  case RD_KAFKA_RESP_ERR__BAD_COMPRESSION:
+  case RD_KAFKA_RESP_ERR__RESOLVE:
+    STATE(backend)->fatal_error = 1;
+  // fall through
+
+  // recoverable? errors:
+  case RD_KAFKA_RESP_ERR__DESTROY:
+  case RD_KAFKA_RESP_ERR__FAIL:
+  case RD_KAFKA_RESP_ERR__TRANSPORT:
+  case RD_KAFKA_RESP_ERR__ALL_BROKERS_DOWN:
+    STATE(backend)->connected = 0;
+    break;
+  }
+
+  timeseries_log(__func__, "ERROR: %s (%d): %s\n",
+                 rd_kafka_err2str(err), err, reason);
+
+  // TODO: handle other errors
+}
+
+static int topic_connect(timeseries_backend_t *backend)
+{
+  timeseries_backend_kafka_state_t *state = STATE(backend);
+
+  timeseries_log(__func__, "INFO: Checking topic connection...\n");
+  assert(state->topic_name != NULL);
+
+  // build the topic name
+  if (snprintf(state->topic_name, IDENTITY_MAX_LEN, "%s.%s",
+               state->topic_prefix, state->channel_name) >= IDENTITY_MAX_LEN) {
+    return -1;
+  }
+
+  // connect to kafka
+  if (state->rkt == NULL) {
+    timeseries_log(__func__, "DEBUG: Connecting to %s\n",
+                   state->topic_name);
+    if ((state->rkt = rd_kafka_topic_new(state->rdk_conn, state->topic_name,
+                                         NULL)) == NULL) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+static int producer_connect(timeseries_backend_t *backend)
+{
+  timeseries_backend_kafka_state_t *state = STATE(backend);
+  rd_kafka_conf_t *conf = rd_kafka_conf_new();
+  char errstr[512];
+
+  // Set the opaque pointer that will be passed to callbacks
+  rd_kafka_conf_set_opaque(conf, backend);
+
+  // Set our error handler
+  rd_kafka_conf_set_error_cb(conf, kafka_error_callback);
+
+  // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
+  //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
+  // TODO: change this when librdkafka has better handling of idle disconnects
+  if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    timeseries_log(__func__, "ERROR: %s\n", errstr);
+    goto err;
+  }
+
+  if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    timeseries_log(__func__, "ERROR: %s\n", errstr);
+    goto err;
+  }
+
+  // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
+  //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
+  // TODO: change this when librdkafka has better handling of idle disconnects
+  if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    timeseries_log(__func__, "ERROR: %s\n", errstr);
+    goto err;
+  }
+  if (rd_kafka_conf_set(conf, "batch.num.messages", "100", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    timeseries_log(__func__, "ERROR: %s\n", errstr);
+    goto err;
+  }
+  // But don't wait very long before sending a partial batch (0.5s)
+  if (rd_kafka_conf_set(conf, "queue.buffering.max.ms", "500", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    timeseries_log(__func__, "ERROR: %s\n", errstr);
+    goto err;
+  }
+  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "2000", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    timeseries_log(__func__, "ERROR: %s\n", errstr);
+    goto err;
+  }
+
+  if ((state->rdk_conn = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errstr,
+                                      sizeof(errstr))) == NULL) {
+    timeseries_log(__func__, "ERROR: Failed to create new producer: %s\n",
+                   errstr);
+    goto err;
+  }
+
+  if (rd_kafka_brokers_add(state->rdk_conn, state->broker_uri) == 0) {
+    timeseries_log(__func__, "ERROR: No valid brokers specified\n");
+    goto err;
+  }
+
+  state->connected = 1;
+
+  // poll for errors
+  rd_kafka_poll(state->rdk_conn, 5000);
+
+  return state->fatal_error;
+
+err:
+  return -1;
+}
+
+static int kafka_connect(timeseries_backend_t *backend)
+{
+  timeseries_backend_kafka_state_t *state = STATE(backend);
+  int wait = 10;
+  int connect_retries = CONNECT_MAX_RETRIES;
+
+  while (state->connected == 0 && connect_retries > 0) {
+    if (producer_connect(backend) != 0) {
+      return -1;
+    }
+
+    connect_retries--;
+    if (state->connected == 0 && connect_retries > 0) {
+      fprintf(stderr,
+              "WARN: Failed to connect to Kafka. Retrying in %d seconds\n",
+              wait);
+      sleep(wait);
+      wait *= 2;
+      if (wait > 180) {
+        wait = 180;
+      }
+    }
+  }
+
+  if (state->connected == 0) {
+    fprintf(stderr,
+            "ERROR: Failed to connect to Kafka after %d retries. Giving up\n",
+            CONNECT_MAX_RETRIES);
+    return -1;
+  }
+
+  // connect to topics
+  if (topic_connect(backend) != 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int write_header(uint8_t *buf, size_t len,
+                        uint32_t time, uint32_t key_cnt)
+{
+  // this function can be a bit sub-optimal because it isn't called a zillion
+  // times
+#define HEADER_MAGIC "TSKBATCH"
+#define HEADER_MAGIC_LEN 8
+
+  size_t written = 0;
+
+  // use a string as the magic number (for easier debugging)
+  assert(HEADER_MAGIC_LEN < len);
+  memcpy(buf, HEADER_MAGIC, HEADER_MAGIC_LEN);
+  buf += HEADER_MAGIC_LEN;
+  written += HEADER_MAGIC_LEN;
+
+  // the time of this batch
+  SERIALIZE_VAL(buf, len, written, time);
+
+  // the number of keys in this batch
+  SERIALIZE_VAL(buf, len, written, time);
+
+  return 0;
+}
+
+static int write_kv(uint8_t *buf, size_t len, const char *key, uint64_t value)
+{
+  size_t written = 0;
+  size_t key_len = strlen(key);
+  assert(key_len < UINT16_MAX);
+
+  // now we know the size of the message we will write
+  assert((key_len + sizeof(uint16_t) + sizeof(value)) <= len);
+
+  uint16_t tmp16 = key_len;
+
+  // write the key length
+  SERIALIZE_VAL(buf, len, written, tmp16);
+
+  // copy the string in
+  memcpy(buf, key, key_len);
+  buf += key_len;
+
+  // and then append the value
+  SERIALIZE_VAL(buf, len, written, value);
+
+  return written;
 }
 
 /* ===== PUBLIC FUNCTIONS BELOW THIS POINT ===== */
@@ -173,11 +459,16 @@ int timeseries_backend_kafka_init(timeseries_backend_t *backend, int argc,
   }
 
   /* connect to kafka and create producer */
-  /* TODO */
+  if (kafka_connect(backend) != 0) {
+    goto err;
+  }
 
   /* ready to rock n roll */
-
   return 0;
+
+ err:
+  timeseries_backend_kafka_free(backend);
+  return -1;
 }
 
 void timeseries_backend_kafka_free(timeseries_backend_t *backend)
@@ -194,8 +485,8 @@ void timeseries_backend_kafka_free(timeseries_backend_t *backend)
   free(state->channel_name);
   state->channel_name = NULL;
 
-  free(state->topic_name);
-  state->topic_name = NULL;
+  free(state->topic_prefix);
+  state->topic_prefix = NULL;
 
   timeseries_backend_free_state(backend);
   return;
@@ -241,20 +532,38 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
   timeseries_kp_ki_t *ki = NULL;
   int id;
 
-  /* TODO: produce the header into a buffer */
+  uint8_t *ptr = state->buffer;
+  size_t len = BUFFER_LEN;
+  ssize_t s;
+  assert(state->buffer_written == 0);
+
+  if ((s = write_header(ptr, (len - state->buffer_written), time, 1)) == -1) {
+    goto err;
+  }
+  state->buffer_written += s;
 
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
   {
     if (timeseries_kp_ki_enabled(ki) == 0) {
       continue;
     }
-    /* TODO: append timeseries_kp_ki_get_key(ki), timeseries_kp_ki_get_value(ki)
-       to the buffer */
+    if ((s = write_kv(ptr, (len - state->buffer_written),
+                      timeseries_kp_ki_get_key(ki),
+                      timeseries_kp_ki_get_value(ki))) == -1) {
+      goto err;
+    }
+    state->buffer_written += s;
+
+    SEND_IF_FULL(DEFAULT_PARTITION, state->buffer, state->buffer_written,
+                 ptr, len);
   }
 
-  /* TODO: send the last buf */
+  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written);
 
   return 0;
+
+ err:
+  return -1;
 }
 
 int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
@@ -263,10 +572,27 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
 {
   timeseries_backend_kafka_state_t *state = STATE(backend);
 
-  /* TODO: produce header into a buffer */
-  /* TODO: append key/val to the buffer */
-  /* TODO: send the message */
+  uint8_t *ptr = state->buffer;
+  size_t len = BUFFER_LEN;
+  ssize_t s;
+  assert(state->buffer_written == 0);
+
+  if ((s = write_header(ptr, (len - state->buffer_written), time, 1)) == -1) {
+    goto err;
+  }
+  state->buffer_written += s;
+
+  if ((s = write_kv(ptr, (len - state->buffer_written), key, value)) == -1) {
+    goto err;
+  }
+  state->buffer_written += s;
+
+  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written);
+
   return 0;
+
+ err:
+  return -1;
 }
 
 int timeseries_backend_kafka_set_single_by_id(timeseries_backend_t *backend,
@@ -285,7 +611,15 @@ int timeseries_backend_kafka_set_bulk_init(timeseries_backend_t *backend,
   assert(state->bulk_expect == 0 && state->bulk_cnt == 0);
   state->bulk_expect = key_cnt;
 
-  /* TODO: produce header into a buffer */
+  uint8_t *ptr = state->buffer;
+  size_t len = BUFFER_LEN;
+  ssize_t s;
+  assert(state->buffer_written == 0);
+
+  if ((s = write_header(ptr, (len - state->buffer_written), time, 1)) == -1) {
+    return -1;
+  }
+  state->buffer_written += s;
 
   return 0;
 }
