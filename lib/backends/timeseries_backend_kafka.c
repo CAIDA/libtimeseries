@@ -48,6 +48,7 @@
 #define HEADER_MAGIC "TSKBATCH"
 #define HEADER_MAGIC_LEN 8
 
+// TODO: automatically round-robin amongst partitions
 #define DEFAULT_PARTITION 0
 
 #define CONNECT_MAX_RETRIES 8
@@ -73,7 +74,6 @@
   do {                                                                         \
     int success = 0;                                                           \
     while (success == 0) {                                                     \
-      timeseries_log(__func__, "DEBUG: Producing message of len %lu", written); \
       if (rd_kafka_produce(state->rkt, (partition), RD_KAFKA_MSG_F_COPY,    \
                            (buf), (written), NULL, 0, NULL) == -1) {               \
         if (rd_kafka_errno2err(errno) == RD_KAFKA_RESP_ERR__QUEUE_FULL) {      \
@@ -93,6 +93,7 @@
         success = 1;                                                           \
       }                                                                        \
     }                                                                          \
+    rd_kafka_poll(state->rdk_conn, 0);                                  \
     RESET_BUF(buf, ptr, written);                                       \
   } while (0)
 
@@ -248,6 +249,19 @@ static void kafka_error_callback(rd_kafka_t *rk, int err, const char *reason,
   // TODO: handle other errors
 }
 
+static void kafka_delivery_callback(rd_kafka_t *rk,
+                                    const rd_kafka_message_t *rkmessage,
+                                    void *opaque)
+{
+  if (rkmessage->err) {
+    timeseries_log(__func__,
+                   "ERROR: Message delivery failed: %s [%"PRId32"]: %s\n",
+                   rd_kafka_topic_name(rkmessage->rkt),
+                   rkmessage->partition,
+                   rd_kafka_err2str(rkmessage->err));
+  }
+}
+
 static int topic_connect(timeseries_backend_t *backend)
 {
   timeseries_backend_kafka_state_t *state = STATE(backend);
@@ -263,8 +277,7 @@ static int topic_connect(timeseries_backend_t *backend)
 
   // connect to kafka
   if (state->rkt == NULL) {
-    timeseries_log(__func__, "DEBUG: Connecting to %s",
-                   state->topic_name);
+    timeseries_log(__func__, "DEBUG: Connecting to %s", state->topic_name);
     if ((state->rkt = rd_kafka_topic_new(state->rdk_conn, state->topic_name,
                                          NULL)) == NULL) {
       return -1;
@@ -285,6 +298,9 @@ static int producer_connect(timeseries_backend_t *backend)
 
   // Set our error handler
   rd_kafka_conf_set_error_cb(conf, kafka_error_callback);
+
+  // ask for delivery reports
+  rd_kafka_conf_set_dr_msg_cb(conf, kafka_delivery_callback);
 
   // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
   //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
