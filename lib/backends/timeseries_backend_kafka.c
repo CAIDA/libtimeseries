@@ -33,6 +33,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <librdkafka/rdkafka.h>
+#include <netinet/in.h>
 #include <wandio.h>
 #include "utils.h"
 #include "wandio_utils.h"
@@ -48,8 +49,9 @@
 #define HEADER_MAGIC "TSKBATCH"
 #define HEADER_MAGIC_LEN 8
 
-// TODO: automatically round-robin amongst partitions
-#define DEFAULT_PARTITION 0
+/** use "unassigned" partition to automatically round-robin amongst
+    partitions */
+#define DEFAULT_PARTITION RD_KAFKA_PARTITION_UA
 
 #define CONNECT_MAX_RETRIES 8
 
@@ -70,12 +72,13 @@
     buf += s;                                                           \
   } while (0)
 
-#define SEND_MSG(partition, buf, written, ptr, len)                     \
+#define SEND_MSG(partition, buf, written, time, ptr, len)         \
   do {                                                                         \
     int success = 0;                                                           \
     while (success == 0) {                                                     \
       if (rd_kafka_produce(state->rkt, (partition), RD_KAFKA_MSG_F_COPY,    \
-                           (buf), (written), NULL, 0, NULL) == -1) {               \
+                           (buf), (written),                            \
+                           &(time), sizeof(time), NULL) == -1) {        \
         if (rd_kafka_errno2err(errno) == RD_KAFKA_RESP_ERR__QUEUE_FULL) {      \
           timeseries_log(__func__, "WARN: producer queue full, retrying..."); \
           if (sleep(1) != 0) {                                                 \
@@ -103,10 +106,10 @@
     (written) = 0;                                                             \
   } while (0)
 
-#define SEND_IF_FULL(partition, buf, written, ptr, len)                 \
+#define SEND_IF_FULL(partition, buf, written, time, ptr, len)            \
   do {                                                                  \
     if (written > ((len) / 2)) {                                        \
-      SEND_MSG(partition, buf, written, ptr, len);                      \
+      SEND_MSG(partition, buf, written, time, ptr, len);                 \
     }                                                                   \
   } while (0)
 
@@ -265,6 +268,8 @@ static void kafka_delivery_callback(rd_kafka_t *rk,
 static int topic_connect(timeseries_backend_t *backend)
 {
   timeseries_backend_kafka_state_t *state = STATE(backend);
+  rd_kafka_topic_conf_t *topic_conf = rd_kafka_topic_conf_new();
+  assert(topic_conf != NULL);
 
   timeseries_log(__func__, "INFO: Checking topic connection...");
   assert(state->topic_name != NULL);
@@ -275,11 +280,15 @@ static int topic_connect(timeseries_backend_t *backend)
     return -1;
   }
 
+  // use the random partitioner since our messages are self-contained
+  rd_kafka_topic_conf_set_partitioner_cb(topic_conf,
+                                         rd_kafka_msg_partitioner_random);
+
   // connect to kafka
   if (state->rkt == NULL) {
     timeseries_log(__func__, "DEBUG: Connecting to %s", state->topic_name);
     if ((state->rkt = rd_kafka_topic_new(state->rdk_conn, state->topic_name,
-                                         NULL)) == NULL) {
+                                         topic_conf)) == NULL) {
       return -1;
     }
   }
@@ -404,8 +413,7 @@ static int kafka_connect(timeseries_backend_t *backend)
   return 0;
 }
 
-static int write_header(uint8_t *buf, size_t len,
-                        uint32_t time, uint32_t key_cnt)
+static int write_header(uint8_t *buf, size_t len, uint32_t time)
 {
   // this function can be a bit sub-optimal because it isn't called a zillion
   // times
@@ -420,10 +428,7 @@ static int write_header(uint8_t *buf, size_t len,
   // the time of this batch
   SERIALIZE_VAL(buf, len, written, time);
 
-  // the number of keys in this batch
-  SERIALIZE_VAL(buf, len, written, time);
-
-  return 0;
+  return written;
 }
 
 static int write_kv(uint8_t *buf, size_t len, const char *key, uint64_t value)
@@ -435,9 +440,8 @@ static int write_kv(uint8_t *buf, size_t len, const char *key, uint64_t value)
   // now we know the size of the message we will write
   assert((key_len + sizeof(uint16_t) + sizeof(value)) <= len);
 
-  uint16_t tmp16 = key_len;
-
-  // write the key length
+  // write the key length (network byte order)
+    uint16_t tmp16 = htons(key_len);
   SERIALIZE_VAL(buf, len, written, tmp16);
 
   // copy the string in
@@ -445,7 +449,8 @@ static int write_kv(uint8_t *buf, size_t len, const char *key, uint64_t value)
   buf += key_len;
   written += key_len;
 
-  // and then append the value
+  // and then append the value (in network byte order)
+  value = htonll(value);
   SERIALIZE_VAL(buf, len, written, value);
 
   return written;
@@ -577,31 +582,38 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
   ssize_t s;
   assert(state->buffer_written == 0);
 
-  if ((s = write_header(ptr, (len - state->buffer_written), time,
-                        timeseries_kp_enabled_size(kp))) == -1) {
-    goto err;
-  }
-  state->buffer_written += s;
-  ptr += s;
+  // flip the time around
+  time = htonl(time);
 
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
   {
     if (timeseries_kp_ki_enabled(ki) == 0) {
       continue;
     }
+
+    if (state->buffer_written == 0) {
+      // new message, so write the header
+      if ((s = write_header(ptr, (len - state->buffer_written), time)) <= 0) {
+        goto err;
+      }
+      state->buffer_written += s;
+      ptr += s;
+    }
+
     if ((s = write_kv(ptr, (len - state->buffer_written),
                       timeseries_kp_ki_get_key(ki),
-                      timeseries_kp_ki_get_value(ki))) == -1) {
+                      timeseries_kp_ki_get_value(ki))) <= 0) {
       goto err;
     }
     state->buffer_written += s;
     ptr += s;
 
     SEND_IF_FULL(DEFAULT_PARTITION, state->buffer, state->buffer_written,
-                 ptr, len);
+                 time, ptr, len);
   }
 
-  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written, ptr, len);
+  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written,
+           time, ptr, len);
 
   return 0;
 
@@ -620,19 +632,23 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
   ssize_t s;
   assert(state->buffer_written == 0);
 
-  if ((s = write_header(ptr, (len - state->buffer_written), time, 1)) == -1) {
+  // flip the time around
+  time = htonl(time);
+
+  if ((s = write_header(ptr, (len - state->buffer_written), time)) <= 0) {
     goto err;
   }
   state->buffer_written += s;
   ptr += s;
 
-  if ((s = write_kv(ptr, (len - state->buffer_written), key, value)) == -1) {
+  if ((s = write_kv(ptr, (len - state->buffer_written), key, value)) <= 0) {
     goto err;
   }
   state->buffer_written += s;
   ptr += s;
 
-  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written, ptr, len);
+  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written,
+           time, ptr, len);
 
   return 0;
 
