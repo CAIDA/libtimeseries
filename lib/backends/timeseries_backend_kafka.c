@@ -49,6 +49,8 @@
 #define HEADER_MAGIC "TSKBATCH"
 #define HEADER_MAGIC_LEN 8
 
+#define MESSAGE_VERSION 0
+
 /** use "unassigned" partition to automatically round-robin amongst
     partitions */
 #define DEFAULT_PARTITION RD_KAFKA_PARTITION_UA
@@ -129,6 +131,9 @@ typedef struct timeseries_backend_kafka_state {
   /** Name of the channel (DBATS server) to publish metrics to */
   char *channel_name;
 
+  /** Cached length of the channel name */
+  int channel_name_len;
+
   /** Name of the kafka topic to produce to */
   char *topic_prefix;
 
@@ -196,6 +201,7 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
     case 'c':
       state->channel_name = strdup(optarg);
+      state->channel_name_len = strlen(state->channel_name);
       break;
 
     case 'p':
@@ -412,7 +418,8 @@ static int kafka_connect(timeseries_backend_t *backend)
   return 0;
 }
 
-static int write_header(uint8_t *buf, size_t len, uint32_t time)
+static int write_header(uint8_t *buf, size_t len, uint32_t time,
+                        char *channel, uint16_t channel_len)
 {
   // this function can be a bit sub-optimal because it isn't called a zillion
   // times
@@ -424,8 +431,20 @@ static int write_header(uint8_t *buf, size_t len, uint32_t time)
   buf += HEADER_MAGIC_LEN;
   written += HEADER_MAGIC_LEN;
 
+  // write the message version
+  uint8_t version = MESSAGE_VERSION;
+  SERIALIZE_VAL(buf, len, written, version);
+
   // the time of this batch
   SERIALIZE_VAL(buf, len, written, time);
+
+  // the name of the channel (to allow a single consumer to handle info from
+  // multiple channels)
+  uint16_t tmp16 = htons(channel_len);
+  SERIALIZE_VAL(buf, len, written, tmp16);
+  memcpy(buf, channel, channel_len);
+  buf += channel_len;
+  written += channel_len;
 
   return written;
 }
@@ -593,7 +612,9 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
 
     if (state->buffer_written == 0) {
       // new message, so write the header
-      if ((s = write_header(ptr, (len - state->buffer_written), time)) <= 0) {
+      if ((s = write_header(ptr, (len - state->buffer_written), time,
+                            state->channel_name,
+                            state->channel_name_len)) <= 0) {
         goto err;
       }
       state->buffer_written += s;
@@ -635,7 +656,8 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
   // flip the time around
   time = htonl(time);
 
-  if ((s = write_header(ptr, (len - state->buffer_written), time)) <= 0) {
+  if ((s = write_header(ptr, (len - state->buffer_written), time,
+                        state->channel_name, state->channel_name_len)) <= 0) {
     goto err;
   }
   state->buffer_written += s;
