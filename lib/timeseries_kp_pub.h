@@ -23,12 +23,11 @@
  *
  */
 
-
 #ifndef __TIMESERIES_KP_PUB_H
 #define __TIMESERIES_KP_PUB_H
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "timeseries_pub.h"
 
@@ -55,6 +54,13 @@ typedef struct timeseries_kp timeseries_kp_t;
  *
  * @{ */
 
+enum {
+  /** Zero values for all keys after a flush */
+  TIMESERIES_KP_RESET      = 0x1,
+
+  /** Deactivate all keys after a flush */
+  TIMESERIES_KP_DISABLE = 0x2,
+};
 
 /** @} */
 
@@ -69,7 +75,7 @@ typedef struct timeseries_kp timeseries_kp_t;
  *
  * @param timeseries    Pointer to the timeseries instance to associate the key
  *                      package with
- * @param reset         Should the values be reset upon a flush.
+ * @param flags         Should the values be reset and/or deactivated on flush.
  * @return a pointer to a Key Package structure, NULL if an error occurs
  *
  * DBATS supports highly-efficient writes if the key names are known a priori,
@@ -90,7 +96,7 @@ typedef struct timeseries_kp timeseries_kp_t;
  * timeseries_kp_add_key function can be used to add keys incrementally.
  * There is currently no mechanism for removing keys.
  */
-timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset);
+timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int flags);
 
 /** Free a Key Package
  *
@@ -110,7 +116,8 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key);
  *
  * @param kp            The Key Package to search
  * @param key           Pointer to a string key name to look for
- * @return the ID of the key (to be used with timeseries_kp_set) if it exists, -1 otherwise
+ * @return the ID of the key (to be used with timeseries_kp_set) if it exists,
+ * -1 otherwise
  */
 int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key);
 

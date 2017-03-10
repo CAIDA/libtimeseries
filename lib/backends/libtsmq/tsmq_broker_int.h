@@ -30,8 +30,8 @@
 
 #include "khash.h"
 
-#include "tsmq_broker.h"
 #include "tsmq_int.h"
+#include "tsmq_broker.h"
 
 /** @file
  *
@@ -43,8 +43,8 @@
 
 typedef struct tsmq_broker_server tsmq_broker_server_t;
 
-KHASH_INIT(str_server, char*, tsmq_broker_server_t*, 1,
-	   kh_str_hash_func, kh_str_hash_equal);
+KHASH_INIT(str_server, char *, tsmq_broker_server_t *, 1, kh_str_hash_func,
+           kh_str_hash_equal);
 
 struct tsmq_broker {
   /** Common tsmq state */
@@ -63,7 +63,7 @@ struct tsmq_broker {
   void *server_socket;
 
   /** Hash of servers that are connected */
-  khash_t(str_server) *servers;
+  khash_t(str_server) * servers;
 
   /** Time (in ms) between heartbeats sent to servers */
   uint64_t heartbeat_interval;

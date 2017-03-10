@@ -23,11 +23,20 @@
  *
  */
 
-#ifndef __TIMESERIES_H
-#define __TIMESERIES_H
+#ifndef __TIMESERIES_BACKEND_KAFKA_H
+#define __TIMESERIES_BACKEND_KAFKA_H
 
-#include "timeseries_backend_pub.h"
-#include "timeseries_kp_pub.h"
-#include "timeseries_pub.h"
+#include "timeseries_backend_int.h"
 
-#endif /* __TIMESERIES_H */
+/** @file
+ *
+ * @brief Header file that exposes the timeseries kafka backend implementation
+ * interface
+ *
+ * @author Alistair King
+ *
+ */
+
+TIMESERIES_BACKEND_GENERATE_PROTOS(kafka)
+
+#endif /* __TIMESERIES_BACKEND_KAFKA_H */

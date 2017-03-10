@@ -23,14 +23,13 @@
  *
  */
 
-
 #ifndef __TIMESERIES_BACKEND_INT_H
 #define __TIMESERIES_BACKEND_INT_H
 
 #include <inttypes.h>
 
-#include "timeseries_backend_pub.h"
 #include "timeseries_kp_int.h"
+#include "timeseries_backend_pub.h"
 
 /** @file
  *
@@ -43,80 +42,65 @@
 /** Convenience macro to allow backend implementations to retrieve their state
  *  object
  */
-#define TIMESERIES_BACKEND_STATE(type, backend) \
-  ((timeseries_backend_##type##_state_t*)(backend)->state)
+#define TIMESERIES_BACKEND_STATE(type, backend)                                \
+  ((timeseries_backend_##type##_state_t *)(backend)->state)
 
-/** Convenience macro that defines all the function prototypes for the timeseries
+/** Convenience macro that defines all the function prototypes for the
+ * timeseries
  * backend API
  */
-#define TIMESERIES_BACKEND_GENERATE_PROTOS(provname)			\
-  timeseries_backend_t * timeseries_backend_##provname##_alloc();	\
-  int timeseries_backend_##provname##_init(timeseries_backend_t *ds,	\
-					   int argc, char **argv);	\
-  void timeseries_backend_##provname##_free(timeseries_backend_t *ds);	\
-  int timeseries_backend_##provname##_kp_init(timeseries_backend_t *backend, \
-					      timeseries_kp_t *kp,	\
-					      void **kp_state_p);	\
-  void timeseries_backend_##provname##_kp_free(timeseries_backend_t *backend, \
-					       timeseries_kp_t *kp,	\
-					       void *kp_state);		\
-  int timeseries_backend_##provname##_kp_ki_update(timeseries_backend_t *backend, \
-						   timeseries_kp_t *kp); \
-  void timeseries_backend_##provname##_kp_ki_free(timeseries_backend_t *backend, \
-						  timeseries_kp_t *kp,	\
-						  timeseries_kp_ki_t *ki, \
-						  void *ki_state);	\
-  int timeseries_backend_##provname##_kp_flush(timeseries_backend_t *backend, \
-					       timeseries_kp_t *kp,	\
-					       uint32_t time);		\
-  int timeseries_backend_##provname##_set_single(timeseries_backend_t *backend,	\
-						 const char *key,	\
-						 uint64_t value,	\
-						 uint32_t time);        \
-  int timeseries_backend_##provname##_set_single_by_id(timeseries_backend_t *backend, \
-                                                       uint8_t *id,     \
-                                                       size_t id_len,   \
-                                                       uint64_t value,  \
-                                                       uint32_t time);  \
-  int timeseries_backend_##provname##_set_bulk_init(timeseries_backend_t *backend, \
-                                                    uint32_t key_cnt,   \
-                                                    uint32_t time);     \
-  int timeseries_backend_##provname##_set_bulk_by_id(timeseries_backend_t *backend, \
-                                                     uint8_t *id,       \
-                                                     size_t id_len,     \
-                                                     uint64_t value);   \
-  size_t timeseries_backend_##provname##_resolve_key(timeseries_backend_t *backend, \
-                                                     const char *key,   \
-                                                     uint8_t **backend_key);\
-  int timeseries_backend_##provname##_resolve_key_bulk(timeseries_backend_t *backend, \
-                                                       uint32_t keys_cnt, \
-                                                       const char * const *keys, \
-                                                       uint8_t **backend_keys, \
-                                                       size_t *backend_key_lens, \
-                                                       int *contig_alloc);
+#define TIMESERIES_BACKEND_GENERATE_PROTOS(provname)                           \
+  timeseries_backend_t *timeseries_backend_##provname##_alloc();               \
+  int timeseries_backend_##provname##_init(timeseries_backend_t *ds, int argc, \
+                                           char **argv);                       \
+  void timeseries_backend_##provname##_free(timeseries_backend_t *ds);         \
+  int timeseries_backend_##provname##_kp_init(                                 \
+    timeseries_backend_t *backend, timeseries_kp_t *kp, void **kp_state_p);    \
+  void timeseries_backend_##provname##_kp_free(                                \
+    timeseries_backend_t *backend, timeseries_kp_t *kp, void *kp_state);       \
+  int timeseries_backend_##provname##_kp_ki_update(                            \
+    timeseries_backend_t *backend, timeseries_kp_t *kp);                       \
+  void timeseries_backend_##provname##_kp_ki_free(                             \
+    timeseries_backend_t *backend, timeseries_kp_t *kp,                        \
+    timeseries_kp_ki_t *ki, void *ki_state);                                   \
+  int timeseries_backend_##provname##_kp_flush(                                \
+    timeseries_backend_t *backend, timeseries_kp_t *kp, uint32_t time);        \
+  int timeseries_backend_##provname##_set_single(                              \
+    timeseries_backend_t *backend, const char *key, uint64_t value,            \
+    uint32_t time);                                                            \
+  int timeseries_backend_##provname##_set_single_by_id(                        \
+    timeseries_backend_t *backend, uint8_t *id, size_t id_len, uint64_t value, \
+    uint32_t time);                                                            \
+  int timeseries_backend_##provname##_set_bulk_init(                           \
+    timeseries_backend_t *backend, uint32_t key_cnt, uint32_t time);           \
+  int timeseries_backend_##provname##_set_bulk_by_id(                          \
+    timeseries_backend_t *backend, uint8_t *id, size_t id_len,                 \
+    uint64_t value);                                                           \
+  size_t timeseries_backend_##provname##_resolve_key(                          \
+    timeseries_backend_t *backend, const char *key, uint8_t **backend_key);    \
+  int timeseries_backend_##provname##_resolve_key_bulk(                        \
+    timeseries_backend_t *backend, uint32_t keys_cnt, const char *const *keys, \
+    uint8_t **backend_keys, size_t *backend_key_lens, int *contig_alloc);
 
 /** Convenience macro that defines all the function pointers for the timeseries
  * backend API
  */
-#define TIMESERIES_BACKEND_GENERATE_PTRS(provname)	\
-  timeseries_backend_##provname##_init,			\
-    timeseries_backend_##provname##_free,		\
-    timeseries_backend_##provname##_kp_init,		\
-    timeseries_backend_##provname##_kp_free,		\
-    timeseries_backend_##provname##_kp_ki_update,	\
-    timeseries_backend_##provname##_kp_ki_free,		\
-    timeseries_backend_##provname##_kp_flush,		\
-    timeseries_backend_##provname##_set_single,		\
-    timeseries_backend_##provname##_set_single_by_id,   \
-    timeseries_backend_##provname##_set_bulk_init,      \
-    timeseries_backend_##provname##_set_bulk_by_id,     \
-    timeseries_backend_##provname##_resolve_key,        \
-    timeseries_backend_##provname##_resolve_key_bulk,   \
-    0, NULL
+#define TIMESERIES_BACKEND_GENERATE_PTRS(provname)                             \
+  timeseries_backend_##provname##_init, timeseries_backend_##provname##_free,  \
+    timeseries_backend_##provname##_kp_init,                                   \
+    timeseries_backend_##provname##_kp_free,                                   \
+    timeseries_backend_##provname##_kp_ki_update,                              \
+    timeseries_backend_##provname##_kp_ki_free,                                \
+    timeseries_backend_##provname##_kp_flush,                                  \
+    timeseries_backend_##provname##_set_single,                                \
+    timeseries_backend_##provname##_set_single_by_id,                          \
+    timeseries_backend_##provname##_set_bulk_init,                             \
+    timeseries_backend_##provname##_set_bulk_by_id,                            \
+    timeseries_backend_##provname##_resolve_key,                               \
+    timeseries_backend_##provname##_resolve_key_bulk, 0, NULL
 
 /** Structure which represents a metadata backend */
-struct timeseries_backend
-{
+struct timeseries_backend {
   /**
    * @name Backend information fields
    *
@@ -153,7 +137,7 @@ struct timeseries_backend
    * @warning the strings contained in argv will be free'd once this function
    * returns. Ensure you make appropriate copies as needed.
    */
-  int (*init)(struct timeseries_backend *backend, int argc, char ** argv);
+  int (*init)(struct timeseries_backend *backend, int argc, char **argv);
 
   /** Shutdown and free backend-specific state for this backend
    *
@@ -172,9 +156,8 @@ struct timeseries_backend
    *                    state is needed by the backend
    * @return 0 if state was allocated successfully, -1 otherwise
    */
-  int (*kp_init)(timeseries_backend_t *backend,
-		 timeseries_kp_t *kp,
-		 void **kp_state_p);
+  int (*kp_init)(timeseries_backend_t *backend, timeseries_kp_t *kp,
+                 void **kp_state_p);
 
   /** Free the backend-specific state in the given Key Package.
    *
@@ -184,9 +167,8 @@ struct timeseries_backend
    *
    * @note This function should free the state created by kp_init.
    */
-  void (*kp_free)(timeseries_backend_t *backend,
-		  timeseries_kp_t *kp,
-		  void *kp_state);
+  void (*kp_free)(timeseries_backend_t *backend, timeseries_kp_t *kp,
+                  void *kp_state);
 
   /** Update backend-specific Key Info state in the given Key Package object
    *
@@ -203,8 +185,7 @@ struct timeseries_backend
    * timeseries_kp_ki_get_backend_state functions to get a pointer to the state
    * to update.
    */
-  int (*kp_ki_update)(timeseries_backend_t *backend,
-		      timeseries_kp_t *kp);
+  int (*kp_ki_update)(timeseries_backend_t *backend, timeseries_kp_t *kp);
 
   /** Free the backend-specific state in the given Key Info object.
    *
@@ -215,10 +196,8 @@ struct timeseries_backend
    *
    * @note This function should free the state created by kp_kv_add.
    */
-  void (*kp_ki_free)(timeseries_backend_t *backend,
-		     timeseries_kp_t *kp,
-		     timeseries_kp_ki_t *ki,
-		     void *ki_state);
+  void (*kp_ki_free)(timeseries_backend_t *backend, timeseries_kp_t *kp,
+                     timeseries_kp_ki_t *ki, void *ki_state);
 
   /** Flush the current values in the given Key Package to the database
    *
@@ -227,8 +206,8 @@ struct timeseries_backend
    * @param time          The timestamp to associate the values with in the DB
    * @return 0 if the data was written successfully, -1 otherwise.
    */
-  int (*kp_flush)(timeseries_backend_t *backend,
-		  timeseries_kp_t *kp, uint32_t time);
+  int (*kp_flush)(timeseries_backend_t *backend, timeseries_kp_t *kp,
+                  uint32_t time);
 
   /** Write the value for a single key to the database
    *
@@ -242,7 +221,7 @@ struct timeseries_backend
    * functions above (or the set_single_by_id function below), use with caution
    */
   int (*set_single)(timeseries_backend_t *backend, const char *key,
-		    uint64_t value, uint32_t time);
+                    uint64_t value, uint32_t time);
 
   /** Write the value for a single key ID (retrieved using resolve_key) to the
    * database
@@ -254,9 +233,8 @@ struct timeseries_backend
    * @param time        The time slot to set the value for
    * @return 0 if the value was set successfully, -1 otherwise
    */
-  int (*set_single_by_id)(timeseries_backend_t *backend,
-                          uint8_t *id, size_t id_len,
-                          uint64_t value, uint32_t time);
+  int (*set_single_by_id)(timeseries_backend_t *backend, uint8_t *id,
+                          size_t id_len, uint64_t value, uint32_t time);
 
   /** Prepare to write a bulk set of values to the database
    *
@@ -283,9 +261,8 @@ struct timeseries_backend
    * @param value       Value to set
    * @return 0 if the value was set successfully, -1 otherwise
    */
-  int (*set_bulk_by_id)(timeseries_backend_t *backend,
-                        uint8_t *id, size_t id_len,
-                        uint64_t value);
+  int (*set_bulk_by_id)(timeseries_backend_t *backend, uint8_t *id,
+                        size_t id_len, uint64_t value);
 
   /** Resolve the given key into a backend-specific opaque ID.
    *
@@ -325,10 +302,8 @@ struct timeseries_backend
    * must be freed individually.
    */
   int (*resolve_key_bulk)(timeseries_backend_t *backend, uint32_t keys_cnt,
-                          const char * const *keys,
-                          uint8_t **backend_keys,
-                          size_t *backend_key_lens,
-                          int *contig_alloc);
+                          const char *const *keys, uint8_t **backend_keys,
+                          size_t *backend_key_lens, int *contig_alloc);
 
   /** }@ */
 
@@ -353,7 +328,8 @@ struct timeseries_backend
 /**
  * @name Backend setup functions
  *
- * These functions are to be used solely by the timeseries framework initializing
+ * These functions are to be used solely by the timeseries framework
+ * initializing
  * and freeing backend plugins.
  *
  * @{ */
@@ -361,7 +337,8 @@ struct timeseries_backend
 /** Allocate all backend objects
  *
  * @param id            ID of the backend to allocate
- * @return pointer to the backend allocated, NULL if an error occurred, or the backend is
+ * @return pointer to the backend allocated, NULL if an error occurred, or the
+ * backend is
  *         disabled.
  */
 timeseries_backend_t *timeseries_backend_alloc(timeseries_backend_id_t id);
@@ -373,8 +350,8 @@ timeseries_backend_t *timeseries_backend_alloc(timeseries_backend_id_t id);
  * @param argv          Pointer to the argument array
  * @return 0 if the backend was initialized successfully, -1 otherwise
  */
-int timeseries_backend_init(timeseries_backend_t *backend,
-			    int argc, char **argv);
+int timeseries_backend_init(timeseries_backend_t *backend, int argc,
+                            char **argv);
 
 /** Free the given backend object
  *
@@ -399,7 +376,7 @@ void timeseries_backend_free(timeseries_backend_t **backend_p);
  * @param state         A pointer to the state object to register
  */
 void timeseries_backend_register_state(timeseries_backend_t *backend,
-				       void *state);
+                                       void *state);
 
 /** Free the state for a backend
  *
@@ -407,6 +384,6 @@ void timeseries_backend_register_state(timeseries_backend_t *backend,
  */
 void timeseries_backend_free_state(timeseries_backend_t *backend);
 
- /** }@ */
+/** }@ */
 
 #endif /* __TIMESERIES_BACKEND_H */
