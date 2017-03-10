@@ -23,13 +23,13 @@
  *
  */
 
-
 #ifndef __TIMESERIES_LOG_INT_H
 #define __TIMESERIES_LOG_INT_H
 
 /** @file
  *
- * @brief Header file that contains the protected interface to the timeseries log class
+ * @brief Header file that contains the protected interface to the timeseries
+ * log class
  *
  *
  * @author Alistair King

@@ -101,7 +101,7 @@ void tsmq_server_set_broker_uri(tsmq_server_t *server, const char *uri);
 * @note defaults to TSMQ_HEARTBEAT_INTERVAL
 */
 void tsmq_server_set_heartbeat_interval(tsmq_server_t *server,
-					uint64_t interval_ms);
+                                        uint64_t interval_ms);
 
 /** Set the heartbeat liveness
 *
@@ -111,8 +111,7 @@ void tsmq_server_set_heartbeat_interval(tsmq_server_t *server,
 *
 * @note defaults to TSMQ_HEARTBEAT_LIVENESS
 */
-void tsmq_server_set_heartbeat_liveness(tsmq_server_t *server,
-					int beats);
+void tsmq_server_set_heartbeat_liveness(tsmq_server_t *server, int beats);
 
 /** Set the minimum reconnect time
 *
@@ -122,7 +121,7 @@ void tsmq_server_set_heartbeat_liveness(tsmq_server_t *server,
 * @note defaults to TSMQ_RECONNECT_INTERVAL_MIN
 */
 void tsmq_server_set_reconnect_interval_min(tsmq_server_t *server,
-					    uint64_t reconnect_interval_min);
+                                            uint64_t reconnect_interval_min);
 
 /** Set the maximum reconnect time
 *
@@ -132,7 +131,7 @@ void tsmq_server_set_reconnect_interval_min(tsmq_server_t *server,
 * @note defaults to TSMQ_RECONNECT_INTERVAL_MAX
 */
 void tsmq_server_set_reconnect_interval_max(tsmq_server_t *server,
-					    uint64_t reconnect_interval_max);
+                                            uint64_t reconnect_interval_max);
 
 /** Publish the error API for the metadata server */
 TSMQ_ERR_PROTOS(server)

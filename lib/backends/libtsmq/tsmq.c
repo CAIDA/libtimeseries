@@ -39,16 +39,14 @@ tsmq_t *tsmq_init()
 {
   tsmq_t *tsmq;
 
-  if((tsmq = malloc_zero(sizeof(tsmq_t))) == NULL)
-    {
-      return NULL;
-    }
+  if ((tsmq = malloc_zero(sizeof(tsmq_t))) == NULL) {
+    return NULL;
+  }
 
-  if((tsmq->ctx = zctx_new()) == NULL)
-    {
-      tsmq_set_err(tsmq, TSMQ_ERR_INIT_FAILED, "Failed to create 0MQ context");
-      return NULL;
-    }
+  if ((tsmq->ctx = zctx_new()) == NULL) {
+    tsmq_set_err(tsmq, TSMQ_ERR_INIT_FAILED, "Failed to create 0MQ context");
+    return NULL;
+  }
 
   return tsmq;
 }
@@ -63,10 +61,9 @@ void tsmq_free(tsmq_t *tsmq)
 {
   assert(tsmq != NULL);
 
-  if(tsmq->ctx != NULL)
-    {
-      zctx_destroy(&tsmq->ctx);
-    }
+  if (tsmq->ctx != NULL) {
+    zctx_destroy(&tsmq->ctx);
+  }
 
   free(tsmq);
 
@@ -78,19 +75,18 @@ void tsmq_set_err(tsmq_t *tsmq, int errcode, const char *msg, ...)
   char buf[256];
   va_list va;
 
-  va_start(va,msg);
+  va_start(va, msg);
 
   assert(errcode != 0 && "An error occurred, but it is unknown what it is");
 
-  tsmq->err.err_num=errcode;
+  tsmq->err.err_num = errcode;
 
-  if (errcode>0) {
-    vsnprintf(buf,sizeof(buf),msg,va);
-    snprintf(tsmq->err.problem,sizeof(tsmq->err.problem),
-	     "%s: %s",buf,strerror(errcode));
+  if (errcode > 0) {
+    vsnprintf(buf, sizeof(buf), msg, va);
+    snprintf(tsmq->err.problem, sizeof(tsmq->err.problem), "%s: %s", buf,
+             strerror(errcode));
   } else {
-    vsnprintf(tsmq->err.problem,sizeof(tsmq->err.problem),
-	      msg,va);
+    vsnprintf(tsmq->err.problem, sizeof(tsmq->err.problem), msg, va);
   }
 
   va_end(va);
@@ -100,7 +96,7 @@ tsmq_err_t tsmq_get_err(tsmq_t *tsmq)
 {
   tsmq_err_t err = tsmq->err;
   tsmq->err.err_num = 0; /* "OK" */
-  tsmq->err.problem[0]='\0';
+  tsmq->err.problem[0] = '\0';
   return err;
 }
 
@@ -111,13 +107,13 @@ int tsmq_is_err(tsmq_t *tsmq)
 
 void tsmq_perr(tsmq_t *tsmq)
 {
-  if(tsmq->err.err_num) {
-    fprintf(stderr,"%s (%d)\n", tsmq->err.problem, tsmq->err.err_num);
+  if (tsmq->err.err_num) {
+    fprintf(stderr, "%s (%d)\n", tsmq->err.problem, tsmq->err.err_num);
   } else {
-    fprintf(stderr,"No error\n");
+    fprintf(stderr, "No error\n");
   }
   tsmq->err.err_num = 0; /* "OK" */
-  tsmq->err.problem[0]='\0';
+  tsmq->err.problem[0] = '\0';
 }
 
 tsmq_msg_type_t tsmq_msg_type(zmsg_t *msg)
@@ -126,16 +122,14 @@ tsmq_msg_type_t tsmq_msg_type(zmsg_t *msg)
   uint8_t type;
 
   /* first frame should be our type */
-  if((frame = zmsg_pop(msg)) == NULL)
-    {
-      return TSMQ_MSG_TYPE_UNKNOWN;
-    }
+  if ((frame = zmsg_pop(msg)) == NULL) {
+    return TSMQ_MSG_TYPE_UNKNOWN;
+  }
 
-  if((type = *zframe_data(frame)) > TSMQ_MSG_TYPE_MAX)
-    {
-      zframe_destroy(&frame);
-      return TSMQ_MSG_TYPE_UNKNOWN;
-    }
+  if ((type = *zframe_data(frame)) > TSMQ_MSG_TYPE_MAX) {
+    zframe_destroy(&frame);
+    return TSMQ_MSG_TYPE_UNKNOWN;
+  }
 
   zframe_destroy(&frame);
 
@@ -146,12 +140,10 @@ tsmq_msg_type_t tsmq_recv_type(void *src)
 {
   tsmq_msg_type_t type = TSMQ_MSG_TYPE_UNKNOWN;
 
-  if((zmq_recv(src, &type, tsmq_msg_type_size_t, 0)
-      != tsmq_msg_type_size_t) ||
-     (type > TSMQ_MSG_TYPE_MAX))
-    {
-      return TSMQ_MSG_TYPE_UNKNOWN;
-    }
+  if ((zmq_recv(src, &type, tsmq_msg_type_size_t, 0) != tsmq_msg_type_size_t) ||
+      (type > TSMQ_MSG_TYPE_MAX)) {
+    return TSMQ_MSG_TYPE_UNKNOWN;
+  }
 
   return type;
 }
@@ -160,12 +152,11 @@ tsmq_request_msg_type_t tsmq_recv_request_type(void *src)
 {
   tsmq_request_msg_type_t type = TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
 
-  if((zmq_recv(src, &type, tsmq_request_msg_type_size_t, 0)
-      != tsmq_request_msg_type_size_t) ||
-     (type > TSMQ_REQUEST_MSG_TYPE_MAX))
-    {
-      return TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
-    }
+  if ((zmq_recv(src, &type, tsmq_request_msg_type_size_t, 0) !=
+       tsmq_request_msg_type_size_t) ||
+      (type > TSMQ_REQUEST_MSG_TYPE_MAX)) {
+    return TSMQ_REQUEST_MSG_TYPE_UNKNOWN;
+  }
 
   return type;
 }
@@ -176,22 +167,20 @@ char *tsmq_recv_str(void *src)
   size_t len;
   char *str = NULL;
 
-  if(zmq_msg_init(&llm) == -1 || zmq_msg_recv(&llm, src, 0) == -1)
-    {
-      goto err;
-    }
+  if (zmq_msg_init(&llm) == -1 || zmq_msg_recv(&llm, src, 0) == -1) {
+    goto err;
+  }
   len = zmq_msg_size(&llm);
-  if((str = malloc(len + 1)) == NULL)
-    {
-      goto err;
-    }
+  if ((str = malloc(len + 1)) == NULL) {
+    goto err;
+  }
   memcpy(str, zmq_msg_data(&llm), len);
   str[len] = '\0';
   zmq_msg_close(&llm);
 
   return str;
 
- err:
+err:
   free(str);
   return NULL;
 }

@@ -45,27 +45,27 @@
  *
  */
 
-#define TSMQ_GET_ERR(type)				\
-  tsmq_err_t tsmq_##type##_get_err(tsmq_##type##_t *t)	\
-  {							\
-   return tsmq_get_err(t->tsmq);			\
+#define TSMQ_GET_ERR(type)                                                     \
+  tsmq_err_t tsmq_##type##_get_err(tsmq_##type##_t *t)                         \
+  {                                                                            \
+    return tsmq_get_err(t->tsmq);                                              \
   }
 
-#define TSMQ_IS_ERR(type)				\
-  int tsmq_##type##_is_err(tsmq_##type##_t *t)		\
-  {							\
-    return tsmq_is_err(t->tsmq);			\
+#define TSMQ_IS_ERR(type)                                                      \
+  int tsmq_##type##_is_err(tsmq_##type##_t *t)                                 \
+  {                                                                            \
+    return tsmq_is_err(t->tsmq);                                               \
   }
 
-#define TSMQ_PERR(type)					\
-  void tsmq_##type##_perr(tsmq_##type##_t *t)		\
-  {							\
-    return tsmq_perr(t->tsmq);				\
+#define TSMQ_PERR(type)                                                        \
+  void tsmq_##type##_perr(tsmq_##type##_t *t)                                  \
+  {                                                                            \
+    return tsmq_perr(t->tsmq);                                                 \
   }
 
-#define TSMQ_ERR_FUNCS(type)			\
-  TSMQ_GET_ERR(type)				\
-  TSMQ_IS_ERR(type)				\
+#define TSMQ_ERR_FUNCS(type)                                                   \
+  TSMQ_GET_ERR(type)                                                           \
+  TSMQ_IS_ERR(type)                                                            \
   TSMQ_PERR(type)
 
 /** @} */
@@ -85,44 +85,44 @@
  */
 typedef enum {
   /** Invalid message */
-  TSMQ_MSG_TYPE_UNKNOWN   = 0,
+  TSMQ_MSG_TYPE_UNKNOWN = 0,
 
   /** Server is ready to do work */
-  TSMQ_MSG_TYPE_READY     = 1,
+  TSMQ_MSG_TYPE_READY = 1,
 
   /** Server is still alive */
   TSMQ_MSG_TYPE_HEARTBEAT = 2,
 
   /** A request for a server to process */
-  TSMQ_MSG_TYPE_REQUEST   = 3,
+  TSMQ_MSG_TYPE_REQUEST = 3,
 
   /** Server is sending a response to a client */
-  TSMQ_MSG_TYPE_REPLY     = 4,
+  TSMQ_MSG_TYPE_REPLY = 4,
 
   /** Highest message number in use */
-  TSMQ_MSG_TYPE_MAX      = TSMQ_MSG_TYPE_REPLY,
+  TSMQ_MSG_TYPE_MAX = TSMQ_MSG_TYPE_REPLY,
 } tsmq_msg_type_t;
 
 #define tsmq_msg_type_size_t sizeof(uint8_t)
 
 typedef enum {
   /** Invalid request type */
-  TSMQ_REQUEST_MSG_TYPE_UNKNOWN         = 0,
+  TSMQ_REQUEST_MSG_TYPE_UNKNOWN = 0,
 
   /** Request ACK type (only sent *to* clients) */
-  TSMQ_REQUEST_MSG_TYPE_ACK             = 1,
+  TSMQ_REQUEST_MSG_TYPE_ACK = 1,
 
   /** Key lookup request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP      = 2,
+  TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP = 2,
 
   /** Bulk Key lookup request */
   TSMQ_REQUEST_MSG_TYPE_KEY_LOOKUP_BULK = 3,
 
   /** Key storage request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE  = 4,
+  TSMQ_REQUEST_MSG_TYPE_KEY_SET_SINGLE = 4,
 
   /** Bulk Key storage request */
-  TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK    = 5,
+  TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK = 5,
 
   /** Highest request type in use */
   TSMQ_REQUEST_MSG_TYPE_MAX = TSMQ_REQUEST_MSG_TYPE_KEY_SET_BULK,
@@ -208,14 +208,16 @@ void tsmq_perr(tsmq_t *tsmq);
 /** Receives a single message and decodes as a message type
  *
  * @param src           socket to receive message on
- * @return the type of the message, or TSMQ_MSG_TYPE_UNKNOWN if an error occurred
+ * @return the type of the message, or TSMQ_MSG_TYPE_UNKNOWN if an error
+ * occurred
  */
 tsmq_msg_type_t tsmq_recv_type(void *src);
 
 /** Decodes the request type for the given message
  *
  * @param msg           zmsg object to inspect
- * @return the type of the message, or TSMQ_MSG_TYPE_UNKNOWN if an error occurred
+ * @return the type of the message, or TSMQ_MSG_TYPE_UNKNOWN if an error
+ * occurred
  *
  * This function will pop the type frame from the beginning of the message
  */

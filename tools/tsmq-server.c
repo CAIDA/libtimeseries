@@ -49,45 +49,41 @@ static void backend_usage()
   /* get the available backends from libtimeseries */
   backends = timeseries_get_all_backends(timeseries);
 
-  fprintf(stderr,
-	  "                            available backends:\n");
-  for(i = 0; i < TIMESERIES_BACKEND_ID_LAST; i++)
-    {
-      /* skip unavailable backends */
-      if(backends[i] == NULL)
-	{
-	  continue;
-	}
-
-      assert(timeseries_backend_get_name(backends[i]));
-      fprintf(stderr,
-	      "                            - %s\n",
-	      timeseries_backend_get_name(backends[i]));
+  fprintf(stderr, "                            available backends:\n");
+  for (i = 0; i < TIMESERIES_BACKEND_ID_LAST; i++) {
+    /* skip unavailable backends */
+    if (backends[i] == NULL) {
+      continue;
     }
+
+    assert(timeseries_backend_get_name(backends[i]));
+    fprintf(stderr, "                            - %s\n",
+            timeseries_backend_get_name(backends[i]));
+  }
 }
 
 static void usage(const char *name)
 {
-  fprintf(stderr,
-	  "usage: %s [<options>] -t <ts-backend>\n"
-	  "       -b <broker-uri>    0MQ-style URI to connect to broker on\n"
-	  "                          (default: %s)\n"
-	  "       -i <interval-ms>   Time in ms between heartbeats to broker\n"
-	  "                          (default: %d)\n"
-	  "       -l <beats>         Number of heartbeats that can go by before \n"
-	  "                          the broker is declared dead (default: %d)\n"
-	  "       -r <retry-min>     Min time in ms to wait before reconnecting to broker\n"
+  fprintf(
+    stderr,
+    "usage: %s [<options>] -t <ts-backend>\n"
+    "       -b <broker-uri>    0MQ-style URI to connect to broker on\n"
+    "                          (default: %s)\n"
+    "       -i <interval-ms>   Time in ms between heartbeats to broker\n"
+    "                          (default: %d)\n"
+    "       -l <beats>         Number of heartbeats that can go by before \n"
+    "                          the broker is declared dead (default: %d)\n"
+    "       -r <retry-min>     Min time in ms to wait before reconnecting to "
+    "broker\n"
 
-	  "                          (default: %d)\n"
-	  "       -R <retry-max>     Max time in ms to wait before reconnecting to broker\n"
-	  "                          (default: %d)\n"
-	  "       -t <ts-backend>    Timeseries backend to use for writing\n",
-	  name,
-	  TSMQ_SERVER_BROKER_URI_DEFAULT,
-	  TSMQ_HEARTBEAT_INTERVAL_DEFAULT,
-	  TSMQ_HEARTBEAT_LIVENESS_DEFAULT,
-	  TSMQ_RECONNECT_INTERVAL_MIN,
-	  TSMQ_RECONNECT_INTERVAL_MAX);
+    "                          (default: %d)\n"
+    "       -R <retry-max>     Max time in ms to wait before reconnecting to "
+    "broker\n"
+    "                          (default: %d)\n"
+    "       -t <ts-backend>    Timeseries backend to use for writing\n",
+    name, TSMQ_SERVER_BROKER_URI_DEFAULT, TSMQ_HEARTBEAT_INTERVAL_DEFAULT,
+    TSMQ_HEARTBEAT_LIVENESS_DEFAULT, TSMQ_RECONNECT_INTERVAL_MIN,
+    TSMQ_RECONNECT_INTERVAL_MAX);
   backend_usage();
 }
 
@@ -96,44 +92,38 @@ static int init_timeseries(const char *ts_backend)
   char *strcpy = NULL;
   char *args = NULL;
 
-  if((strcpy = strdup(ts_backend)) == NULL)
-    {
-      goto err;
-    }
+  if ((strcpy = strdup(ts_backend)) == NULL) {
+    goto err;
+  }
 
-  if((args = strchr(ts_backend, ' ')) != NULL)
-    {
-      /* set the space to a nul, which allows ts_backend to be used
-	 for the backend name, and then increment args ptr to
-	 point to the next character, which will be the start of the
-	 arg string (or at worst case, the terminating \0 */
-      *args = '\0';
-      args++;
-    }
+  if ((args = strchr(ts_backend, ' ')) != NULL) {
+    /* set the space to a nul, which allows ts_backend to be used
+       for the backend name, and then increment args ptr to
+       point to the next character, which will be the start of the
+       arg string (or at worst case, the terminating \0 */
+    *args = '\0';
+    args++;
+  }
 
-  if((backend = timeseries_get_backend_by_name(timeseries, ts_backend)) == NULL)
-    {
-      fprintf(stderr, "ERROR: Invalid backend name (%s)\n",
-	      ts_backend);
-      goto err;
-    }
+  if ((backend = timeseries_get_backend_by_name(timeseries, ts_backend)) ==
+      NULL) {
+    fprintf(stderr, "ERROR: Invalid backend name (%s)\n", ts_backend);
+    goto err;
+  }
 
-  if(timeseries_enable_backend(backend, args) != 0)
-    {
-      fprintf(stderr, "ERROR: Failed to initialized backend (%s)\n",
-	      ts_backend);
-      goto err;
-    }
+  if (timeseries_enable_backend(backend, args) != 0) {
+    fprintf(stderr, "ERROR: Failed to initialized backend (%s)\n", ts_backend);
+    goto err;
+  }
 
   free(strcpy);
 
   return 0;
 
- err:
-  if(strcpy != NULL)
-    {
-      free(strcpy);
-    }
+err:
+  if (strcpy != NULL) {
+    free(strcpy);
+  }
   return -1;
 }
 
@@ -148,7 +138,7 @@ int main(int argc, char **argv)
   const char *ts_backend = NULL;
 
   uint64_t heartbeat_interval = TSMQ_HEARTBEAT_INTERVAL_DEFAULT;
-  int heartbeat_liveness      = TSMQ_HEARTBEAT_LIVENESS_DEFAULT;
+  int heartbeat_liveness = TSMQ_HEARTBEAT_LIVENESS_DEFAULT;
   uint64_t reconnect_interval_min = TSMQ_RECONNECT_INTERVAL_MIN;
   uint64_t reconnect_interval_max = TSMQ_RECONNECT_INTERVAL_MAX;
 
@@ -156,97 +146,88 @@ int main(int argc, char **argv)
 
   /* better just grab a pointer to lts before anybody goes crazy and starts
      dumping usage strings */
-  if((timeseries = timeseries_init()) == NULL)
-    {
-      fprintf(stderr, "ERROR: Could not initialize libtimeseries\n");
+  if ((timeseries = timeseries_init()) == NULL) {
+    fprintf(stderr, "ERROR: Could not initialize libtimeseries\n");
+    return -1;
+  }
+
+  while (prevoptind = optind,
+         (opt = getopt(argc, argv, ":b:i:l:r:R:t:v?")) >= 0) {
+    if (optind == prevoptind + 2 && *optarg == '-') {
+      opt = ':';
+      --optind;
+    }
+    switch (opt) {
+    case ':':
+      fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
+      usage(argv[0]);
       return -1;
+      break;
+
+    case 'b':
+      broker_uri = optarg;
+      break;
+
+    case 'i':
+      heartbeat_interval = atoi(optarg);
+      break;
+
+    case 'l':
+      heartbeat_liveness = atoi(optarg);
+      break;
+
+    case 'r':
+      reconnect_interval_min = atoi(optarg);
+      break;
+
+    case 'R':
+      reconnect_interval_max = atoi(optarg);
+      break;
+
+    case 't':
+      ts_backend = optarg;
+      break;
+
+    case '?':
+    case 'v':
+      fprintf(stderr, "libtimeseries version %d.%d.%d\n",
+              LIBTIMESERIES_MAJOR_VERSION, LIBTIMESERIES_MID_VERSION,
+              LIBTIMESERIES_MINOR_VERSION);
+      usage(argv[0]);
+      return 0;
+      break;
+
+    default:
+      usage(argv[0]);
+      return -1;
+      break;
     }
-
-  while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":b:i:l:r:R:t:v?")) >= 0)
-    {
-      if (optind == prevoptind + 2 && *optarg == '-' ) {
-        opt = ':';
-        -- optind;
-      }
-      switch(opt)
-	{
-	case ':':
-	  fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
-	  usage(argv[0]);
-	  return -1;
-	  break;
-
-	case 'b':
-	  broker_uri = optarg;
-	  break;
-
-	case 'i':
-	  heartbeat_interval = atoi(optarg);
-	  break;
-
-	case 'l':
-	  heartbeat_liveness = atoi(optarg);
-	  break;
-
-	case 'r':
-	  reconnect_interval_min = atoi(optarg);
-	  break;
-
-	case 'R':
-	  reconnect_interval_max = atoi(optarg);
-	  break;
-
-	case 't':
-	  ts_backend = optarg;
-	  break;
-
-	case '?':
-	case 'v':
-	  fprintf(stderr, "libtimeseries version %d.%d.%d\n",
-		  LIBTIMESERIES_MAJOR_VERSION,
-		  LIBTIMESERIES_MID_VERSION,
-		  LIBTIMESERIES_MINOR_VERSION);
-	  usage(argv[0]);
-	  return 0;
-	  break;
-
-	default:
-	  usage(argv[0]);
-	  return -1;
-	  break;
-	}
-    }
+  }
 
   /* NB: once getopt completes, optind points to the first non-option
      argument */
 
-  if(ts_backend == NULL)
-    {
-      fprintf(stderr,
-	      "ERROR: Timeseries backend must be specified\n");
-      usage(argv[0]);
-      return -1;
-    }
+  if (ts_backend == NULL) {
+    fprintf(stderr, "ERROR: Timeseries backend must be specified\n");
+    usage(argv[0]);
+    return -1;
+  }
 
-  if(init_timeseries(ts_backend) != 0)
-    {
-      usage(argv[0]);
-      goto err;
-    }
+  if (init_timeseries(ts_backend) != 0) {
+    usage(argv[0]);
+    goto err;
+  }
   assert(timeseries != NULL && backend != NULL);
 
-  if((server = tsmq_server_init(backend)) == NULL)
-    {
-      fprintf(stderr, "ERROR: could not initialize tsmq server\n");
-      usage(argv[0]);
-      goto err;
-    }
+  if ((server = tsmq_server_init(backend)) == NULL) {
+    fprintf(stderr, "ERROR: could not initialize tsmq server\n");
+    usage(argv[0]);
+    goto err;
+  }
 
-  if(broker_uri != NULL)
-    {
-      tsmq_server_set_broker_uri(server, broker_uri);
-    }
+  if (broker_uri != NULL) {
+    tsmq_server_set_broker_uri(server, broker_uri);
+  }
 
   tsmq_server_set_heartbeat_interval(server, heartbeat_interval);
 
@@ -270,8 +251,8 @@ int main(int argc, char **argv)
   /* complete successfully */
   return 0;
 
- err:
-  if(server != NULL) {
+err:
+  if (server != NULL) {
     tsmq_server_free(server);
   }
   return -1;

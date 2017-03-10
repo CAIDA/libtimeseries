@@ -36,18 +36,16 @@
  *
  */
 
-#define TSMQ_GET_ERR_PROTO(type)			\
+#define TSMQ_GET_ERR_PROTO(type)                                               \
   tsmq_err_t tsmq_##type##_get_err(tsmq_##type##_t *t);
 
-#define TSMQ_IS_ERR_PROTO(type)				\
-  int tsmq_##type##_is_err(tsmq_##type##_t *t);
+#define TSMQ_IS_ERR_PROTO(type) int tsmq_##type##_is_err(tsmq_##type##_t *t);
 
-#define TSMQ_PERR_PROTO(type)				\
-  void tsmq_##type##_perr(tsmq_##type##_t *t);
+#define TSMQ_PERR_PROTO(type) void tsmq_##type##_perr(tsmq_##type##_t *t);
 
-#define TSMQ_ERR_PROTOS(type)			\
-  TSMQ_GET_ERR_PROTO(type)			\
-  TSMQ_IS_ERR_PROTO(type)			\
+#define TSMQ_ERR_PROTOS(type)                                                  \
+  TSMQ_GET_ERR_PROTO(type)                                                     \
+  TSMQ_IS_ERR_PROTO(type)                                                      \
   TSMQ_PERR_PROTO(type)
 
 /**
@@ -110,28 +108,28 @@ typedef struct tsmq_err {
 typedef enum {
 
   /** No error has occured */
-  TSMQ_ERR_NONE         = 0,
+  TSMQ_ERR_NONE = 0,
 
   /** tsmq failed to initialize */
-  TSMQ_ERR_INIT_FAILED  = -1,
+  TSMQ_ERR_INIT_FAILED = -1,
 
   /** tsmq failed to start */
   TSMQ_ERR_START_FAILED = -2,
 
   /** tsmq was interrupted */
-  TSMQ_ERR_INTERRUPT    = -3,
+  TSMQ_ERR_INTERRUPT = -3,
 
   /** unhandled error */
-  TSMQ_ERR_UNHANDLED    = -4,
+  TSMQ_ERR_UNHANDLED = -4,
 
   /** protocol error */
-  TSMQ_ERR_PROTOCOL     = -5,
+  TSMQ_ERR_PROTOCOL = -5,
 
   /** malloc error */
-  TSMQ_ERR_MALLOC       = -6,
+  TSMQ_ERR_MALLOC = -6,
 
   /** error in libtimeseries */
-  TSMQ_ERR_TIMESERIES     = -7,
+  TSMQ_ERR_TIMESERIES = -7,
 
 } tsmq_err_code_t;
 

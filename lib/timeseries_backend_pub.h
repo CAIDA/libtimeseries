@@ -23,13 +23,11 @@
  *
  */
 
-
 #ifndef __TIMESERIES_BACKEND_PUB_H
 #define __TIMESERIES_BACKEND_PUB_H
 
-#include <stdlib.h>
 #include <stdint.h>
-
+#include <stdlib.h>
 
 /** @file
  *
@@ -55,7 +53,6 @@ typedef struct timeseries_backend timeseries_backend_t;
  *
  * @{ */
 
-
 /** @} */
 
 /**
@@ -65,24 +62,26 @@ typedef struct timeseries_backend timeseries_backend_t;
 
 /** A unique identifier for each timeseries backend that libtimeseries supports
  */
-typedef enum timeseries_backend_id
-  {
-    /** Writes timeseries metrics out in ASCII format (either to stdout or to
-	file) */
-    TIMESERIES_BACKEND_ID_ASCII      = 1,
+typedef enum timeseries_backend_id {
+  /** Writes timeseries metrics out in ASCII format (either to stdout or to
+      file) */
+  TIMESERIES_BACKEND_ID_ASCII = 1,
 
-    /** Write timeseries metrics into a DBATS database */
-    TIMESERIES_BACKEND_ID_DBATS      = 2,
+  /** Write timeseries metrics into a DBATS database */
+  TIMESERIES_BACKEND_ID_DBATS = 2,
 
-    /** Write timeseries metrics to a remote libtimeseries database */
-    TIMESERIES_BACKEND_ID_TSMQ       = 3,
+  /** Write timeseries metrics to a remote libtimeseries database */
+  TIMESERIES_BACKEND_ID_TSMQ = 3,
 
-    /** Lowest numbered timeseries backend ID */
-    TIMESERIES_BACKEND_ID_FIRST      = TIMESERIES_BACKEND_ID_ASCII,
-    /** Highest numbered timeseries backend ID */
-    TIMESERIES_BACKEND_ID_LAST       = TIMESERIES_BACKEND_ID_TSMQ,
+  /** Write timeseries metrics to an Apache Kafka cluster */
+  TIMESERIES_BACKEND_ID_KAFKA = 4,
 
-  } timeseries_backend_id_t;
+  /** Lowest numbered timeseries backend ID */
+  TIMESERIES_BACKEND_ID_FIRST = TIMESERIES_BACKEND_ID_ASCII,
+  /** Highest numbered timeseries backend ID */
+  TIMESERIES_BACKEND_ID_LAST = TIMESERIES_BACKEND_ID_KAFKA,
+
+} timeseries_backend_id_t;
 
 /** @} */
 
@@ -98,7 +97,8 @@ int timeseries_backend_is_enabled(timeseries_backend_t *backend);
  * @param backend      The backend object to retrieve the ID from
  * @return the ID of the given backend
  */
-timeseries_backend_id_t timeseries_backend_get_id(timeseries_backend_t *backend);
+timeseries_backend_id_t
+timeseries_backend_get_id(timeseries_backend_t *backend);
 
 /** Get the backend name for the given ID
  *

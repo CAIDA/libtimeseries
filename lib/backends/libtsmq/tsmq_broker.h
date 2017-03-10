@@ -111,7 +111,7 @@ void tsmq_broker_set_server_uri(tsmq_broker_t *broker, const char *uri);
  * @note defaults to TSMQ_HEARTBEAT_INTERVAL
  */
 void tsmq_broker_set_heartbeat_interval(tsmq_broker_t *broker,
-					uint64_t interval_ms);
+                                        uint64_t interval_ms);
 
 /** Set the heartbeat liveness
  *
@@ -121,8 +121,7 @@ void tsmq_broker_set_heartbeat_interval(tsmq_broker_t *broker,
  *
  * @note defaults to TSMQ_HEARTBEAT_LIVENESS
  */
-void tsmq_broker_set_heartbeat_liveness(tsmq_broker_t *broker,
-					int beats);
+void tsmq_broker_set_heartbeat_liveness(tsmq_broker_t *broker, int beats);
 
 /** Publish the error API for the metadata broker */
 TSMQ_ERR_PROTOS(broker)

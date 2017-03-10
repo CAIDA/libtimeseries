@@ -31,12 +31,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "parse_cmd.h"
 #include "utils.h"
+#include "parse_cmd.h"
 
+#include "timeseries_backend_int.h" /* timeseries_backend_t */
 #include "timeseries_int.h"         /* timeseries_t */
 #include "timeseries_log_int.h"     /* timeseries_log */
-#include "timeseries_backend_int.h" /* timeseries_backend_t */
 
 /* ========== PRIVATE DATA STRUCTURES/FUNCTIONS ========== */
 
@@ -45,21 +45,15 @@
 #define SEPARATOR "|"
 
 /** Structure which holds state for a libtimeseries instance */
-struct timeseries
-{
+struct timeseries {
 
   /** Array of backends
    * @note index of backend is given by (timeseries_backend_id_t - 1)
    */
   struct timeseries_backend *backends[TIMESERIES_BACKEND_ID_LAST];
-
 };
 
 /* ========== PROTECTED FUNCTIONS ========== */
-
-
-
-
 
 /* ========== PUBLIC FUNCTIONS ========== */
 
@@ -71,16 +65,15 @@ timeseries_t *timeseries_init()
   timeseries_log(__func__, "initializing libtimeseries");
 
   /* allocate some memory for our state */
-  if((timeseries = malloc_zero(sizeof(timeseries_t))) == NULL)
-    {
-      timeseries_log(__func__, "could not malloc timeseries_t");
-      return NULL;
-    }
+  if ((timeseries = malloc_zero(sizeof(timeseries_t))) == NULL) {
+    timeseries_log(__func__, "could not malloc timeseries_t");
+    return NULL;
+  }
 
   /* allocate the backends (some may/will be NULL) */
   TIMESERIES_FOREACH_BACKEND_ID(id)
   {
-    timeseries->backends[id-1] = timeseries_backend_alloc(id);
+    timeseries->backends[id - 1] = timeseries_backend_alloc(id);
   }
 
   return timeseries;
@@ -96,7 +89,7 @@ void timeseries_free(timeseries_t **timeseries_p)
   /* loop across all backends and free each one */
   TIMESERIES_FOREACH_BACKEND_ID(id)
   {
-    timeseries_backend_free(&timeseries->backends[id-1]);
+    timeseries_backend_free(&timeseries->backends[id - 1]);
   }
 
   free(timeseries);
@@ -104,7 +97,7 @@ void timeseries_free(timeseries_t **timeseries_p)
 }
 
 int timeseries_enable_backend(timeseries_backend_t *backend,
-			      const char *options)
+                              const char *options)
 {
   char *local_args = NULL;
   char *process_argv[MAXOPTS];
@@ -115,54 +108,47 @@ int timeseries_enable_backend(timeseries_backend_t *backend,
   timeseries_log(__func__, "enabling backend (%s)", backend->name);
 
   /* first we need to parse the options */
-  if(options != NULL && (len = strlen(options)) > 0)
-    {
-      local_args = strndup(options, len);
-      parse_cmd(local_args, &process_argc, process_argv, MAXOPTS,
-		backend->name);
-    }
-  else
-    {
-      process_argv[process_argc++] = (char*)backend->name;
-    }
+  if (options != NULL && (len = strlen(options)) > 0) {
+    local_args = strndup(options, len);
+    parse_cmd(local_args, &process_argc, process_argv, MAXOPTS, backend->name);
+  } else {
+    process_argv[process_argc++] = (char *)backend->name;
+  }
 
   /* we just need to pass this along to the backend framework */
   rc = timeseries_backend_init(backend, process_argc, process_argv);
 
-  if(local_args != NULL)
-    {
-      free(local_args);
-    }
+  if (local_args != NULL) {
+    free(local_args);
+  }
 
   return rc;
 }
 
-inline timeseries_backend_t *timeseries_get_backend_by_id(
-					     timeseries_t *timeseries,
-					     timeseries_backend_id_t id)
+inline timeseries_backend_t *
+timeseries_get_backend_by_id(timeseries_t *timeseries,
+                             timeseries_backend_id_t id)
 {
   assert(timeseries != NULL);
-  if(id < TIMESERIES_BACKEND_ID_FIRST || id > TIMESERIES_BACKEND_ID_LAST)
-    {
-      return NULL;
-    }
+  if (id < TIMESERIES_BACKEND_ID_FIRST || id > TIMESERIES_BACKEND_ID_LAST) {
+    return NULL;
+  }
   return timeseries->backends[id - 1];
 }
 
 timeseries_backend_t *timeseries_get_backend_by_name(timeseries_t *timeseries,
-						     const char *name)
+                                                     const char *name)
 {
   timeseries_backend_t *backend;
   int id;
 
   TIMESERIES_FOREACH_BACKEND_ID(id)
-    {
-      if((backend = timeseries_get_backend_by_id(timeseries, id)) != NULL &&
-	 strncasecmp(backend->name, name, strlen(backend->name)) == 0)
-	{
-	  return backend;
-	}
+  {
+    if ((backend = timeseries_get_backend_by_id(timeseries, id)) != NULL &&
+        strncasecmp(backend->name, name, strlen(backend->name)) == 0) {
+      return backend;
     }
+  }
 
   return NULL;
 }
@@ -173,7 +159,7 @@ timeseries_backend_t **timeseries_get_all_backends(timeseries_t *timeseries)
 }
 
 int timeseries_set_single(timeseries_t *timeseries, const char *key,
-			  uint64_t value, uint32_t time)
+                          uint64_t value, uint32_t time)
 {
   int id;
   timeseries_backend_t *backend;
@@ -181,10 +167,9 @@ int timeseries_set_single(timeseries_t *timeseries, const char *key,
 
   TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)
   {
-    if(backend->set_single(backend, key, value, time) != 0)
-      {
-	return -1;
-      }
+    if (backend->set_single(backend, key, value, time) != 0) {
+      return -1;
+    }
   }
 
   return 0;

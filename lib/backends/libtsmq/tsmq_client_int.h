@@ -26,8 +26,8 @@
 #ifndef __TSMQ_CLIENT_INT_H
 #define __TSMQ_CLIENT_INT_H
 
-#include "tsmq_client.h"
 #include "tsmq_int.h"
+#include "tsmq_client.h"
 
 /** @file
  *
@@ -85,9 +85,3 @@ struct tsmq_client_key {
 };
 
 #endif /* __TSMQ_CLIENT_INT_H */
-
-
-
-
-
-
