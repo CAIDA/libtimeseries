@@ -90,7 +90,7 @@ static const backend_alloc_func_t backend_alloc_functions[] = {
 /** If we are building with Kafka support, point to the kafka alloc function,
     otherwise a NULL pointer to indicate the backend is unavailable */
 #ifdef WITH_KAFKA
-    timeseries_backend_kafka_alloc,
+  timeseries_backend_kafka_alloc,
 #else
   NULL,
 #endif

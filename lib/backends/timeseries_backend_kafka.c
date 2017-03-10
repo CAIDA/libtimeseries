@@ -23,24 +23,24 @@
  *
  */
 
+#include "timeseries_backend_kafka.h"
+#include "timeseries_backend_int.h"
+#include "timeseries_kp_int.h"
+#include "timeseries_log_int.h"
 #include "config.h"
+#include "utils.h"
+#include "wandio_utils.h"
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <librdkafka/rdkafka.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <librdkafka/rdkafka.h>
-#include <netinet/in.h>
 #include <wandio.h>
-#include "utils.h"
-#include "wandio_utils.h"
-#include "timeseries_backend_int.h"
-#include "timeseries_kp_int.h"
-#include "timeseries_log_int.h"
-#include "timeseries_backend_kafka.h"
 
 #define BACKEND_NAME "kafka"
 
@@ -62,42 +62,42 @@
 
 #define STATE(provname) (TIMESERIES_BACKEND_STATE(kafka, provname))
 
-#define SERIALIZE_VAL(buf, len, written, from)                          \
-  do {                                                                  \
-    size_t s;                                                           \
-    assert(((len) - (written)) >= sizeof((from)));                      \
-    memcpy((buf), &(from), sizeof(from));                               \
-    s = sizeof(from);                                                   \
-    written += s;                                                       \
-    buf += s;                                                           \
+#define SERIALIZE_VAL(buf, len, written, from)                                 \
+  do {                                                                         \
+    size_t s;                                                                  \
+    assert(((len) - (written)) >= sizeof((from)));                             \
+    memcpy((buf), &(from), sizeof(from));                                      \
+    s = sizeof(from);                                                          \
+    written += s;                                                              \
+    buf += s;                                                                  \
   } while (0)
 
-#define SEND_MSG(partition, buf, written, time, ptr, len)         \
+#define SEND_MSG(partition, buf, written, time, ptr, len)                      \
   do {                                                                         \
     int success = 0;                                                           \
     while (success == 0) {                                                     \
-      if (rd_kafka_produce(state->rkt, (partition), RD_KAFKA_MSG_F_COPY,    \
-                           (buf), (written),                            \
-                           &(time), sizeof(time), NULL) == -1) {        \
+      if (rd_kafka_produce(state->rkt, (partition), RD_KAFKA_MSG_F_COPY,       \
+                           (buf), (written), &(time), sizeof(time),            \
+                           NULL) == -1) {                                      \
         if (rd_kafka_errno2err(errno) == RD_KAFKA_RESP_ERR__QUEUE_FULL) {      \
-          timeseries_log(__func__, "WARN: producer queue full, retrying..."); \
+          timeseries_log(__func__, "WARN: producer queue full, retrying...");  \
           if (sleep(1) != 0) {                                                 \
             goto err;                                                          \
           }                                                                    \
         } else {                                                               \
-          timeseries_log(__func__,                                      \
-                         "ERROR: Failed to produce to topic %s partition %i: %s", \
-                         rd_kafka_topic_name(state->rkt), (partition),  \
-                         rd_kafka_err2str(rd_kafka_errno2err(errno)));  \
-          rd_kafka_poll(state->rdk_conn, 0);                            \
+          timeseries_log(                                                      \
+            __func__, "ERROR: Failed to produce to topic %s partition %i: %s", \
+            rd_kafka_topic_name(state->rkt), (partition),                      \
+            rd_kafka_err2str(rd_kafka_errno2err(errno)));                      \
+          rd_kafka_poll(state->rdk_conn, 0);                                   \
           goto err;                                                            \
         }                                                                      \
       } else {                                                                 \
         success = 1;                                                           \
       }                                                                        \
     }                                                                          \
-    rd_kafka_poll(state->rdk_conn, 0);                                  \
-    RESET_BUF(buf, ptr, written);                                       \
+    rd_kafka_poll(state->rdk_conn, 0);                                         \
+    RESET_BUF(buf, ptr, written);                                              \
   } while (0)
 
 #define RESET_BUF(buf, ptr, written)                                           \
@@ -106,17 +106,17 @@
     (written) = 0;                                                             \
   } while (0)
 
-#define SEND_IF_FULL(partition, buf, written, time, ptr, len)            \
-  do {                                                                  \
-    if (written > ((len) / 2)) {                                        \
-      SEND_MSG(partition, buf, written, time, ptr, len);                 \
-    }                                                                   \
+#define SEND_IF_FULL(partition, buf, written, time, ptr, len)                  \
+  do {                                                                         \
+    if (written > ((len) / 2)) {                                               \
+      SEND_MSG(partition, buf, written, time, ptr, len);                       \
+    }                                                                          \
   } while (0)
 
 /** The basic fields that every instance of this backend have in common */
 static timeseries_backend_t timeseries_backend_kafka = {
-  TIMESERIES_BACKEND_ID_KAFKA, //
-  BACKEND_NAME, //
+  TIMESERIES_BACKEND_ID_KAFKA,            //
+  BACKEND_NAME,                           //
   TIMESERIES_BACKEND_GENERATE_PTRS(kafka) //
 };
 
@@ -246,8 +246,8 @@ static void kafka_error_callback(rd_kafka_t *rk, int err, const char *reason,
     break;
   }
 
-  timeseries_log(__func__, "ERROR: %s (%d): %s",
-                 rd_kafka_err2str(err), err, reason);
+  timeseries_log(__func__, "ERROR: %s (%d): %s", rd_kafka_err2str(err), err,
+                 reason);
 
   // TODO: handle other errors
 }
@@ -258,9 +258,8 @@ static void kafka_delivery_callback(rd_kafka_t *rk,
 {
   if (rkmessage->err) {
     timeseries_log(__func__,
-                   "ERROR: Message delivery failed: %s [%"PRId32"]: %s\n",
-                   rd_kafka_topic_name(rkmessage->rkt),
-                   rkmessage->partition,
+                   "ERROR: Message delivery failed: %s [%" PRId32 "]: %s\n",
+                   rd_kafka_topic_name(rkmessage->rkt), rkmessage->partition,
                    rd_kafka_err2str(rkmessage->err));
   }
 }
@@ -388,8 +387,8 @@ static int kafka_connect(timeseries_backend_t *backend)
     connect_retries--;
     if (state->connected == 0 && connect_retries > 0) {
       timeseries_log(__func__,
-              "WARN: Failed to connect to Kafka. Retrying in %d seconds",
-              wait);
+                     "WARN: Failed to connect to Kafka. Retrying in %d seconds",
+                     wait);
       sleep(wait);
       wait *= 2;
       if (wait > 180) {
@@ -399,9 +398,9 @@ static int kafka_connect(timeseries_backend_t *backend)
   }
 
   if (state->connected == 0) {
-    timeseries_log(__func__,
-            "ERROR: Failed to connect to Kafka after %d retries. Giving up",
-            CONNECT_MAX_RETRIES);
+    timeseries_log(
+      __func__, "ERROR: Failed to connect to Kafka after %d retries. Giving up",
+      CONNECT_MAX_RETRIES);
     return -1;
   }
 
@@ -441,7 +440,7 @@ static int write_kv(uint8_t *buf, size_t len, const char *key, uint64_t value)
   assert((key_len + sizeof(uint16_t) + sizeof(value)) <= len);
 
   // write the key length (network byte order)
-    uint16_t tmp16 = htons(key_len);
+  uint16_t tmp16 = htons(key_len);
   SERIALIZE_VAL(buf, len, written, tmp16);
 
   // copy the string in
@@ -489,7 +488,7 @@ int timeseries_backend_kafka_init(timeseries_backend_t *backend, int argc,
   /* ready to rock n roll */
   return 0;
 
- err:
+err:
   timeseries_backend_kafka_free(backend);
   return -1;
 }
@@ -505,7 +504,8 @@ void timeseries_backend_kafka_free(timeseries_backend_t *backend)
   if (state->rdk_conn != NULL) {
     int drain_wait_cnt = 12;
     while (rd_kafka_outq_len(state->rdk_conn) > 0 && drain_wait_cnt > 0) {
-      timeseries_log(__func__,
+      timeseries_log(
+        __func__,
         "INFO: Waiting for Kafka queue to drain (currently %d messages)",
         rd_kafka_outq_len(state->rdk_conn));
       rd_kafka_poll(state->rdk_conn, 5000);
@@ -608,16 +608,16 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
     state->buffer_written += s;
     ptr += s;
 
-    SEND_IF_FULL(DEFAULT_PARTITION, state->buffer, state->buffer_written,
-                 time, ptr, len);
+    SEND_IF_FULL(DEFAULT_PARTITION, state->buffer, state->buffer_written, time,
+                 ptr, len);
   }
 
-  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written,
-           time, ptr, len);
+  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written, time, ptr,
+           len);
 
   return 0;
 
- err:
+err:
   return -1;
 }
 
@@ -647,12 +647,12 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
   state->buffer_written += s;
   ptr += s;
 
-  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written,
-           time, ptr, len);
+  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written, time, ptr,
+           len);
 
   return 0;
 
- err:
+err:
   return -1;
 }
 

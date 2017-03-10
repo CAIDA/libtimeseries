@@ -339,8 +339,8 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key)
   timeseries_kp_ki_t *ki = NULL;
 
   /* first we need to realloc the array of keys */
-  if ((kp->key_infos = realloc(kp->key_infos, sizeof(timeseries_kp_ki_t) *
-                                                (this_id + 1))) == NULL) {
+  if ((kp->key_infos = realloc(
+         kp->key_infos, sizeof(timeseries_kp_ki_t) * (this_id + 1))) == NULL) {
     timeseries_log(__func__, "could not realloc KP KI array");
     return -1;
   }
