@@ -87,6 +87,9 @@ struct timeseries_kp {
   /** Should the values be explicitly reset after a flush? */
   int reset;
 
+  /** Should the the keys be disabled after a flush? */
+  int disable;
+
   /** Have keys been added since the last call to [backend]->kp_ki_update? */
   int dirty;
 };
@@ -99,10 +102,11 @@ struct timeseries_kp {
 static timeseries_t *kp_get_timeseries(timeseries_kp_t *kp);
 
 /** Reset all the values in the given Key Package to 0 (if kp.reset is true)
+ * and/or deactivate all keys if kp.disable is true.
  *
- * @param kp            pointer to a Key Package to reset
+ * @param kp            pointer to a Key Package to reset/disable
  */
-static void kp_reset(timeseries_kp_t *kp);
+static void kp_reset_disable(timeseries_kp_t *kp);
 
 /** Initialize the given Key Info object
  *
@@ -136,15 +140,20 @@ static timeseries_t *kp_get_timeseries(timeseries_kp_t *kp)
   return kp->timeseries;
 }
 
-static void kp_reset(timeseries_kp_t *kp)
+static void kp_reset_disable(timeseries_kp_t *kp)
 {
   int i;
-  if (kp->reset == 0) {
+  if (kp->reset == 0 && kp->disable == 0) {
     return;
   }
 
   for (i = 0; i < kp->key_infos_cnt; i++) {
-    kp_ki_set(&kp->key_infos[i], 0);
+    if (kp->reset != 0) {
+      kp_ki_set(&kp->key_infos[i], 0);
+    }
+    if (kp->disable != 0) {
+      timeseries_kp_disable_key(kp, i);
+    }
   }
 }
 
@@ -255,7 +264,7 @@ void timeseries_kp_ki_set_backend_state(timeseries_kp_ki_t *ki,
 
 /* ========== PUBLIC FUNCTIONS ========== */
 
-timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset)
+timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int flags)
 {
   assert(timeseries != NULL);
   timeseries_kp_t *kp = NULL;
@@ -277,8 +286,9 @@ timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset)
   /* save the timeseries pointer */
   kp->timeseries = timeseries;
 
-  /* set the reset flag */
-  kp->reset = reset;
+  /* check the flags */
+  kp->reset = flags & TIMESERIES_KP_RESET;
+  kp->disable = flags & TIMESERIES_KP_DISABLE;
 
   /* let each backend store some state about this kp, if they like */
   TIMESERIES_FOREACH_ENABLED_BACKEND(timeseries, backend, id)
@@ -454,6 +464,6 @@ int timeseries_kp_flush(timeseries_kp_t *kp, uint32_t time)
     }
   }
 
-  kp_reset(kp);
+  kp_reset_disable(kp);
   return 0;
 }

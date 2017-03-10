@@ -54,6 +54,14 @@ typedef struct timeseries_kp timeseries_kp_t;
  *
  * @{ */
 
+enum {
+  /** Zero values for all keys after a flush */
+  TIMESERIES_KP_RESET      = 0x1,
+
+  /** Deactivate all keys after a flush */
+  TIMESERIES_KP_DISABLE = 0x2,
+};
+
 /** @} */
 
 /**
@@ -67,7 +75,7 @@ typedef struct timeseries_kp timeseries_kp_t;
  *
  * @param timeseries    Pointer to the timeseries instance to associate the key
  *                      package with
- * @param reset         Should the values be reset upon a flush.
+ * @param flags         Should the values be reset and/or deactivated on flush.
  * @return a pointer to a Key Package structure, NULL if an error occurs
  *
  * DBATS supports highly-efficient writes if the key names are known a priori,
@@ -88,7 +96,7 @@ typedef struct timeseries_kp timeseries_kp_t;
  * timeseries_kp_add_key function can be used to add keys incrementally.
  * There is currently no mechanism for removing keys.
  */
-timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int reset);
+timeseries_kp_t *timeseries_kp_init(timeseries_t *timeseries, int flags);
 
 /** Free a Key Package
  *
