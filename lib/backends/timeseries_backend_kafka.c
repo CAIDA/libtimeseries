@@ -316,15 +316,6 @@ static int producer_connect(timeseries_backend_t *backend)
   // ask for delivery reports
   rd_kafka_conf_set_dr_msg_cb(conf, kafka_delivery_callback);
 
-  // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
-  //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
-  // TODO: change this when librdkafka has better handling of idle disconnects
-  if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    timeseries_log(__func__, "ERROR: %s", errstr);
-    goto err;
-  }
-
   if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     timeseries_log(__func__, "ERROR: %s", errstr);
@@ -351,6 +342,11 @@ static int producer_connect(timeseries_backend_t *backend)
     goto err;
   }
   if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "2000", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    timeseries_log(__func__, "ERROR: %s", errstr);
+    goto err;
+  }
+  if (rd_kafka_conf_set(conf, "socket.keepalive.enable", "true", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     timeseries_log(__func__, "ERROR: %s", errstr);
     goto err;
