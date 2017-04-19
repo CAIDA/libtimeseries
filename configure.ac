@@ -97,6 +97,7 @@ AC_FUNC_REALLOC
 AC_SEARCH_LIBS([wandio_create], [wandio trace], ,[AC_MSG_ERROR(
 		 [libwandio required (included with libtrace since 3.0.15)]
 		 )])
+AM_CONDITIONAL([WITH_WANDIO], [test "x" == x])
 
 
 # shall we build with the dbats backend?
@@ -177,8 +178,11 @@ AC_HEADER_ASSERT
 
 AC_CONFIG_FILES([Makefile
 		common/Makefile
-		common/libcsv/Makefile
 		common/libpatricia/Makefile
+		common/libinterval3/Makefile
+		common/libinterval3/rb_tree/Makefile
+		common/libcsv/Makefile
+                common/libjsmn/Makefile
 		lib/Makefile
 		lib/backends/Makefile
                 lib/backends/libtsmq/Makefile
