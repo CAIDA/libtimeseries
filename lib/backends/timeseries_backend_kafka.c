@@ -270,6 +270,17 @@ static void kafka_delivery_callback(rd_kafka_t *rk,
   }
 }
 
+static int32_t time_partitioner(const rd_kafka_topic_t *rkt, const void *key,
+                                size_t keylen, int32_t partition_cnt,
+                                void *opaque, void *msg_opaque)
+{
+  assert(keylen == sizeof(uint32_t));
+  uint32_t *time = (uint32_t*)key;
+  // truncate time to # minutes since epoch
+  // NB: the partition count MUST not be a multiple of the step (in minutes)
+  return (*time/60) % partition_cnt;
+}
+
 static int topic_connect(timeseries_backend_t *backend)
 {
   timeseries_backend_kafka_state_t *state = STATE(backend);
@@ -285,9 +296,9 @@ static int topic_connect(timeseries_backend_t *backend)
     return -1;
   }
 
-  // use the random partitioner since our messages are self-contained
+  // topic key is KP time, so route all identical times to the same partition
   rd_kafka_topic_conf_set_partitioner_cb(topic_conf,
-                                         rd_kafka_msg_partitioner_random);
+                                         time_partitioner);
 
   // connect to kafka
   if (state->rkt == NULL) {
