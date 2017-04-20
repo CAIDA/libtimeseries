@@ -57,8 +57,8 @@
 
 #define CONNECT_MAX_RETRIES 8
 
-/** 32K buffer. Approx half will be used, hence the x2 */
-#define BUFFER_LEN ((1024 * 32) * 2)
+/** 128K buffer. Approx half will be used, hence the x2 */
+#define BUFFER_LEN ((1024 * 128) * 2)
 
 #define IDENTITY_MAX_LEN 1024
 
