@@ -275,10 +275,10 @@ static int32_t time_partitioner(const rd_kafka_topic_t *rkt, const void *key,
                                 void *opaque, void *msg_opaque)
 {
   assert(keylen == sizeof(uint32_t));
-  uint32_t *time = (uint32_t*)key;
+  uint32_t time = ntohl(*(uint32_t*)key);
   // truncate time to # minutes since epoch
   // NB: the partition count MUST not be a multiple of the step (in minutes)
-  return (*time/60) % partition_cnt;
+  return (time/60) % partition_cnt;
 }
 
 static int topic_connect(timeseries_backend_t *backend)
