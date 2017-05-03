@@ -57,8 +57,8 @@
 
 #define CONNECT_MAX_RETRIES 8
 
-/** 128K buffer. Approx half will be used, hence the x2 */
-#define BUFFER_LEN ((1024 * 128) * 2)
+/** 512K buffer. Approx half will be used, hence the x2 */
+#define BUFFER_LEN ((1024 * 512) * 2)
 
 #define IDENTITY_MAX_LEN 1024
 
@@ -337,22 +337,6 @@ static int producer_connect(timeseries_backend_t *backend)
   //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
   // TODO: change this when librdkafka has better handling of idle disconnects
   if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    timeseries_log(__func__, "ERROR: %s", errstr);
-    goto err;
-  }
-  if (rd_kafka_conf_set(conf, "batch.num.messages", "100", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    timeseries_log(__func__, "ERROR: %s", errstr);
-    goto err;
-  }
-  // But don't wait very long before sending a partial batch (0.5s)
-  if (rd_kafka_conf_set(conf, "queue.buffering.max.ms", "500", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    timeseries_log(__func__, "ERROR: %s", errstr);
-    goto err;
-  }
-  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "2000", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     timeseries_log(__func__, "ERROR: %s", errstr);
     goto err;
