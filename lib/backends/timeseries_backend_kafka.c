@@ -44,6 +44,8 @@
 
 #define BACKEND_NAME "kafka"
 
+#define DEFAULT_COMPRESSION "snappy"
+
 #define DEFAULT_TOPIC "tsk-production"
 
 #define HEADER_MAGIC "TSKBATCH"
@@ -128,6 +130,9 @@ typedef struct timeseries_backend_kafka_state {
   /** Comma-separated list of Kafka brokers to connect to */
   char *broker_uri;
 
+  /** Compression codec to use */
+  char *compression_codec;
+
   /** Name of the channel (DBATS server) to publish metrics to */
   char *channel_name;
 
@@ -175,8 +180,10 @@ static void usage(timeseries_backend_t *backend)
           "backend usage: %s [-p topic] -b broker-uri -c channel \n"
           "       -b <broker-uri>    kafka broker URI (required)\n"
           "       -c <channel>       metric channel to publish to (required)\n"
+          "       -C <compression>   compression codec to use (default: %s)\n"
           "       -p <topic-prefix>  topic prefix to use (default: %s)\n",
           backend->name, //
+          DEFAULT_COMPRESSION,
           DEFAULT_TOPIC);
 }
 
@@ -202,6 +209,11 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
     case 'c':
       state->channel_name = strdup(optarg);
       state->channel_name_len = strlen(state->channel_name);
+      break;
+
+    case 'C':
+      free(state->compression_codec);
+      state->compression_codec = strdup(optarg);
       break;
 
     case 'p':
@@ -327,8 +339,8 @@ static int producer_connect(timeseries_backend_t *backend)
   // ask for delivery reports
   rd_kafka_conf_set_dr_msg_cb(conf, kafka_delivery_callback);
 
-  if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+  if (rd_kafka_conf_set(conf, "compression.codec", state->compression_codec,
+                        errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     timeseries_log(__func__, "ERROR: %s", errstr);
     goto err;
   }
@@ -485,6 +497,8 @@ int timeseries_backend_kafka_init(timeseries_backend_t *backend, int argc,
   }
   timeseries_backend_register_state(backend, state);
 
+  state->compression_codec = strdup(DEFAULT_COMPRESSION);
+
   /* parse the command line args */
   if (parse_args(backend, argc, argv) != 0) {
     return -1;
@@ -525,6 +539,9 @@ void timeseries_backend_kafka_free(timeseries_backend_t *backend)
 
   free(state->broker_uri);
   state->broker_uri = NULL;
+
+  free(state->compression_codec);
+  state->compression_codec = NULL;
 
   free(state->channel_name);
   state->channel_name = NULL;
