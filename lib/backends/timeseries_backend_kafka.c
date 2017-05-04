@@ -200,7 +200,7 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
   /* remember the argv strings DO NOT belong to us */
 
-  while ((opt = getopt(argc, argv, ":b:c:p:?")) >= 0) {
+  while ((opt = getopt(argc, argv, ":b:c:C:p:?")) >= 0) {
     switch (opt) {
     case 'b':
       state->broker_uri = strdup(optarg);
