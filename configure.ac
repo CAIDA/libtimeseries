@@ -130,7 +130,7 @@ AC_ARG_WITH([tsmq],
 	[AS_HELP_STRING([--without-tsmq],
 	  [do not compile the tsmq backend])],
 	  [],
-	  [with_tsmq=yes])
+	  [with_tsmq=no])
 AC_MSG_RESULT([$with_tsmq])
 
 AM_CONDITIONAL([WITH_TSMQ], [test "x$with_tsmq" != xno])
