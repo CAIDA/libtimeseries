@@ -83,7 +83,7 @@
       if (rd_kafka_produce(state->rkt, (partition), RD_KAFKA_MSG_F_COPY,       \
                            (buf), (written), &(time), sizeof(time),            \
                            NULL) == -1) {                                      \
-        if (rd_kafka_errno2err(errno) == RD_KAFKA_RESP_ERR__QUEUE_FULL) {      \
+        if (rd_kafka_last_error() == RD_KAFKA_RESP_ERR__QUEUE_FULL) {          \
           timeseries_log(__func__, "WARN: producer queue full, retrying...");  \
           if (sleep(1) != 0) {                                                 \
             goto err;                                                          \
@@ -92,7 +92,7 @@
           timeseries_log(                                                      \
             __func__, "ERROR: Failed to produce to topic %s partition %i: %s", \
             rd_kafka_topic_name(state->rkt), (partition),                      \
-            rd_kafka_err2str(rd_kafka_errno2err(errno)));                      \
+            rd_kafka_err2str(rd_kafka_last_error()));                          \
           rd_kafka_poll(state->rdk_conn, 0);                                   \
           goto err;                                                            \
         }                                                                      \
