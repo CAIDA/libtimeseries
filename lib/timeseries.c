@@ -145,7 +145,7 @@ timeseries_backend_t *timeseries_get_backend_by_name(timeseries_t *timeseries,
   TIMESERIES_FOREACH_BACKEND_ID(id)
   {
     if ((backend = timeseries_get_backend_by_id(timeseries, id)) != NULL &&
-        strncasecmp(backend->name, name, strlen(backend->name)) == 0) {
+        strcasecmp(backend->name, name) == 0) {
       return backend;
     }
   }
