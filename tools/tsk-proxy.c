@@ -112,7 +112,6 @@
                                   "-c systems.1min"
 
 typedef struct kafka_config {
-
   char *broker;
   char *group_id;
   char *topic_prefix;
@@ -178,7 +177,7 @@ void log_msg(const char *format, ...)
   va_end(args);
 }
 
-void inc_stat(char *stats_key_suffix, int value)
+void inc_stat(const char *stats_key_suffix, const int value)
 {
   int key_id = 0;
   int old_value = 0;
@@ -243,7 +242,7 @@ int parse_key_value(char **buf, size_t *len_read, const int buflen)
   return 0;
 }
 
-static void maybe_flush(int flush_time)
+static void maybe_flush(const int flush_time)
 {
   static int current_time = 0;
 
@@ -337,7 +336,7 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   }
 }
 
-rd_kafka_t *init_kafka(kafka_config_t *cfg)
+rd_kafka_t *init_kafka(const kafka_config_t *cfg)
 {
   rd_kafka_t *kafka = NULL;
   rd_kafka_conf_t *conf = NULL;
@@ -400,7 +399,7 @@ error:
   return NULL;
 }
 
-int init_timeseries(char *dbats_db)
+int init_timeseries(const char *dbats_db)
 {
   timeseries_backend_t *backend = NULL;
   char *dbats_args = NULL;
@@ -434,7 +433,7 @@ int init_timeseries(char *dbats_db)
   return 0;
 }
 
-int init_stats_timeseries(char *kafka_args)
+int init_stats_timeseries(const char *kafka_args)
 {
   timeseries_backend_t *backend = NULL;
 
@@ -470,7 +469,7 @@ int init_stats_timeseries(char *kafka_args)
   return 0;
 }
 
-int run(rd_kafka_t *kafka, kafka_config_t *cfg)
+int run(rd_kafka_t *kafka, const kafka_config_t *cfg)
 {
   int unix_ts = 0;
   uint32_t msg_cnt = 0;
