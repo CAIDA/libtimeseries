@@ -81,6 +81,9 @@
 // When passed as an argument to maybe_flush(), it forces the function to flush.
 #define FORCE_FLUSH 0
 
+// Buffer size for the channel in kafka messages.
+#define MSG_CHAN_BUF_SIZE 512
+
 // Our time series backend.
 #define TIMESERIES_BACKEND "dbats"
 
@@ -101,10 +104,12 @@
 #define DEFAULT_CONSUMER_GROUP_ID "c-tsk-proxy-test"
 #define DEFAULT_CHANNEL           "active.ping-slash24.team-1.slash24"
 #define DEFAULT_TOPIC_PREFIX      "tsk-production"
-#define DEFAULT_KAFKA_ARGS        "-b loki.caida.org:9092,"                    \
+#define DEFAULT_KAFKA_ARGS        "-b "                                        \
+                                  "loki.caida.org:9092,"                       \
                                   "riddler.caida.org:9092,"                    \
                                   "penguin.caida.org:9092 "                    \
-                                  "-p tsk-production -c systems.1min"
+                                  "-p tsk-production "                         \
+                                  "-c systems.1min"
 
 typedef struct kafka_config {
 
@@ -176,6 +181,7 @@ void log_msg(const char *format, ...)
 void inc_stat(char *stats_key_suffix, int value)
 {
   int key_id = 0;
+  int old_value = 0;
 
   char *stats_key = NULL;
 
@@ -183,10 +189,10 @@ void inc_stat(char *stats_key_suffix, int value)
 
   if ((key_id = timeseries_kp_get_key(stats_kp, stats_key)) == -1) {
     key_id = timeseries_kp_add_key(stats_kp, stats_key);
-  } else {
-    timeseries_kp_enable_key(stats_kp, key_id);
   }
-  timeseries_kp_set(stats_kp, key_id, value);
+
+  old_value = timeseries_kp_get(stats_kp, key_id);
+  timeseries_kp_set(stats_kp, key_id, value + old_value);
 
   free(stats_key);
 }
@@ -202,10 +208,16 @@ void parse_key_value(char **buf, size_t *len_read, const int buflen)
   DESERIALIZE_VAL(*buf, buflen, *len_read, keylen);
   keylen = ntohs(keylen);
   assert(keylen >= MIN_KEY_LEN && keylen <= MAX_KEY_LEN);
+  assert(MAX_KEY_LEN < KEY_BUF_LEN);
 
-  // Get variable-length key.
-  strncpy(key, *buf, keylen);
-  // We have to 0-terminate the string ourselves.
+  // Make sure that there are enough bytes left to read.
+  if ((buflen - *len_read) < keylen) {
+    LOG_ERROR("Not enough bytes left to read.");
+    return;
+  }
+
+  // Get variable-length key.  We have to 0-terminate the key ourselves.
+  memcpy(key, *buf, keylen);
   key[keylen] = 0;
   *buf += keylen;
   *len_read += keylen;
@@ -220,7 +232,12 @@ void parse_key_value(char **buf, size_t *len_read, const int buflen)
   } else {
     timeseries_kp_enable_key(kp, key_id);
   }
-  LOG_INFO("setting key %s (key_id=%d) to %d\n", key, key_id, value);
+
+  if (key_id & 0x80000000) {
+    LOG_ERROR("BAD. key_id=%d, key=%s, value=%d\n", key_id, key, value);
+    exit(1);
+  }
+
   timeseries_kp_set(kp, key_id, value);
 }
 
@@ -243,6 +260,7 @@ static void maybe_flush(int flush_time)
 
     if (timeseries_kp_flush(kp, current_time) == -1) {
       LOG_ERROR("Could not flush key packages.\n");
+      return;
     }
 
     assert(timeseries_kp_enabled_size(kp) == 0);
@@ -258,18 +276,20 @@ static void maybe_flush_stats()
     LOG_INFO("Flushing stats at %d.\n", stats_time);
     if (timeseries_kp_flush(stats_kp, stats_time) == -1) {
       LOG_ERROR("Could not flush stats key packages.\n");
+      return;
     }
     stats_time = now;
   }
 }
 
-void process_message(rd_kafka_message_t *rkmessage)
+void process_message(const rd_kafka_message_t *rkmessage,
+                     const kafka_config_t *cfg)
 {
   size_t len_read = 0;
   uint8_t version = 0;
   uint32_t time = 0;
   uint16_t chanlen = 0;
-  char chanbuf[34] = {0};
+  char msg_chan[MSG_CHAN_BUF_SIZE] = {0};
   char *buf = rkmessage->payload;
 
   // Skip the string "TSKBATCH".
@@ -277,7 +297,7 @@ void process_message(rd_kafka_message_t *rkmessage)
   buf += HEADER_MAGIC_LEN;
 
   // Extract version (1 byte), time (4 bytes), and chanlen (2 bytes), and
-  // chanbuf (variable-length).
+  // msg_chan (variable-length).
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, version);
   if (version != TSKBATCH_VERSION) {
     LOG_ERROR("Expected version %d but got %d.\n", TSKBATCH_VERSION, version);
@@ -285,7 +305,23 @@ void process_message(rd_kafka_message_t *rkmessage)
   }
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, time);
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, chanlen);
-  DESERIALIZE_VAL(buf, rkmessage->len, len_read, chanbuf);
+  chanlen = ntohs(chanlen);
+  assert(chanlen < MSG_CHAN_BUF_SIZE);
+
+  // Make sure that there are enough bytes left to read.
+  if ((rkmessage->len - len_read) < chanlen) {
+    LOG_ERROR("Not enough bytes left to read.");
+    return;
+  }
+  memcpy(msg_chan, buf, chanlen);
+  buf += chanlen;
+  len_read += chanlen;
+
+  if (strncmp(cfg->channel, msg_chan, strlen(cfg->channel)) != 0) {
+    LOG_ERROR("Message with unknown channel.  Expected %s but got %s.\n",
+              cfg->channel, msg_chan);
+    return;
+  }
 
   maybe_flush(ntohl(time));
   inc_stat("messages_cnt", 1);
@@ -312,7 +348,6 @@ rd_kafka_t *init_kafka(kafka_config_t *cfg)
 
   LOG_INFO("Attempting to initialize kafka.\n");
 
-  LOG_INFO("topic name: %s\n", topic_name);
   topics = rd_kafka_topic_partition_list_new(1);
   rd_kafka_topic_partition_list_add(topics, topic_name, -1);
 
@@ -430,7 +465,7 @@ int init_stats_timeseries(char *kafka_args)
   return 0;
 }
 
-int run(rd_kafka_t *kafka)
+int run(rd_kafka_t *kafka, kafka_config_t *cfg)
 {
   int unix_ts = 0;
   uint32_t msg_cnt = 0;
@@ -461,7 +496,7 @@ int run(rd_kafka_t *kafka)
       }
 
       if (!rkmessage->err) {
-        process_message(rkmessage);
+        process_message(rkmessage, cfg);
         eof_since_data = 0;
       } else if (rkmessage->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
         LOG_INFO("Reached end of partition.\n");
@@ -528,6 +563,11 @@ int main(int argc, char **argv)
 
   signal(SIGINT, catch_sigint);
 
+  if ((kafka_config = calloc(1, sizeof(kafka_config_t))) == NULL) {
+    LOG_ERROR("Could not allocate kafka_config_t.\n");
+    return 1;
+  }
+
   while (prevoptind = optind, (opt = getopt(argc, argv,
                                             "o:a:p:i:c:b:g:d:h")) >= 0) {
     switch (opt) {
@@ -562,11 +602,6 @@ int main(int argc, char **argv)
         usage(argv[0]);
         return 1;
     }
-  }
-
-  if ((kafka_config = calloc(1, sizeof(kafka_config_t))) == NULL) {
-    LOG_ERROR("Could not allocate kafka_config_t.\n");
-    return 1;
   }
 
   // Check mandatory arguments.
@@ -625,12 +660,6 @@ int main(int argc, char **argv)
   }
   kafka_config->offset = offset;
 
-  // Create key prefix for our kp statistics.
-  asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
-                              graphite_safe_node(strdup(group_id)),
-                              graphite_safe_node(strdup(topic_prefix)),
-                              graphite_safe_node(strdup(channel)));
-
   // Initialize kafka, our data source.
   if ((kafka = init_kafka(kafka_config)) == NULL) {
     return 3;
@@ -645,8 +674,14 @@ int main(int argc, char **argv)
     return ret;
   }
 
+  // Create key prefix for our kp statistics.
+  asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
+                              graphite_safe_node(strdup(group_id)),
+                              graphite_safe_node(strdup(topic_prefix)),
+                              graphite_safe_node(strdup(channel)));
+
   // Start main processing loop.
-  run(kafka);
+  run(kafka, kafka_config);
 
   LOG_INFO("Freeing resources.\n");
   free(kafka_config);
