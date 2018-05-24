@@ -106,6 +106,19 @@
                                   "penguin.caida.org:9092 "                    \
                                   "-p tsk-production -c systems.1min"
 
+typedef struct kafka_config {
+
+  char *broker;
+  char *group_id;
+  char *topic_prefix;
+
+  // The channel to subscribe, e.g., "active.ping-slash24.team-1.slash24".
+  char *channel;
+
+  // Either "latest" or "earliest".
+  char *offset;
+} kafka_config_t;
+
 // References to our two timeseries objects.
 static timeseries_t *timeseries = NULL;
 static timeseries_t *stats_timeseries = NULL;
@@ -212,8 +225,6 @@ static void maybe_flush(int flush_time)
 {
   static int current_time = 0;
 
-  return;
-
   if (current_time == 0) {
     current_time = flush_time;
   }
@@ -239,8 +250,6 @@ static void maybe_flush(int flush_time)
 static void maybe_flush_stats()
 {
   int now = STATS_INTERVAL_NOW;
-
-  return;
 
   if (now >= (stats_time + stats_interval)) {
     LOG_INFO("Flushing stats at %d.\n", stats_time);
@@ -284,8 +293,7 @@ void process_message(rd_kafka_message_t *rkmessage)
   }
 }
 
-rd_kafka_t *init_kafka(char *broker, char *group_id, char *topic_prefix,
-                       char *channel, char *offset)
+rd_kafka_t *init_kafka(kafka_config_t *cfg)
 {
   rd_kafka_t *kafka = NULL;
   rd_kafka_conf_t *conf = NULL;
@@ -295,8 +303,9 @@ rd_kafka_t *init_kafka(char *broker, char *group_id, char *topic_prefix,
   char *topic_name = NULL;
   char *consumer_group = NULL;
 
-  asprintf(&topic_name, "%s.%s", topic_prefix, channel);
-  asprintf(&consumer_group, "%s.%s", group_id, topic_name);
+  // todo: free these vars
+  asprintf(&topic_name, "%s.%s", cfg->topic_prefix, cfg->channel);
+  asprintf(&consumer_group, "%s.%s", cfg->group_id, topic_name);
 
   LOG_INFO("Attempting to initialize kafka.\n");
 
@@ -306,7 +315,7 @@ rd_kafka_t *init_kafka(char *broker, char *group_id, char *topic_prefix,
 
   // Configure the initial log offset.
   conf = rd_kafka_conf_new();
-  if (rd_kafka_conf_set(conf, "auto.offset.reset", offset,
+  if (rd_kafka_conf_set(conf, "auto.offset.reset", cfg->offset,
                         errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     LOG_ERROR("Could not set log offset because: %s\n", errstr);
     goto error;
@@ -327,7 +336,7 @@ rd_kafka_t *init_kafka(char *broker, char *group_id, char *topic_prefix,
   }
 
   // Add kafka brokers.
-  if (rd_kafka_brokers_add(kafka, broker) == 0) {
+  if (rd_kafka_brokers_add(kafka, cfg->broker) == 0) {
     LOG_ERROR("Kafka brokers could not be added.\n");
     goto error;
   }
@@ -513,6 +522,7 @@ int main(int argc, char **argv)
   char *offset = NULL;
   int stats_interval = 0;
   rd_kafka_t *kafka = NULL;
+  kafka_config_t *kafka_config = NULL;
 
   signal(SIGINT, catch_sigint);
 
@@ -552,6 +562,11 @@ int main(int argc, char **argv)
     }
   }
 
+  if ((kafka_config = calloc(1, sizeof(kafka_config_t))) == NULL) {
+    LOG_ERROR("Could not allocate kafka_config_t.\n");
+    return 1;
+  }
+
   // Check mandatory arguments.
   if (dbats_db == NULL) {
     LOG_ERROR("DBATS database not provided.  Use \"-d\".\n");
@@ -562,6 +577,7 @@ int main(int argc, char **argv)
     LOG_ERROR("Broker not provided.  Use \"-b\".\n");
     return 2;
   }
+  kafka_config->broker = broker;
 
   // Check optional arguments.
   if (group_id == NULL) {
@@ -569,11 +585,13 @@ int main(int argc, char **argv)
              DEFAULT_CONSUMER_GROUP_ID);
     group_id = DEFAULT_CONSUMER_GROUP_ID;
   }
+  kafka_config->group_id = group_id;
 
   if (channel == NULL) {
     LOG_INFO("No channel given.  Using default \"%s\".\n", DEFAULT_CHANNEL);
     channel = DEFAULT_CHANNEL;
   }
+  kafka_config->channel = channel;
 
   if (stats_interval == 0) {
     LOG_INFO("No stats interval given.  Using default %d.\n",
@@ -586,6 +604,7 @@ int main(int argc, char **argv)
              DEFAULT_TOPIC_PREFIX);
     topic_prefix = DEFAULT_TOPIC_PREFIX;
   }
+  kafka_config->topic_prefix = topic_prefix;
 
   if (kafka_args == NULL) {
     LOG_INFO("No kafka arguments given.  Using default %s.\n",
@@ -602,6 +621,7 @@ int main(int argc, char **argv)
                 "\"latest\".\n");
       return 1;
   }
+  kafka_config->offset = offset;
 
   // Create key prefix for our kp statistics.
   char *safe_group_id = graphite_safe_node(strdup(group_id));
@@ -611,8 +631,7 @@ int main(int argc, char **argv)
                               safe_group_id, safe_topic_prefix, safe_channel);
 
   // Initialize kafka, our data source.
-  if ((kafka = init_kafka(broker, group_id, topic_prefix, channel,
-                          offset)) == NULL) {
+  if ((kafka = init_kafka(kafka_config)) == NULL) {
     return 3;
   }
 
@@ -629,6 +648,7 @@ int main(int argc, char **argv)
   run(kafka);
 
   LOG_INFO("Freeing resources.\n");
+  free(kafka_config);
   timeseries_kp_free(&kp);
   timeseries_free(&timeseries);
 
