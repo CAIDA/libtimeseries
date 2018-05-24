@@ -197,7 +197,7 @@ void inc_stat(char *stats_key_suffix, int value)
   free(stats_key);
 }
 
-void parse_key_value(char **buf, size_t *len_read, const int buflen)
+int parse_key_value(char **buf, size_t *len_read, const int buflen)
 {
   uint16_t keylen = 0;
   uint64_t value = 0;
@@ -213,7 +213,7 @@ void parse_key_value(char **buf, size_t *len_read, const int buflen)
   // Make sure that there are enough bytes left to read.
   if ((buflen - *len_read) < keylen) {
     LOG_ERROR("Not enough bytes left to read.");
-    return;
+    return 1;
   }
 
   // Get variable-length key.  We have to 0-terminate the key ourselves.
@@ -239,6 +239,8 @@ void parse_key_value(char **buf, size_t *len_read, const int buflen)
   }
 
   timeseries_kp_set(kp, key_id, value);
+
+  return 0;
 }
 
 static void maybe_flush(int flush_time)
@@ -329,7 +331,9 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   inc_stat("messages_bytes", rkmessage->len);
 
   while (len_read < rkmessage->len) {
-    parse_key_value(&buf, &len_read, rkmessage->len);
+    if (parse_key_value(&buf, &len_read, rkmessage->len) != 0) {
+      return;
+    }
   }
 }
 
