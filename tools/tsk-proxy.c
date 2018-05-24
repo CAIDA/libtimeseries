@@ -218,6 +218,7 @@ void parse_key_value(char **buf, size_t *len_read, const int buflen)
   } else {
     timeseries_kp_enable_key(kp, key_id);
   }
+  LOG_INFO("setting key %s to %d\n", key_id, value);
   timeseries_kp_set(kp, key_id, value);
 }
 
@@ -520,7 +521,6 @@ int main(int argc, char **argv)
   char *channel = NULL;
   char *topic_prefix = NULL;
   char *offset = NULL;
-  int stats_interval = 0;
   rd_kafka_t *kafka = NULL;
   kafka_config_t *kafka_config = NULL;
 
