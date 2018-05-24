@@ -169,7 +169,7 @@ void log_msg(const char *format, ...)
 
   va_start(args, format);
   fprintf(stderr, "[%s] ", time_str);
-  vprintf(format, args);
+  vfprintf(stderr, format, args);
   va_end(args);
 }
 
@@ -205,6 +205,8 @@ void parse_key_value(char **buf, size_t *len_read, const int buflen)
 
   // Get variable-length key.
   strncpy(key, *buf, keylen);
+  // We have to 0-terminate the string ourselves.
+  key[keylen] = 0;
   *buf += keylen;
   *len_read += keylen;
 
@@ -218,7 +220,7 @@ void parse_key_value(char **buf, size_t *len_read, const int buflen)
   } else {
     timeseries_kp_enable_key(kp, key_id);
   }
-  LOG_INFO("setting key %s to %d\n", key_id, value);
+  LOG_INFO("setting key %s (key_id=%d) to %d\n", key, key_id, value);
   timeseries_kp_set(kp, key_id, value);
 }
 
@@ -624,11 +626,10 @@ int main(int argc, char **argv)
   kafka_config->offset = offset;
 
   // Create key prefix for our kp statistics.
-  char *safe_group_id = graphite_safe_node(strdup(group_id));
-  char *safe_topic_prefix = graphite_safe_node(strdup(topic_prefix));
-  char *safe_channel = graphite_safe_node(strdup(channel));
   asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
-                              safe_group_id, safe_topic_prefix, safe_channel);
+                              graphite_safe_node(strdup(group_id)),
+                              graphite_safe_node(strdup(topic_prefix)),
+                              graphite_safe_node(strdup(channel)));
 
   // Initialize kafka, our data source.
   if ((kafka = init_kafka(kafka_config)) == NULL) {
