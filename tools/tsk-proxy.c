@@ -282,8 +282,8 @@ static void maybe_flush_stats()
   }
 }
 
-void process_message(const rd_kafka_message_t *rkmessage,
-                     const kafka_config_t *cfg)
+void handle_message(const rd_kafka_message_t *rkmessage,
+                    const kafka_config_t *cfg)
 {
   size_t len_read = 0;
   uint8_t version = 0;
@@ -496,7 +496,7 @@ int run(rd_kafka_t *kafka, kafka_config_t *cfg)
       }
 
       if (!rkmessage->err) {
-        process_message(rkmessage, cfg);
+        handle_message(rkmessage, cfg);
         eof_since_data = 0;
       } else if (rkmessage->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
         LOG_INFO("Reached end of partition.\n");
