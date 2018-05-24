@@ -212,6 +212,8 @@ static void maybe_flush(int flush_time)
 {
   static int current_time = 0;
 
+  return;
+
   if (current_time == 0) {
     current_time = flush_time;
   }
@@ -237,6 +239,8 @@ static void maybe_flush(int flush_time)
 static void maybe_flush_stats()
 {
   int now = STATS_INTERVAL_NOW;
+
+  return;
 
   if (now >= (stats_time + stats_interval)) {
     LOG_INFO("Flushing stats at %d.\n", stats_time);
@@ -410,6 +414,8 @@ int init_stats_timeseries(char *kafka_args)
   }
 
   stats_time = STATS_INTERVAL_NOW;
+
+  return 0;
 }
 
 int run(rd_kafka_t *kafka)
