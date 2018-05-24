@@ -304,6 +304,7 @@ void handle_message(const rd_kafka_message_t *rkmessage,
     return;
   }
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, time);
+  time = ntohl(time);
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, chanlen);
   chanlen = ntohs(chanlen);
   assert(chanlen < MSG_CHAN_BUF_SIZE);
@@ -323,7 +324,7 @@ void handle_message(const rd_kafka_message_t *rkmessage,
     return;
   }
 
-  maybe_flush(ntohl(time));
+  maybe_flush(time);
   inc_stat("messages_cnt", 1);
   inc_stat("messages_bytes", rkmessage->len);
 
