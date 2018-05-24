@@ -93,6 +93,9 @@
 // Number of header bytes that we skip when parsing an rskmessage.
 #define HEADER_MAGIC_LEN 8
 
+// Timeout for kafka consumer poll in milliseconds.
+#define KAFKA_POLL_TIMEOUT 1000
+
 // Buffer length to hold key package keys.
 #define KEY_BUF_LEN 200
 #define MIN_KEY_LEN 90
@@ -487,7 +490,7 @@ int run(rd_kafka_t *kafka, const kafka_config_t *cfg)
       goto cleanup;
     }
 
-    rkmessage = rd_kafka_consumer_poll(kafka, 1000);
+    rkmessage = rd_kafka_consumer_poll(kafka, KAFKA_POLL_TIMEOUT);
     // Process a burst of messages.
     while (rkmessage) {
 
@@ -517,7 +520,7 @@ int run(rd_kafka_t *kafka, const kafka_config_t *cfg)
       if (shutdown_proxy) {
         break;
       }
-      rkmessage = rd_kafka_consumer_poll(kafka, 1000);
+      rkmessage = rd_kafka_consumer_poll(kafka, KAFKA_POLL_TIMEOUT);
       maybe_flush_stats();
     }
   }
