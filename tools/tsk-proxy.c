@@ -95,7 +95,7 @@
 #define HEADER_MAGIC_LEN 8
 
 // Timeout for kafka consumer poll in milliseconds.
-#define KAFKA_POLL_TIMEOUT 1000
+#define KAFKA_POLL_TIMEOUT 10 * 1000
 
 // Buffer length to hold key package keys.
 #define KEY_BUF_LEN 200
