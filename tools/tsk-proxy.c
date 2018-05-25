@@ -651,7 +651,7 @@ int main(int argc, char **argv)
 
   if (broker == NULL) {
     LOG_ERROR("Broker not provided.  Use \"-b\".\n");
-    return 2;
+    return 1;
   }
   kafka_config->broker = broker;
 
@@ -701,7 +701,7 @@ int main(int argc, char **argv)
 
   // Initialize kafka, our data source.
   if ((kafka = init_kafka(kafka_config)) == NULL) {
-    return 3;
+    return 1;
   }
 
   // Initialize our two timeseries.
