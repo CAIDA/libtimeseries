@@ -470,7 +470,7 @@ int init_stats_timeseries(const char *kafka_args)
   return 0;
 }
 
-int run(rd_kafka_t *kafka, const kafka_config_t *cfg)
+void run(rd_kafka_t *kafka, const kafka_config_t *cfg)
 {
   int unix_ts = 0;
   uint32_t msg_cnt = 0;
@@ -526,8 +526,6 @@ int run(rd_kafka_t *kafka, const kafka_config_t *cfg)
 cleanup:
   maybe_flush(FORCE_FLUSH);
   LOG_INFO("Shutdown complete.\n");
-
-  return 0;
 }
 
 void create_stats_prefix(char *group_id, char *topic_prefix, char *channel)
