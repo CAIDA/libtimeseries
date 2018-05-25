@@ -108,6 +108,9 @@
 #define DEFAULT_CONSUMER_GROUP_ID "c-tsk-proxy-test"
 #define DEFAULT_CHANNEL           "active.ping-slash24.team-1.slash24"
 #define DEFAULT_TOPIC_PREFIX      "tsk-production"
+#define DEFAULT_KAFKA_BROKER      "loki.caida.org:9092,"                       \
+                                  "riddler.caida.org:9092,"                    \
+                                  "penguin.caida.org:9092"
 #define DEFAULT_KAFKA_ARGS        "-b "                                        \
                                   "loki.caida.org:9092,"                       \
                                   "riddler.caida.org:9092,"                    \
@@ -560,8 +563,8 @@ static void usage(const char *name)
 {
   fprintf(stderr,
     "Usage: %s [-h] [-a KAFKA_ARGS] [-b BROKER] [-c CHANNEL] "
-    "[-i STATS_INTERVAL] [-o OFFSET] [-p TOPIC_PREFIX] "
-    "-d DBATS_PATH -g GROUP_ID\n"
+    "[-i STATS_INTERVAL] [-o OFFSET] [-p TOPIC_PREFIX] [-g GROUP_ID]"
+    "-d DBATS_PATH\n"
     "  -a KAFKA_ARGS      Arguments passed to the Kafka backend.\n"
     "  -b BROKER          Kafka broker host(s) in the format address:port"
                           "[,address:port,...].\n"
@@ -600,7 +603,7 @@ int main(int argc, char **argv)
   }
 
   while (prevoptind = optind, (opt = getopt(argc, argv,
-                                            "o:a:p:i:c:b:g:d:h")) >= 0) {
+                                            "a:b:c:d:g:hi:o:p:")) >= 0) {
     switch (opt) {
       case 'a':
         kafka_args = optarg;
@@ -641,13 +644,13 @@ int main(int argc, char **argv)
     return 1;
   }
 
+  // Check optional arguments.
   if (broker == NULL) {
-    LOG_ERROR("Broker not provided.  Use \"-b\".\n");
-    return 1;
+    LOG_ERROR("No broker given.  Using default \"%s\".\n");
+    broker = DEFAULT_KAFKA_BROKER;
   }
   kafka_config->broker = broker;
 
-  // Check optional arguments.
   if (group_id == NULL) {
     LOG_INFO("No group id given.  Using default \"%s\".\n",
              DEFAULT_CONSUMER_GROUP_ID);
