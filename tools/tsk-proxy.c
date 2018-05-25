@@ -151,27 +151,6 @@ static int stats_time = 0;
 // Set to 1 when we catch a SIGINT.
 volatile sig_atomic_t shutdown_proxy = 0;
 
-/** Handles SIGINT gracefully and shuts down */
-static void catch_sigint(int sig)
-{
-  shutdown_proxy++;
-  signal(sig, catch_sigint);
-}
-
-char *graphite_safe_node(char *str)
-{
-  int i = 0;
-  int str_len = strlen(str);
-
-  for (i = 0; i < str_len; i++) {
-    if (str[i] == '.') {
-      str[i] = '-';
-    }
-  }
-
-  return str;
-}
-
 void log_msg(const char *format, ...)
 {
   va_list args;
@@ -187,6 +166,31 @@ void log_msg(const char *format, ...)
   fprintf(stderr, "[%s] ", time_str);
   vfprintf(stderr, format, args);
   va_end(args);
+}
+
+/** Handles SIGINT gracefully and shuts down */
+static void catch_sigint(int sig)
+{
+  shutdown_proxy++;
+  if (shutdown_proxy >= 3) {
+    LOG_INFO("Caught %d SIGINTs.  Shutting down now.\n", shutdown_proxy);
+    exit(1);
+  }
+  signal(sig, catch_sigint);
+}
+
+char *graphite_safe_node(char *str)
+{
+  int i = 0;
+  int str_len = strlen(str);
+
+  for (i = 0; i < str_len; i++) {
+    if (str[i] == '.') {
+      str[i] = '-';
+    }
+  }
+
+  return str;
 }
 
 void inc_stat(const char *stats_key_suffix, const int value)
