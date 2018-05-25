@@ -255,10 +255,8 @@ static void maybe_flush(const int flush_time)
   }
 
   if (flush_time == 0 || flush_time != current_time) {
-    if (flush_time == 0) {
-      LOG_INFO("Forcing a flush.\n");
-    }
-    LOG_INFO("Flushing key packages at %d with %d keys enabled (%d total).\n",
+    LOG_INFO("%sFlushing key packages at %d with %d keys enabled (%d total).\n",
+        (flush_time == FORCE_FLUSH) ? "(Force-)" : "",
         current_time, timeseries_kp_enabled_size(kp), timeseries_kp_size(kp));
     inc_stat("flush_cnt", 1);
     inc_stat("flushed_key_cnt", timeseries_kp_enabled_size(kp));
