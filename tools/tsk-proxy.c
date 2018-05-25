@@ -489,6 +489,7 @@ void run(rd_kafka_t *kafka, const kafka_config_t *cfg)
     }
 
     rkmessage = rd_kafka_consumer_poll(kafka, KAFKA_POLL_TIMEOUT);
+    eof_since_data = 0;
     // Process a burst of messages.
     while (rkmessage) {
 
