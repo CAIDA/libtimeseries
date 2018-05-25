@@ -713,14 +713,16 @@ int main(int argc, char **argv)
   run(kafka, kafka_config);
 
   LOG_INFO("Freeing resources.\n");
+
   rd_kafka_topic_partition_list_destroy(kafka_config->partition_list);
-  //rd_kafka_conf_destroy(kafka_config->conf); // todo: why is this segfaulting?
   destroy_kafka_config(kafka_config);
   rd_kafka_destroy(kafka);
+
   timeseries_kp_free(&kp);
   timeseries_kp_free(&stats_kp);
   timeseries_free(&timeseries);
   timeseries_free(&stats_timeseries);
+
   free(stats_key_prefix);
 
   return 0;
