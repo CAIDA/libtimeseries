@@ -241,11 +241,6 @@ int parse_key_value(char **buf, size_t *len_read, const int buflen)
     timeseries_kp_enable_key(kp, key_id);
   }
 
-  if (key_id & 0x80000000) {
-    LOG_ERROR("BAD. key_id=%d, key=%s, value=%d\n", key_id, key, value);
-    exit(1);
-  }
-
   timeseries_kp_set(kp, key_id, value);
 
   return 0;
