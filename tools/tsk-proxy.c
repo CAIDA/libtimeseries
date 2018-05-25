@@ -76,7 +76,8 @@
 // Macros related to our key package statistics.
 #define STATS_METRIC_PREFIX      "systems.services.tsk"
 #define STATS_TIMESERIES_BACKEND "kafka"
-#define STATS_INTERVAL_NOW       ((time(NULL) / stats_interval) * stats_interval)
+#define STATS_INTERVAL_NOW       ((time(NULL) / stats_interval) *              \
+                                  stats_interval)
 
 // When passed as an argument to maybe_flush(), it forces the function to flush.
 #define FORCE_FLUSH 0
@@ -115,9 +116,14 @@
                                   "-c systems.1min"
 
 typedef struct kafka_config {
+  rd_kafka_conf_t *conf;
+  rd_kafka_topic_partition_list_t *partition_list;
   char *broker;
   char *group_id;
   char *topic_prefix;
+
+  char *topic_name;
+  char *consumer_group;
 
   // The channel to subscribe, e.g., "active.ping-slash24.team-1.slash24".
   char *channel;
@@ -339,42 +345,39 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   }
 }
 
-rd_kafka_t *init_kafka(const kafka_config_t *cfg)
+rd_kafka_t *init_kafka(kafka_config_t *cfg)
 {
   rd_kafka_t *kafka = NULL;
-  rd_kafka_conf_t *conf = NULL;
   rd_kafka_topic_partition_list_t *topics = NULL;
   rd_kafka_resp_err_t err;
   char errstr[512];
-  char *topic_name = NULL;
-  char *consumer_group = NULL;
 
-  // todo: free these vars
-  asprintf(&topic_name, "%s.%s", cfg->topic_prefix, cfg->channel);
-  asprintf(&consumer_group, "%s.%s", cfg->group_id, topic_name);
+  asprintf(&(cfg->topic_name), "%s.%s", cfg->topic_prefix, cfg->channel);
+  asprintf(&(cfg->consumer_group), "%s.%s", cfg->group_id, cfg->topic_name);
 
   LOG_INFO("Attempting to initialize kafka.\n");
 
   topics = rd_kafka_topic_partition_list_new(1);
-  rd_kafka_topic_partition_list_add(topics, topic_name, -1);
+  rd_kafka_topic_partition_list_add(topics, cfg->topic_name, -1);
+  cfg->partition_list = topics;
 
   // Configure the initial log offset.
-  conf = rd_kafka_conf_new();
-  if (rd_kafka_conf_set(conf, "auto.offset.reset", cfg->offset,
+  cfg->conf = rd_kafka_conf_new();
+  if (rd_kafka_conf_set(cfg->conf, "auto.offset.reset", cfg->offset,
                         errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     LOG_ERROR("Could not set log offset because: %s\n", errstr);
     goto error;
   }
 
   // Set our group ID.
-  if (rd_kafka_conf_set(conf, "group.id", consumer_group,
+  if (rd_kafka_conf_set(cfg->conf, "group.id", cfg->consumer_group,
                         errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     LOG_ERROR("Could not set group ID because: %s\n", errstr);
     goto error;
   }
 
   // Create our kafka instance.
-  if ((kafka = rd_kafka_new(RD_KAFKA_CONSUMER, conf,
+  if ((kafka = rd_kafka_new(RD_KAFKA_CONSUMER, cfg->conf,
                             errstr, sizeof(errstr))) == NULL) {
     LOG_ERROR("Could not create handle because: %s\n", errstr);
     goto error;
@@ -532,6 +535,35 @@ cleanup:
   return 0;
 }
 
+void create_stats_prefix(char *group_id, char *topic_prefix, char *channel)
+{
+
+  char *safe_group_id = graphite_safe_node(strdup(group_id));
+  char *safe_topic_prefix = graphite_safe_node(strdup(topic_prefix));
+  char *safe_channel = graphite_safe_node(strdup(channel));
+
+  // Create key prefix for our kp statistics.
+  asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
+           safe_group_id, safe_topic_prefix, safe_channel);
+
+  free(safe_group_id);
+  free(safe_topic_prefix);
+  free(safe_channel);
+}
+
+void destroy_kafka_config(kafka_config_t *cfg)
+{
+  if (cfg->topic_name != NULL) {
+    free(cfg->topic_name);
+  }
+  if (cfg->consumer_group != NULL) {
+    free(cfg->consumer_group);
+  }
+  if (cfg != NULL) {
+    free(cfg);
+  }
+}
+
 static void usage(const char *name)
 {
   fprintf(stderr,
@@ -681,19 +713,21 @@ int main(int argc, char **argv)
     return ret;
   }
 
-  // Create key prefix for our kp statistics.
-  asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
-                              graphite_safe_node(strdup(group_id)),
-                              graphite_safe_node(strdup(topic_prefix)),
-                              graphite_safe_node(strdup(channel)));
+  create_stats_prefix(group_id, topic_prefix, channel);
 
   // Start main processing loop.
   run(kafka, kafka_config);
 
   LOG_INFO("Freeing resources.\n");
-  free(kafka_config);
+  rd_kafka_topic_partition_list_destroy(kafka_config->partition_list);
+  //rd_kafka_conf_destroy(kafka_config->conf); // todo: why is this segfaulting?
+  destroy_kafka_config(kafka_config);
+  rd_kafka_destroy(kafka);
   timeseries_kp_free(&kp);
+  timeseries_kp_free(&stats_kp);
   timeseries_free(&timeseries);
+  timeseries_free(&stats_timeseries);
+  free(stats_key_prefix);
 
   return 0;
 }
