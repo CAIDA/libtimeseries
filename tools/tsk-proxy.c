@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <signal.h>
+#include <yaml.h>
 
 #include <librdkafka/rdkafka.h>
 
@@ -117,6 +118,26 @@
                                   "penguin.caida.org:9092 "                    \
                                   "-p tsk-production "                         \
                                   "-c systems.1min"
+
+typedef struct tsk_config {
+
+  int log_level;
+
+  char *timeseries_backends;
+  char *timeseries_dbats_opts;
+
+  char *kafka_brokers;
+  char *kafka_topic_prefix;
+  char *kafka_channel;
+  char *kafka_consumer_group;
+  char *kafka_offset;
+
+  char *stats_ts_backend;
+  char *stats_ts_opts;
+  int stats_interval;
+
+  rd_kafka_topic_partition_list_t *partition_list;
+} tsk_config_t;
 
 typedef struct kafka_config {
   rd_kafka_conf_t *conf;
@@ -345,46 +366,52 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   }
 }
 
-rd_kafka_t *init_kafka(kafka_config_t *cfg)
+rd_kafka_t *init_kafka(tsk_config_t *cfg)
 {
   rd_kafka_t *kafka = NULL;
   rd_kafka_topic_partition_list_t *topics = NULL;
   rd_kafka_resp_err_t err;
+  rd_kafka_conf_t *conf;
   char errstr[512];
+  char *group_id = NULL;
+  char *topic_name = NULL;
 
-  asprintf(&(cfg->topic_name), "%s.%s", cfg->topic_prefix, cfg->channel);
-  asprintf(&(cfg->consumer_group), "%s.%s", cfg->group_id, cfg->topic_name);
+  LOG_INFO("Initializing kafka.\n");
 
-  LOG_INFO("Attempting to initialize kafka.\n");
+  asprintf(&topic_name, "%s.%s", cfg->kafka_topic_prefix, cfg->kafka_channel);
+  asprintf(&group_id, "%s.%s", cfg->kafka_consumer_group, topic_name);
 
   topics = rd_kafka_topic_partition_list_new(1);
-  rd_kafka_topic_partition_list_add(topics, cfg->topic_name, -1);
+  rd_kafka_topic_partition_list_add(topics, topic_name, -1);
   cfg->partition_list = topics;
 
+  LOG_INFO("Kafka topic name: %s\n", topic_name);
+  LOG_INFO("Kafka group id: %s\n", group_id);
+
   // Configure the initial log offset.
-  cfg->conf = rd_kafka_conf_new();
-  if (rd_kafka_conf_set(cfg->conf, "auto.offset.reset", cfg->offset,
+  conf = rd_kafka_conf_new();
+  if (rd_kafka_conf_set(conf, "auto.offset.reset", cfg->kafka_offset,
                         errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     LOG_ERROR("Could not set log offset because: %s\n", errstr);
     goto error;
   }
 
   // Set our group ID.
-  if (rd_kafka_conf_set(cfg->conf, "group.id", cfg->consumer_group,
+  if (rd_kafka_conf_set(conf, "group.id", group_id,
                         errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     LOG_ERROR("Could not set group ID because: %s\n", errstr);
     goto error;
   }
 
   // Create our kafka instance.
-  if ((kafka = rd_kafka_new(RD_KAFKA_CONSUMER, cfg->conf,
+  if ((kafka = rd_kafka_new(RD_KAFKA_CONSUMER, conf,
                             errstr, sizeof(errstr))) == NULL) {
     LOG_ERROR("Could not create handle because: %s\n", errstr);
     goto error;
   }
 
   // Add kafka brokers.
-  if (rd_kafka_brokers_add(kafka, cfg->broker) == 0) {
+  if (rd_kafka_brokers_add(kafka, cfg->kafka_brokers) == 0) {
     LOG_ERROR("Kafka brokers could not be added.\n");
     goto error;
   }
@@ -405,10 +432,9 @@ error:
   return NULL;
 }
 
-int init_timeseries(const char *dbats_db)
+int init_timeseries(const char *dbats_opts)
 {
   timeseries_backend_t *backend = NULL;
-  char *dbats_args = NULL;
 
   LOG_INFO("Initializing timeseries.\n");
 
@@ -424,12 +450,11 @@ int init_timeseries(const char *dbats_db)
     return 1;
   }
 
-  asprintf(&dbats_args, "-p %s", dbats_db);
-  if (timeseries_enable_backend(backend, dbats_args) != 0) {
+  LOG_INFO("Using DBATS options \"%s\".\n", dbats_opts);
+  if (timeseries_enable_backend(backend, dbats_opts) != 0) {
     LOG_ERROR("Failed to initialize backend.\n");
     return 1;
   }
-  free(dbats_args);
 
   if ((kp = timeseries_kp_init(timeseries, TIMESERIES_KP_DISABLE)) == NULL) {
     LOG_ERROR("Could not create key packages.\n");
@@ -439,7 +464,7 @@ int init_timeseries(const char *dbats_db)
   return 0;
 }
 
-int init_stats_timeseries(const char *kafka_args)
+int init_stats_timeseries(const tsk_config_t *cfg)
 {
   timeseries_backend_t *backend = NULL;
 
@@ -458,8 +483,8 @@ int init_stats_timeseries(const char *kafka_args)
     return 1;
   }
 
-  LOG_INFO("kafka args: %s\n", kafka_args);
-  if (timeseries_enable_backend(backend, kafka_args) != 0) {
+  LOG_INFO("kafka args: %s\n", cfg->stats_ts_opts);
+  if (timeseries_enable_backend(backend, cfg->stats_ts_opts) != 0) {
     LOG_ERROR("Failed to initialize stats timeseries backend.\n");
     return 1;
   }
@@ -534,199 +559,190 @@ cleanup:
   LOG_INFO("Shutdown complete.\n");
 }
 
-void create_stats_prefix(char *group_id, char *topic_prefix, char *channel)
+void create_stats_prefix(tsk_config_t *cfg)
 {
 
-  char *safe_group_id = graphite_safe_node(strdup(group_id));
-  char *safe_topic_prefix = graphite_safe_node(strdup(topic_prefix));
-  char *safe_channel = graphite_safe_node(strdup(channel));
+  char *consumer_group = graphite_safe_node(strdup(cfg->kafka_consumer_group));
+  char *topic_prefix = graphite_safe_node(strdup(cfg->kafka_topic_prefix));
+  char *channel = graphite_safe_node(strdup(cfg->kafka_channel));
 
   // Create key prefix for our kp statistics.
   asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
-           safe_group_id, safe_topic_prefix, safe_channel);
+           consumer_group, topic_prefix, channel);
 
-  free(safe_group_id);
-  free(safe_topic_prefix);
-  free(safe_channel);
+  free(consumer_group);
+  free(topic_prefix);
+  free(channel);
 }
 
-void destroy_kafka_config(kafka_config_t *cfg)
+void *parse_config_file(const char *filename)
 {
-  if (cfg->topic_name != NULL) {
-    free(cfg->topic_name);
+  FILE *fh = NULL;
+  yaml_parser_t parser;
+  yaml_token_t token;
+  char* tk;
+  char **textp = NULL;
+  int *intp = NULL;
+  int state = 0;
+
+  tsk_config_t *tsk_cfg = NULL;
+
+  LOG_INFO("Parsing YAML config file \"%s\".\n", filename);
+
+  if (!yaml_parser_initialize(&parser)) {
+    LOG_ERROR("Failed to initialize YAML parser.\n");
+    return NULL;
   }
-  if (cfg->consumer_group != NULL) {
-    free(cfg->consumer_group);
+
+  if ((fh = fopen(filename, "r")) == NULL) {
+    LOG_ERROR("Failed to open config file %s.\n", filename);
+    return NULL;
   }
-  if (cfg != NULL) {
-    free(cfg);
+
+  if ((tsk_cfg = calloc(1, sizeof(tsk_config_t))) == NULL) {
+    LOG_ERROR("Could not allocate tsk_config_t object.\n");
+    return NULL;
   }
+
+  yaml_parser_set_input_file(&parser, fh);
+
+  do {
+    yaml_parser_scan(&parser, &token);
+    switch(token.type) {
+      case YAML_KEY_TOKEN:
+        state = 0;
+        break;
+      case YAML_VALUE_TOKEN:
+        state = 1;
+        break;
+      case YAML_SCALAR_TOKEN:
+        tk = (char *) token.data.scalar.value;
+        if (state == 0) {
+          // General section.
+          if (strcmp(tk, "log-level") == 0) {
+            intp = &(tsk_cfg->log_level);
+          // Timeseries section.
+          } else if (strcmp(tk, "timeseries-backends") == 0) {
+            textp = &(tsk_cfg->timeseries_backends);
+          } else if (strcmp(tk, "timeseries-dbats-opts") == 0) {
+            textp = &(tsk_cfg->timeseries_dbats_opts);
+          // Kafka section.
+          } else if (strcmp(tk, "kafka-brokers") == 0) {
+            textp = &(tsk_cfg->kafka_brokers);
+          } else if (strcmp(tk, "kafka-topic-prefix") == 0) {
+            textp = &(tsk_cfg->kafka_topic_prefix);
+          } else if (strcmp(tk, "kafka-channel") == 0) {
+            textp = &(tsk_cfg->kafka_channel);
+          } else if (strcmp(tk, "kafka-consumer-group") == 0) {
+            textp = &(tsk_cfg->kafka_consumer_group);
+          } else if (strcmp(tk, "kafka-offset") == 0) {
+            textp = &(tsk_cfg->kafka_offset);
+          // Stats section.
+          } else if (strcmp(tk, "stats-interval") == 0) {
+            intp = &(tsk_cfg->stats_interval);
+          } else if (strcmp(tk, "stats-ts-backends") == 0) {
+            textp = &(tsk_cfg->stats_ts_backend);
+          } else if (strcmp(tk, "stats-ts-opts") == 0) {
+            textp = &(tsk_cfg->stats_ts_opts);
+          } else {
+            LOG_ERROR("Ignoring unsupported config key \"%s\".\n", tk);
+          }
+        } else if (textp && (state == 1)) {
+          *textp = strdup(tk);
+          textp = NULL;
+        } else if (intp && (state == 1)) {
+          *intp = atoi(tk);
+          intp = NULL;
+        }
+        break;
+      default:
+        break;
+    }
+    if (token.type != YAML_STREAM_END_TOKEN) {
+      yaml_token_delete(&token);
+    }
+  } while(token.type != YAML_STREAM_END_TOKEN);
+  yaml_token_delete(&token);
+
+  yaml_parser_delete(&parser);
+  fclose(fh);
+
+  return tsk_cfg;
 }
 
-static void usage(const char *name)
+void destroy_tsk_config(tsk_config_t *c)
 {
-  fprintf(stderr,
-    "Usage: %s [-h] [-a KAFKA_ARGS] [-b BROKER] [-c CHANNEL] "
-    "[-i STATS_INTERVAL] [-o OFFSET] [-p TOPIC_PREFIX] [-g GROUP_ID]"
-    "-d DBATS_PATH\n"
-    "  -a KAFKA_ARGS      Arguments passed to the Kafka backend.\n"
-    "  -b BROKER          Kafka broker host(s) in the format address:port"
-                          "[,address:port,...].\n"
-    "  -c CHANNEL         Kafka channel.  (default=%s)\n"
-    "  -d DBATS_PATH      Path to DBATS database.\n"
-    "  -g GROUP_ID        Kafka consumer group ID.  (default=%s)\n"
-    "  -h                 Show this help text.\n"
-    "  -i STATS_INTERVAL  Statistics interval.\n"
-    "  -o OFFSET          Kafka offset.  Must be \"earliest\" or \"latest\".  "
-                          "(default=\"%s\")\n"
-    "  -p TOPIC_PREFIX Kafka topic prefix.  (default=%s)\n",
-    name, DEFAULT_CONSUMER_GROUP_ID, DEFAULT_CHANNEL, DEFAULT_OFFSET,
-    DEFAULT_TOPIC_PREFIX);
+  LOG_INFO("Freeing tsk_config_t object.\n");
+
+  free(c->timeseries_backends);
+  free(c->timeseries_dbats_opts);
+
+  free(c->kafka_brokers);
+  free(c->kafka_topic_prefix);
+  free(c->kafka_channel);
+  free(c->kafka_consumer_group);
+
+  free(c->stats_ts_backend);
+  free(c->stats_ts_opts);
+
+  rd_kafka_topic_partition_list_destroy(c->partition_list);
+
+  free(c);
 }
 
 int main(int argc, char **argv)
 {
   int ret = 0;
-  int opt = 0;
-  int prevoptind = 0;
-  char *broker = NULL;
-  char *group_id = NULL;
-  char *dbats_db = NULL;
-  char *kafka_args = NULL;
-  char *channel = NULL;
-  char *topic_prefix = NULL;
-  char *offset = NULL;
   rd_kafka_t *kafka = NULL;
+  tsk_config_t *cfg = NULL;
   kafka_config_t *kafka_config = NULL;
 
   signal(SIGINT, catch_sigint);
+
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s CONFIG_FILE\n", argv[0]);
+    return 1;
+  }
 
   if ((kafka_config = calloc(1, sizeof(kafka_config_t))) == NULL) {
     LOG_ERROR("Could not allocate kafka_config_t.\n");
     return 1;
   }
 
-  while (prevoptind = optind, (opt = getopt(argc, argv,
-                                            "a:b:c:d:g:hi:o:p:")) >= 0) {
-    switch (opt) {
-      case 'a':
-        kafka_args = optarg;
-        break;
-      case 'b':
-        broker = optarg;
-        break;
-      case 'c':
-        channel = optarg;
-        break;
-      case 'd':
-        dbats_db = optarg;
-        break;
-      case 'g':
-        group_id = optarg;
-        break;
-      case 'h':
-        usage(argv[0]);
-        return 0;
-      case 'i':
-        stats_interval = atoi(optarg);
-        break;
-      case 'o':
-        offset = optarg;
-        break;
-      case 'p':
-        topic_prefix = optarg;
-        break;
-      default:
-        usage(argv[0]);
-        return 1;
-    }
-  }
-
-  // Check mandatory arguments.
-  if (dbats_db == NULL) {
-    LOG_ERROR("DBATS database not provided.  Use \"-d\".\n");
+  if ((cfg = parse_config_file(argv[1])) == NULL) {
+    LOG_ERROR("Could not parse config file.\n");
     return 1;
   }
 
-  // Check optional arguments.
-  if (broker == NULL) {
-    LOG_ERROR("No broker given.  Using default \"%s\".\n");
-    broker = DEFAULT_KAFKA_BROKER;
-  }
-  kafka_config->broker = broker;
-
-  if (group_id == NULL) {
-    LOG_INFO("No group id given.  Using default \"%s\".\n",
-             DEFAULT_CONSUMER_GROUP_ID);
-    group_id = DEFAULT_CONSUMER_GROUP_ID;
-  }
-  kafka_config->group_id = group_id;
-
-  if (channel == NULL) {
-    LOG_INFO("No channel given.  Using default \"%s\".\n", DEFAULT_CHANNEL);
-    channel = DEFAULT_CHANNEL;
-  }
-  kafka_config->channel = channel;
-
-  if (stats_interval == 0) {
-    LOG_INFO("No stats interval given.  Using default %d.\n",
-             DEFAULT_STATS_INTERVAL);
-    stats_interval = DEFAULT_STATS_INTERVAL;
-  }
-
-  if (topic_prefix == NULL) {
-    LOG_INFO("No topic prefix given.  Using default %s.\n",
-             DEFAULT_TOPIC_PREFIX);
-    topic_prefix = DEFAULT_TOPIC_PREFIX;
-  }
-  kafka_config->topic_prefix = topic_prefix;
-
-  if (kafka_args == NULL) {
-    LOG_INFO("No kafka arguments given.  Using default %s.\n",
-             DEFAULT_KAFKA_ARGS);
-    kafka_args = DEFAULT_KAFKA_ARGS;
-  }
-
-  if (offset == NULL) {
-    LOG_INFO("No offset given.  Using default \"%s\".\n", DEFAULT_OFFSET);
-    offset = DEFAULT_OFFSET;
-  } else if ((strcmp(offset, "earliest") != 0) &&
-             (strcmp(offset, "latest") != 0)) {
-      LOG_ERROR("Offset parameter (-o) must either be \"earliest\" or "
-                "\"latest\".\n");
-      return 1;
-  }
-  kafka_config->offset = offset;
-
   // Initialize kafka, our data source.
-  if ((kafka = init_kafka(kafka_config)) == NULL) {
+  if ((kafka = init_kafka(cfg)) == NULL) {
     return 1;
   }
 
   // Initialize our two timeseries.
-  if ((ret = init_timeseries(dbats_db)) != 0) {
+  if ((ret = init_timeseries(cfg->timeseries_dbats_opts)) != 0) {
     return ret;
   }
-  if ((ret = init_stats_timeseries(kafka_args)) != 0) {
+  if ((ret = init_stats_timeseries(cfg)) != 0) {
     LOG_ERROR("init_stats_timeseries() failed\n");
     return ret;
   }
 
-  create_stats_prefix(group_id, topic_prefix, channel);
+  create_stats_prefix(cfg);
 
   // Start main processing loop.
   run(kafka, kafka_config);
 
   LOG_INFO("Freeing resources.\n");
 
-  rd_kafka_topic_partition_list_destroy(kafka_config->partition_list);
-  destroy_kafka_config(kafka_config);
   rd_kafka_destroy(kafka);
 
   timeseries_kp_free(&kp);
   timeseries_kp_free(&stats_kp);
   timeseries_free(&timeseries);
   timeseries_free(&stats_timeseries);
+
+  destroy_tsk_config(cfg);
 
   free(stats_key_prefix);
 
