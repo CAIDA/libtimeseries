@@ -76,7 +76,6 @@
 
 // Macros related to our key package statistics.
 #define STATS_METRIC_PREFIX      "systems.services.tsk"
-#define STATS_TIMESERIES_BACKEND "kafka"
 #define STATS_INTERVAL_NOW       ((time(NULL) / stats_interval) *              \
                                   stats_interval)
 
@@ -85,9 +84,6 @@
 
 // Buffer size for the channel in kafka messages.
 #define MSG_CHAN_BUF_SIZE 512
-
-// Our time series backend.
-#define TIMESERIES_BACKEND "dbats"
 
 // The protocol version that we expect.
 #define TSKBATCH_VERSION 0
@@ -103,27 +99,11 @@
 #define MIN_KEY_LEN 90
 #define MAX_KEY_LEN 110
 
-// Default values if nothing else is provided over the command line.
-#define DEFAULT_STATS_INTERVAL    60
-#define DEFAULT_OFFSET            "earliest"
-#define DEFAULT_CONSUMER_GROUP_ID "c-tsk-proxy-test"
-#define DEFAULT_CHANNEL           "active.ping-slash24.team-1.slash24"
-#define DEFAULT_TOPIC_PREFIX      "tsk-production"
-#define DEFAULT_KAFKA_BROKER      "loki.caida.org:9092,"                       \
-                                  "riddler.caida.org:9092,"                    \
-                                  "penguin.caida.org:9092"
-#define DEFAULT_KAFKA_ARGS        "-b "                                        \
-                                  "loki.caida.org:9092,"                       \
-                                  "riddler.caida.org:9092,"                    \
-                                  "penguin.caida.org:9092 "                    \
-                                  "-p tsk-production "                         \
-                                  "-c systems.1min"
-
 typedef struct tsk_config {
 
   int log_level;
 
-  char *timeseries_backends;
+  char *timeseries_backend;
   char *timeseries_dbats_opts;
 
   char *kafka_brokers;
@@ -134,27 +114,9 @@ typedef struct tsk_config {
 
   char *stats_ts_backend;
   char *stats_ts_opts;
-  int stats_interval;
 
   rd_kafka_topic_partition_list_t *partition_list;
 } tsk_config_t;
-
-typedef struct kafka_config {
-  rd_kafka_conf_t *conf;
-  rd_kafka_topic_partition_list_t *partition_list;
-  char *broker;
-  char *group_id;
-  char *topic_prefix;
-
-  char *topic_name;
-  char *consumer_group;
-
-  // The channel to subscribe, e.g., "active.ping-slash24.team-1.slash24".
-  char *channel;
-
-  // Either "latest" or "earliest".
-  char *offset;
-} kafka_config_t;
 
 // References to our two timeseries objects.
 static timeseries_t *timeseries = NULL;
@@ -314,7 +276,7 @@ static void maybe_flush_stats()
 }
 
 void handle_message(const rd_kafka_message_t *rkmessage,
-                    const kafka_config_t *cfg)
+                    const tsk_config_t *cfg)
 {
   size_t len_read = 0;
   uint8_t version = 0;
@@ -349,9 +311,9 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   buf += chanlen;
   len_read += chanlen;
 
-  if (strncmp(cfg->channel, msg_chan, strlen(cfg->channel)) != 0) {
+  if (strncmp(cfg->kafka_channel, msg_chan, strlen(cfg->kafka_channel)) != 0) {
     LOG_ERROR("Message with unknown channel.  Expected %s but got %s.\n",
-              cfg->channel, msg_chan);
+              cfg->kafka_channel, msg_chan);
     return;
   }
 
@@ -425,14 +387,19 @@ rd_kafka_t *init_kafka(tsk_config_t *cfg)
 
   LOG_INFO("Successfully initialized kafka.\n");
 
+  free(topic_name);
+  free(group_id);
+
   return kafka;
 
 error:
   LOG_ERROR("Could not initialize kafka.\n");
+  free(topic_name);
+  free(group_id);
   return NULL;
 }
 
-int init_timeseries(const char *dbats_opts)
+int init_timeseries(const tsk_config_t *cfg)
 {
   timeseries_backend_t *backend = NULL;
 
@@ -445,13 +412,14 @@ int init_timeseries(const char *dbats_opts)
   }
 
   if ((backend = timeseries_get_backend_by_name(timeseries,
-                                                TIMESERIES_BACKEND)) == NULL) {
+                                                cfg->timeseries_backend)) ==
+                                                NULL) {
     LOG_ERROR("Invalid timeseries backend name.\n");
     return 1;
   }
 
-  LOG_INFO("Using DBATS options \"%s\".\n", dbats_opts);
-  if (timeseries_enable_backend(backend, dbats_opts) != 0) {
+  LOG_INFO("Using DBATS options \"%s\".\n", cfg->timeseries_dbats_opts);
+  if (timeseries_enable_backend(backend, cfg->timeseries_dbats_opts) != 0) {
     LOG_ERROR("Failed to initialize backend.\n");
     return 1;
   }
@@ -477,7 +445,7 @@ int init_stats_timeseries(const tsk_config_t *cfg)
   }
 
   if ((backend = timeseries_get_backend_by_name(stats_timeseries,
-                                                STATS_TIMESERIES_BACKEND))
+                                                cfg->stats_ts_backend))
                                                 == NULL) {
     LOG_ERROR("Invalid stats timeseries backend name.\n");
     return 1;
@@ -500,7 +468,7 @@ int init_stats_timeseries(const tsk_config_t *cfg)
   return 0;
 }
 
-void run(rd_kafka_t *kafka, const kafka_config_t *cfg)
+void run(rd_kafka_t *kafka, const tsk_config_t *cfg)
 {
   int unix_ts = 0;
   uint32_t msg_cnt = 0;
@@ -575,19 +543,23 @@ void create_stats_prefix(tsk_config_t *cfg)
   free(channel);
 }
 
-void *parse_config_file(const char *filename)
+tsk_config_t *parse_config_file(const char *filename)
 {
   FILE *fh = NULL;
-  yaml_parser_t parser;
-  yaml_token_t token;
   char* tk;
   char **textp = NULL;
   int *intp = NULL;
   int state = 0;
-
+  yaml_parser_t parser;
+  yaml_token_t token;
   tsk_config_t *tsk_cfg = NULL;
 
-  LOG_INFO("Parsing YAML config file \"%s\".\n", filename);
+  LOG_INFO("Parsing config file \"%s\".\n", filename);
+
+  if ((tsk_cfg = calloc(1, sizeof(tsk_config_t))) == NULL) {
+    LOG_ERROR("Could not allocate tsk_config_t object.\n");
+    return NULL;
+  }
 
   if (!yaml_parser_initialize(&parser)) {
     LOG_ERROR("Failed to initialize YAML parser.\n");
@@ -595,17 +567,17 @@ void *parse_config_file(const char *filename)
   }
 
   if ((fh = fopen(filename, "r")) == NULL) {
-    LOG_ERROR("Failed to open config file %s.\n", filename);
-    return NULL;
-  }
-
-  if ((tsk_cfg = calloc(1, sizeof(tsk_config_t))) == NULL) {
-    LOG_ERROR("Could not allocate tsk_config_t object.\n");
+    LOG_ERROR("Failed to open config file \"%s\".\n", filename);
     return NULL;
   }
 
   yaml_parser_set_input_file(&parser, fh);
 
+  /* YAML supports mappings in its data format which would allow us to add
+   * sections to our configuration file format.  While more elegant, it would
+   * require more complicated parsing code, which is why we only support a flat
+   * configuration file format for now, consisting of key:value variables.
+   */
   do {
     yaml_parser_scan(&parser, &token);
     switch(token.type) {
@@ -622,8 +594,8 @@ void *parse_config_file(const char *filename)
           if (strcmp(tk, "log-level") == 0) {
             intp = &(tsk_cfg->log_level);
           // Timeseries section.
-          } else if (strcmp(tk, "timeseries-backends") == 0) {
-            textp = &(tsk_cfg->timeseries_backends);
+          } else if (strcmp(tk, "timeseries-backend") == 0) {
+            textp = &(tsk_cfg->timeseries_backend);
           } else if (strcmp(tk, "timeseries-dbats-opts") == 0) {
             textp = &(tsk_cfg->timeseries_dbats_opts);
           // Kafka section.
@@ -639,8 +611,8 @@ void *parse_config_file(const char *filename)
             textp = &(tsk_cfg->kafka_offset);
           // Stats section.
           } else if (strcmp(tk, "stats-interval") == 0) {
-            intp = &(tsk_cfg->stats_interval);
-          } else if (strcmp(tk, "stats-ts-backends") == 0) {
+            intp = &stats_interval;
+          } else if (strcmp(tk, "stats-ts-backend") == 0) {
             textp = &(tsk_cfg->stats_ts_backend);
           } else if (strcmp(tk, "stats-ts-opts") == 0) {
             textp = &(tsk_cfg->stats_ts_opts);
@@ -670,11 +642,57 @@ void *parse_config_file(const char *filename)
   return tsk_cfg;
 }
 
+int is_valid_config(const tsk_config_t *c) {
+
+  // todo loglevel?
+
+  if (c->timeseries_backend == NULL) {
+    LOG_ERROR("Config option \"timeseries-backend\" not provided.\n");
+    return 1;
+  }
+  if (c->timeseries_dbats_opts == NULL) {
+    LOG_ERROR("Config option \"timeseries-dbats-opts\" not provided.\n");
+    return 1;
+  }
+
+  if (c->kafka_brokers == NULL) {
+    LOG_ERROR("Config option \"kafka-brokers\" not provided.\n");
+    return 1;
+  }
+  if (c->kafka_topic_prefix == NULL) {
+    LOG_ERROR("Config option \"kafka-topic-prefix\" not provided.\n");
+    return 1;
+  }
+  if (c->kafka_channel == NULL) {
+    LOG_ERROR("Config option \"kafka-channel\" not provided.\n");
+    return 1;
+  }
+  if (c->kafka_consumer_group == NULL) {
+    LOG_ERROR("Config option \"kafka-consumer-group\" not provided.\n");
+    return 1;
+  }
+  if (c->kafka_offset == NULL) {
+    LOG_ERROR("Config option \"kafka-offset\" not provided.\n");
+    return 1;
+  }
+
+  if (c->stats_ts_backend == NULL) {
+    LOG_ERROR("Config option \"stats-ts-backend\" not provided.\n");
+    return 1;
+  }
+  if (c->stats_ts_opts == NULL) {
+    LOG_ERROR("Config option \"stats-ts-opts\" not provided.\n");
+    return 1;
+  }
+
+  return 0;
+}
+
 void destroy_tsk_config(tsk_config_t *c)
 {
   LOG_INFO("Freeing tsk_config_t object.\n");
 
-  free(c->timeseries_backends);
+  free(c->timeseries_backend);
   free(c->timeseries_dbats_opts);
 
   free(c->kafka_brokers);
@@ -692,10 +710,8 @@ void destroy_tsk_config(tsk_config_t *c)
 
 int main(int argc, char **argv)
 {
-  int ret = 0;
   rd_kafka_t *kafka = NULL;
   tsk_config_t *cfg = NULL;
-  kafka_config_t *kafka_config = NULL;
 
   signal(SIGINT, catch_sigint);
 
@@ -704,15 +720,15 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  if ((kafka_config = calloc(1, sizeof(kafka_config_t))) == NULL) {
-    LOG_ERROR("Could not allocate kafka_config_t.\n");
-    return 1;
-  }
-
   if ((cfg = parse_config_file(argv[1])) == NULL) {
     LOG_ERROR("Could not parse config file.\n");
     return 1;
   }
+  if (is_valid_config(cfg) != 0) {
+    LOG_ERROR("Missing keys in configuration file.\n");
+    return 1;
+  }
+  create_stats_prefix(cfg);
 
   // Initialize kafka, our data source.
   if ((kafka = init_kafka(cfg)) == NULL) {
@@ -720,30 +736,25 @@ int main(int argc, char **argv)
   }
 
   // Initialize our two timeseries.
-  if ((ret = init_timeseries(cfg->timeseries_dbats_opts)) != 0) {
-    return ret;
+  if (init_timeseries(cfg) != 0) {
+    LOG_ERROR("Could not initialize timeseries.\n");
+    return 1;
   }
-  if ((ret = init_stats_timeseries(cfg)) != 0) {
-    LOG_ERROR("init_stats_timeseries() failed\n");
-    return ret;
+  if (init_stats_timeseries(cfg) != 0) {
+    LOG_ERROR("Could not initialize stats timeseries.\n");
+    return 1;
   }
-
-  create_stats_prefix(cfg);
 
   // Start main processing loop.
-  run(kafka, kafka_config);
+  run(kafka, cfg);
 
   LOG_INFO("Freeing resources.\n");
-
   rd_kafka_destroy(kafka);
-
   timeseries_kp_free(&kp);
   timeseries_kp_free(&stats_kp);
   timeseries_free(&timeseries);
   timeseries_free(&stats_timeseries);
-
   destroy_tsk_config(cfg);
-
   free(stats_key_prefix);
 
   return 0;
