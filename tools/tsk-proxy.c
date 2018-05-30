@@ -212,7 +212,7 @@ int parse_key_value(char **buf, size_t *len_read, const int buflen)
 
   // Get variable-length key.  We have to 0-terminate the key ourselves.
   memcpy(key, *buf, keylen);
-  key[keylen] = 0;
+  key[keylen] = '\0';
   *buf += keylen;
   *len_read += keylen;
 
