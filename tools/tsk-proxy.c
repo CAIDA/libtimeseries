@@ -699,6 +699,7 @@ void destroy_tsk_config(tsk_config_t *c)
   free(c->kafka_topic_prefix);
   free(c->kafka_channel);
   free(c->kafka_consumer_group);
+  free(c->kafka_offset);
 
   free(c->stats_ts_backend);
   free(c->stats_ts_opts);
