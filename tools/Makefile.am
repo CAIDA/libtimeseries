@@ -29,7 +29,10 @@ AM_CPPFLAGS = 	-I$(top_srcdir) 	\
 
 dist_bin_SCRIPTS =
 
-bin_PROGRAMS = timeseries-insert tsk-proxy
+bin_PROGRAMS = timeseries-insert
+if WITH_KAFKA
+bin_PROGRAMS += tsk-proxy
+endif
 
 tsk_proxy_SOURCES = \
 	tsk-proxy.c
