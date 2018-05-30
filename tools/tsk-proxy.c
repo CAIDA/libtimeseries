@@ -278,7 +278,7 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   uint8_t version = 0;
   uint32_t time = 0;
   uint16_t chanlen = 0;
-  char msg_chan[MSG_CHAN_BUF_SIZE] = {0};
+  char msg_chan[MSG_CHAN_BUF_SIZE];
   char *buf = rkmessage->payload;
 
   // Skip the string "TSKBATCH".
