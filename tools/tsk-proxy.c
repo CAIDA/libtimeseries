@@ -58,20 +58,35 @@
     buf += sizeof(to);                                                         \
 } while (0)
 
+/** Convenience macro for DEBUG log messages.
+ */
+#define LOG_DEBUG(...)                                                         \
+  do {                                                                         \
+    if (log_level >= LOG_LEVEL_DEBUG) {                                        \
+      fprintf(stderr, "DEBUG ");                                               \
+      log_msg(__VA_ARGS__);                                                    \
+    }                                                                          \
+  } while (0)
+
+
 /** Convenience macro for INFO log messages.
  */
 #define LOG_INFO(...)                                                          \
   do {                                                                         \
-    fprintf(stderr, "INFO ");                                                  \
-    log_msg(__VA_ARGS__);                                                      \
+    if (log_level >= LOG_LEVEL_INFO) {                                         \
+      fprintf(stderr, "INFO ");                                                \
+      log_msg(__VA_ARGS__);                                                    \
+    }                                                                          \
   } while (0)
 
 /** Convenience macro for ERROR log messages.
  */
 #define LOG_ERROR(...)                                                         \
   do {                                                                         \
-    fprintf(stderr, "ERROR ");                                                 \
-    log_msg(__VA_ARGS__);                                                      \
+    if (log_level >= LOG_LEVEL_ERROR) {                                        \
+      fprintf(stderr, "ERROR ");                                               \
+      log_msg(__VA_ARGS__);                                                    \
+    }                                                                          \
   } while (0)
 
 // Macros related to our key package statistics.
@@ -97,9 +112,12 @@
 // Buffer length to hold key package keys.
 #define KEY_BUF_LEN 1024
 
-typedef struct tsk_config {
+// Log levels.  DEBUG is the most verbose and ERROR the most silent.
+#define LOG_LEVEL_ERROR 0
+#define LOG_LEVEL_INFO  1
+#define LOG_LEVEL_DEBUG 2
 
-  int log_level;
+typedef struct tsk_config {
 
   char *timeseries_backend;
   char *timeseries_dbats_opts;
@@ -129,6 +147,8 @@ static timeseries_kp_t *stats_kp = NULL;
 static char *stats_key_prefix = NULL;
 static int stats_interval = 0;
 static int stats_time = 0;
+
+static int log_level = 0;
 
 // Set to 1 when we catch a SIGINT.
 volatile sig_atomic_t shutdown_proxy = 0;
@@ -262,7 +282,7 @@ static void maybe_flush_stats()
   int now = STATS_INTERVAL_NOW;
 
   if (now >= (stats_time + stats_interval)) {
-    LOG_INFO("Flushing stats at %d.\n", stats_time);
+    LOG_DEBUG("Flushing stats at %d.\n", stats_time);
     if (timeseries_kp_flush(stats_kp, stats_time) == -1) {
       LOG_ERROR("Could not flush stats key packages.\n");
       return;
@@ -487,7 +507,7 @@ void run(rd_kafka_t *kafka, const tsk_config_t *cfg)
       // Print msgs/sec to give us an idea of how fast we are.
       msg_cnt++;
       if (time(NULL) != unix_ts) {
-        LOG_INFO("Processed %d msgs/s.\n", msg_cnt);
+        LOG_DEBUG("Processed %d msgs/s.\n", msg_cnt);
         msg_cnt = 0;
         unix_ts = time(NULL);
       }
@@ -496,7 +516,7 @@ void run(rd_kafka_t *kafka, const tsk_config_t *cfg)
         handle_message(rkmessage, cfg);
         eof_since_data = 0;
       } else if (rkmessage->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
-        LOG_INFO("Reached end of partition.\n");
+        LOG_DEBUG("Reached end of partition.\n");
         if (++eof_since_data >= 10) {
           rd_kafka_message_destroy(rkmessage);
           break;
@@ -585,7 +605,7 @@ tsk_config_t *parse_config_file(const char *filename)
         if (state == 0) {
           // General section.
           if (strcmp(tk, "log-level") == 0) {
-            intp = &(tsk_cfg->log_level);
+            intp = &log_level;
           // Timeseries section.
           } else if (strcmp(tk, "timeseries-backend") == 0) {
             textp = &(tsk_cfg->timeseries_backend);
@@ -640,8 +660,6 @@ tsk_config_t *parse_config_file(const char *filename)
 }
 
 int is_valid_config(const tsk_config_t *c) {
-
-  // todo loglevel?
 
   if (c->timeseries_backend == NULL) {
     LOG_ERROR("Config option \"timeseries-backend\" not provided.\n");
