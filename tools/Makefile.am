@@ -33,7 +33,7 @@ bin_PROGRAMS = timeseries-insert tsk-proxy
 
 tsk_proxy_SOURCES = \
 	tsk-proxy.c
-tsk_proxy_LDADD = -lrdkafka -ltimeseries -lyaml
+tsk_proxy_LDADD = -ltimeseries -lyaml
 tsk_proxy_LDFLAGS = -L$(top_builddir)/lib
 
 timeseries_insert_SOURCES = \
