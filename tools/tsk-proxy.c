@@ -109,6 +109,7 @@ typedef struct tsk_config {
   char *kafka_channel;
   char *kafka_consumer_group;
   char *kafka_offset;
+  size_t kafka_chanlen;
 
   char *stats_ts_backend;
   char *stats_ts_opts;
@@ -278,15 +279,13 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   uint8_t version = 0;
   uint32_t time = 0;
   uint16_t chanlen = 0;
-  char msg_chan[MSG_CHAN_BUF_SIZE];
   char *buf = rkmessage->payload;
 
   // Skip the string "TSKBATCH".
   len_read += HEADER_MAGIC_LEN;
   buf += HEADER_MAGIC_LEN;
 
-  // Extract version (1 byte), time (4 bytes), and chanlen (2 bytes), and
-  // msg_chan (variable-length).
+  // Extract version (1 byte), time (4 bytes), and chanlen (2 bytes).
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, version);
   if (version != TSKBATCH_VERSION) {
     LOG_ERROR("Expected version %d but got %d.\n", TSKBATCH_VERSION, version);
@@ -303,15 +302,14 @@ void handle_message(const rd_kafka_message_t *rkmessage,
     LOG_ERROR("Not enough bytes left to read.");
     return;
   }
-  memcpy(msg_chan, buf, chanlen);
-  buf += chanlen;
-  len_read += chanlen;
 
-  if (strncmp(cfg->kafka_channel, msg_chan, strlen(cfg->kafka_channel)) != 0) {
-    LOG_ERROR("Message with unknown channel.  Expected %s but got %s.\n",
-              cfg->kafka_channel, msg_chan);
+  if (bcmp(buf, cfg->kafka_channel,
+           chanlen < cfg->kafka_chanlen ? chanlen : cfg->kafka_chanlen) != 0) {
+    LOG_ERROR("Expected %s but got unknown channel.\n", cfg->kafka_chanlen);
     return;
   }
+  buf += chanlen;
+  len_read += chanlen;
 
   maybe_flush(time);
   inc_stat("messages_cnt", 1);
@@ -634,6 +632,10 @@ tsk_config_t *parse_config_file(const char *filename)
 
   yaml_parser_delete(&parser);
   fclose(fh);
+
+  if (tsk_cfg->kafka_channel) {
+    tsk_cfg->kafka_chanlen = strlen(tsk_cfg->kafka_channel);
+  }
 
   return tsk_cfg;
 }
