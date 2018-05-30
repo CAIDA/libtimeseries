@@ -239,9 +239,8 @@ static void maybe_flush(const int flush_time)
 
   if (current_time == 0) {
     current_time = flush_time;
-  }
-
-  if (flush_time == 0 || flush_time != current_time) {
+  } else if (flush_time == 0 || flush_time != current_time) {
+    assert(!(flush_time == FORCE_FLUSH && current_time == 0));
     LOG_INFO("%sFlushing key packages at %d with %d keys enabled (%d total).\n",
         (flush_time == FORCE_FLUSH) ? "(Force-)" : "",
         current_time, timeseries_kp_enabled_size(kp), timeseries_kp_size(kp));
