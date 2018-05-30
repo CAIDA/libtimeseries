@@ -96,8 +96,6 @@
 
 // Buffer length to hold key package keys.
 #define KEY_BUF_LEN 1024
-#define MIN_KEY_LEN 90
-#define MAX_KEY_LEN 110
 
 typedef struct tsk_config {
 
@@ -205,8 +203,6 @@ int parse_key_value(char **buf, size_t *len_read, const int buflen)
   // Get 2-byte key length.
   DESERIALIZE_VAL(*buf, buflen, *len_read, keylen);
   keylen = ntohs(keylen);
-  assert(keylen >= MIN_KEY_LEN && keylen <= MAX_KEY_LEN);
-  assert(MAX_KEY_LEN < KEY_BUF_LEN);
 
   // Make sure that there are enough bytes left to read.
   if ((buflen - *len_read) < keylen) {
