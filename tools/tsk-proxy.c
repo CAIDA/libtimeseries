@@ -95,7 +95,7 @@
 #define KAFKA_POLL_TIMEOUT 10 * 1000
 
 // Buffer length to hold key package keys.
-#define KEY_BUF_LEN 200
+#define KEY_BUF_LEN 1024
 #define MIN_KEY_LEN 90
 #define MAX_KEY_LEN 110
 
