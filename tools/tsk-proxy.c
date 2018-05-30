@@ -34,9 +34,9 @@
 #include <time.h>
 #include <signal.h>
 #include <yaml.h>
-
 #include <librdkafka/rdkafka.h>
 
+#include "utils.h"
 #include "timeseries.h"
 
 /** Convenience macro to deserialize a simple variable from a byte array.
@@ -218,7 +218,7 @@ int parse_key_value(char **buf, size_t *len_read, const int buflen)
 
   // Get value.
   DESERIALIZE_VAL(*buf, buflen, *len_read, value);
-  value = be64toh(value);
+  value = ntohll(value);
 
   // Write key:val pair to key package.
   if ((key_id = timeseries_kp_get_key(kp, key)) == -1) {
