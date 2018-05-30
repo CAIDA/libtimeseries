@@ -198,7 +198,7 @@ int parse_key_value(char **buf, size_t *len_read, const int buflen)
   uint16_t keylen = 0;
   uint64_t value = 0;
   int key_id = 0;
-  static char key[KEY_BUF_LEN];
+  char key[KEY_BUF_LEN];
 
   // Get 2-byte key length.
   DESERIALIZE_VAL(*buf, buflen, *len_read, keylen);
