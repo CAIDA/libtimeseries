@@ -575,11 +575,13 @@ tsk_config_t *parse_config_file(const char *filename)
 
   if (!yaml_parser_initialize(&parser)) {
     LOG_ERROR("Failed to initialize YAML parser.\n");
+    free(tsk_cfg);
     return NULL;
   }
 
   if ((fh = fopen(filename, "r")) == NULL) {
     LOG_ERROR("Failed to open config file \"%s\".\n", filename);
+    free(tsk_cfg);
     return NULL;
   }
 
