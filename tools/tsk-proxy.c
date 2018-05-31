@@ -431,7 +431,7 @@ int init_timeseries(const tsk_config_t *cfg)
     return 1;
   }
 
-  LOG_INFO("Using DBATS options \"%s\".\n", cfg->timeseries_dbats_opts);
+  LOG_INFO("Using backend options \"%s\".\n", cfg->timeseries_dbats_opts);
   if (timeseries_enable_backend(backend, cfg->timeseries_dbats_opts) != 0) {
     LOG_ERROR("Failed to initialize backend.\n");
     return 1;
