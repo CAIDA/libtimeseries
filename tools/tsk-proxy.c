@@ -355,13 +355,12 @@ rd_kafka_t *init_kafka(tsk_config_t *cfg)
 
   asprintf(&topic_name, "%s.%s", cfg->kafka_topic_prefix, cfg->kafka_channel);
   asprintf(&group_id, "%s.%s", cfg->kafka_consumer_group, topic_name);
+  LOG_DEBUG("Using kafka topic name \"%s\".\n", topic_name);
+  LOG_DEBUG("Using Kafka group id \"%s\".\n", group_id);
 
   topics = rd_kafka_topic_partition_list_new(1);
   rd_kafka_topic_partition_list_add(topics, topic_name, -1);
   cfg->partition_list = topics;
-
-  LOG_INFO("Kafka topic name: %s\n", topic_name);
-  LOG_INFO("Kafka group id: %s\n", group_id);
 
   // Configure the initial log offset.
   conf = rd_kafka_conf_new();
@@ -431,7 +430,7 @@ int init_timeseries(const tsk_config_t *cfg)
     return 1;
   }
 
-  LOG_INFO("Using backend options \"%s\".\n", cfg->timeseries_dbats_opts);
+  LOG_DEBUG("Using backend options \"%s\".\n", cfg->timeseries_dbats_opts);
   if (timeseries_enable_backend(backend, cfg->timeseries_dbats_opts) != 0) {
     LOG_ERROR("Failed to initialize backend.\n");
     return 1;
@@ -464,7 +463,7 @@ int init_stats_timeseries(const tsk_config_t *cfg)
     return 1;
   }
 
-  LOG_INFO("kafka args: %s\n", cfg->stats_ts_opts);
+  LOG_DEBUG("Using backend options \"%s\".\n", cfg->stats_ts_opts);
   if (timeseries_enable_backend(backend, cfg->stats_ts_opts) != 0) {
     LOG_ERROR("Failed to initialize stats timeseries backend.\n");
     return 1;
@@ -705,7 +704,7 @@ int is_valid_config(const tsk_config_t *c) {
 
 void destroy_tsk_config(tsk_config_t *c)
 {
-  LOG_INFO("Freeing tsk_config_t object.\n");
+  LOG_DEBUG("Freeing tsk_config_t object.\n");
 
   free(c->timeseries_backend);
   free(c->timeseries_dbats_opts);
