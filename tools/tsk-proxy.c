@@ -201,6 +201,8 @@ void inc_stat(const char *stats_key_suffix, const int value)
   int old_value = 0;
   char *stats_key = NULL;
 
+  assert(value > 0);
+
   asprintf(&stats_key, "%s.%s", stats_key_prefix, stats_key_suffix);
 
   if ((key_id = timeseries_kp_get_key(stats_kp, stats_key)) == -1) {
