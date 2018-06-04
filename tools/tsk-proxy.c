@@ -68,7 +68,6 @@
     }                                                                          \
   } while (0)
 
-
 /** Convenience macro for INFO log messages.
  */
 #define LOG_INFO(...)                                                          \
@@ -117,8 +116,8 @@
 #define LOG_LEVEL_INFO  1
 #define LOG_LEVEL_DEBUG 2
 
+// Represents the configuration of TSK proxy.
 typedef struct tsk_config {
-
   char *timeseries_backend;
   char *timeseries_dbats_opts;
 
@@ -148,6 +147,7 @@ static char *stats_key_prefix = NULL;
 static int stats_interval = 0;
 static int stats_time = 0;
 
+// 0 = ERROR, 1 = INFO, 2 = DEBUG.
 static int log_level = 0;
 
 // Set to 1 when we catch a SIGINT.
@@ -199,7 +199,6 @@ void inc_stat(const char *stats_key_suffix, const int value)
 {
   int key_id = 0;
   int old_value = 0;
-
   char *stats_key = NULL;
 
   asprintf(&stats_key, "%s.%s", stats_key_prefix, stats_key_suffix);
