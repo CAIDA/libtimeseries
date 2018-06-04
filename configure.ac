@@ -99,6 +99,9 @@ AC_SEARCH_LIBS([wandio_create], [wandio trace], ,[AC_MSG_ERROR(
 		 )])
 AM_CONDITIONAL([WITH_WANDIO], [test "x" == x])
 
+AC_SEARCH_LIBS([yaml_parser_initialize], [yaml], ,[AC_MSG_ERROR(
+		[libyaml required]
+		)])
 
 # shall we build with the dbats backend?
 # -- installing DBATS is not trivial, so we don't want to make it required
