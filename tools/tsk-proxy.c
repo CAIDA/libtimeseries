@@ -663,6 +663,8 @@ tsk_config_t *parse_config_file(const char *filename)
 
 int is_valid_config(const tsk_config_t *c) {
 
+  LOG_DEBUG("Checking if our configuration file is missing anything.\n");
+
   if (c->timeseries_backend == NULL) {
     LOG_ERROR("Config option \"timeseries-backend\" not provided.\n");
     return 1;
@@ -766,7 +768,7 @@ int main(int argc, char **argv)
   // Start main processing loop.
   run(kafka, cfg);
 
-  LOG_INFO("Freeing resources.\n");
+  LOG_DEBUG("Freeing resources.\n");
   rd_kafka_destroy(kafka);
   timeseries_kp_free(&kp);
   timeseries_kp_free(&stats_kp);
@@ -774,6 +776,7 @@ int main(int argc, char **argv)
   timeseries_free(&stats_timeseries);
   destroy_tsk_config(cfg);
   free(stats_key_prefix);
+  LOG_INFO("Shutting down.\n");
 
   return 0;
 }
