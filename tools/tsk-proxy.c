@@ -254,7 +254,7 @@ int parse_key_value(char **buf, size_t *len_read, const int buflen)
   return 0;
 }
 
-static void maybe_flush(const int flush_time)
+int maybe_flush(const int flush_time)
 {
   static int current_time = 0;
 
@@ -269,13 +269,15 @@ static void maybe_flush(const int flush_time)
     inc_stat("flushed_key_cnt", timeseries_kp_enabled_size(kp));
 
     if (timeseries_kp_flush(kp, current_time) == -1) {
-      LOG_ERROR("Could not flush key packages.\n");
-      return;
+      LOG_ERROR("Could not flush key package.\n");
+      return -1;
     }
 
     assert(timeseries_kp_enabled_size(kp) == 0);
     current_time = flush_time;
   }
+
+  return 0;
 }
 
 static void maybe_flush_stats()
@@ -292,8 +294,8 @@ static void maybe_flush_stats()
   }
 }
 
-void handle_message(const rd_kafka_message_t *rkmessage,
-                    const tsk_config_t *cfg)
+int handle_message(const rd_kafka_message_t *rkmessage,
+                   const tsk_config_t *cfg)
 {
   size_t len_read = 0;
   uint8_t version = 0;
@@ -309,7 +311,7 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, version);
   if (version != TSKBATCH_VERSION) {
     LOG_ERROR("Expected version %d but got %d.\n", TSKBATCH_VERSION, version);
-    return;
+    return 0;
   }
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, time);
   time = ntohl(time);
@@ -320,26 +322,32 @@ void handle_message(const rd_kafka_message_t *rkmessage,
   // Make sure that there are enough bytes left to read.
   if ((rkmessage->len - len_read) < chanlen) {
     LOG_ERROR("Not enough bytes left to read.");
-    return;
+    return 0;
   }
 
   if (bcmp(buf, cfg->kafka_channel,
            chanlen < cfg->kafka_chanlen ? chanlen : cfg->kafka_chanlen) != 0) {
     LOG_ERROR("Expected %s but got unknown channel.\n", cfg->kafka_chanlen);
-    return;
+    // not sure how this could happen, but let's try and keep going
+    return 0;
   }
   buf += chanlen;
   len_read += chanlen;
 
-  maybe_flush(time);
+  if (maybe_flush(time) != 0) {
+    return -1;
+  }
   inc_stat("messages_cnt", 1);
   inc_stat("messages_bytes", rkmessage->len);
 
   while (len_read < rkmessage->len) {
     if (parse_key_value(&buf, &len_read, rkmessage->len) != 0) {
-      return;
+      // this is an error, but not a fatal one
+      return 0;
     }
   }
+
+  return 0;
 }
 
 rd_kafka_t *init_kafka(tsk_config_t *cfg)
@@ -481,7 +489,7 @@ int init_stats_timeseries(const tsk_config_t *cfg)
   return 0;
 }
 
-void run(rd_kafka_t *kafka, const tsk_config_t *cfg)
+int run(rd_kafka_t *kafka, const tsk_config_t *cfg)
 {
   int unix_ts = 0;
   uint32_t msg_cnt = 0;
@@ -491,7 +499,9 @@ void run(rd_kafka_t *kafka, const tsk_config_t *cfg)
   LOG_INFO("Starting C TSK Proxy.\n");
   unix_ts = time(NULL);
   while (1) {
-    maybe_flush(FORCE_FLUSH);
+    if (maybe_flush(FORCE_FLUSH) != 0) {
+      goto cleanup;
+    }
     maybe_flush_stats();
 
     if (shutdown_proxy) {
@@ -513,7 +523,9 @@ void run(rd_kafka_t *kafka, const tsk_config_t *cfg)
       }
 
       if (!rkmessage->err) {
-        handle_message(rkmessage, cfg);
+        if (handle_message(rkmessage, cfg) != 0) {
+          goto cleanup;
+        }
         eof_since_data = 0;
       } else if (rkmessage->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
         LOG_DEBUG("Reached end of partition.\n");
@@ -536,8 +548,9 @@ void run(rd_kafka_t *kafka, const tsk_config_t *cfg)
   }
 
 cleanup:
-  maybe_flush(FORCE_FLUSH);
+  maybe_flush(FORCE_FLUSH); // we're shutting down anyway, so ignore failures
   LOG_INFO("Shutdown complete.\n");
+  return 0;
 }
 
 void create_stats_prefix(tsk_config_t *cfg)
