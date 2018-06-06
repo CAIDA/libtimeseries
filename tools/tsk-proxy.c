@@ -96,9 +96,6 @@
 // When passed as an argument to maybe_flush(), it forces the function to flush.
 #define FORCE_FLUSH 0
 
-// Buffer size for the channel in kafka messages.
-#define MSG_CHAN_BUF_SIZE 512
-
 // The protocol version that we expect.
 #define TSKBATCH_VERSION 0
 
@@ -317,17 +314,17 @@ int handle_message(const rd_kafka_message_t *rkmessage,
   time = ntohl(time);
   DESERIALIZE_VAL(buf, rkmessage->len, len_read, chanlen);
   chanlen = ntohs(chanlen);
-  assert(chanlen < MSG_CHAN_BUF_SIZE);
 
   // Make sure that there are enough bytes left to read.
   if ((rkmessage->len - len_read) < chanlen) {
-    LOG_ERROR("Not enough bytes left to read.");
+    LOG_ERROR("Not enough bytes left to read chanlen (%"PRIu16").", chanlen);
     return 0;
   }
 
   if (bcmp(buf, cfg->kafka_channel,
            chanlen < cfg->kafka_chanlen ? chanlen : cfg->kafka_chanlen) != 0) {
-    LOG_ERROR("Expected %s but got unknown channel.\n", cfg->kafka_chanlen);
+    LOG_ERROR("Expected %s but got unknown channel: %.*s\n", cfg->kafka_chanlen,
+              buf, chanlen);
     // not sure how this could happen, but let's try and keep going
     return 0;
   }
