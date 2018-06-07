@@ -47,14 +47,16 @@
  *                      (will be updated)
  * @param to            the variable to deserialize
  */
-#define DESERIALIZE_VAL(buf, len, read, to)                                    \
+#define DESERIALIZE_VAL(buf, remain, to)                                       \
   do {                                                                         \
-    if (((len) - (read)) < sizeof(to)) {                                       \
-      LOG_ERROR("Not enough bytes left to read.");                             \
+    if ((remain) < sizeof(to)) {                                               \
+      LOG_ERROR("Not enough bytes left to read "                               \
+                "(need %d, but only %d remain).",                              \
+                (int)sizeof(to), (int)remain);                                 \
       return 0;                                                                \
     }                                                                          \
     memcpy(&(to), (buf), sizeof(to));                                          \
-    read += sizeof(to);                                                        \
+    remain -= sizeof(to);                                                      \
     buf += sizeof(to);                                                         \
   } while (0)
 
@@ -99,8 +101,11 @@
 // The protocol version that we expect.
 #define TSKBATCH_VERSION 0
 
-// Number of header bytes that we skip when parsing an rskmessage.
+// Number of header bytes that we skip when parsing an TSK message.
 #define HEADER_MAGIC_LEN 8
+
+// Total number of bytes in the header of a TSK message
+#define HEADER_LEN (HEADER_MAGIC_LEN + 1 + 4 + 2)
 
 // Timeout for kafka consumer poll in milliseconds.
 #define KAFKA_POLL_TIMEOUT 10 * 1000
@@ -212,20 +217,21 @@ void inc_stat(const char *stats_key_suffix, const int value)
   free(stats_key);
 }
 
-int parse_key_value(char **buf, ssize_t *len_read, const int buflen)
+int parse_key_value(uint8_t **buf, ssize_t *remain)
 {
   uint16_t keylen = 0;
   uint64_t value = 0;
   int key_id = 0;
   char key[KEY_BUF_LEN];
 
-  // Get 2-byte key length.
-  DESERIALIZE_VAL(*buf, buflen, *len_read, keylen);
+  // Get 2-byte key length (network byte-ordered).
+  DESERIALIZE_VAL(*buf, *remain, keylen);
   keylen = ntohs(keylen);
 
   // Make sure that there are enough bytes left to read.
-  if ((buflen - *len_read) < keylen) {
-    LOG_ERROR("Not enough bytes left to read.");
+  if (*remain < keylen) {
+    LOG_ERROR("Not enough bytes left to read (need %d, but only %d remain).",
+              keylen, *remain);
     return 1;
   }
 
@@ -233,10 +239,10 @@ int parse_key_value(char **buf, ssize_t *len_read, const int buflen)
   memcpy(key, *buf, keylen);
   key[keylen] = '\0';
   *buf += keylen;
-  *len_read += keylen;
+  *remain -= keylen;
 
   // Get value.
-  DESERIALIZE_VAL(*buf, buflen, *len_read, value);
+  DESERIALIZE_VAL(*buf, *remain, value);
   value = ntohll(value);
 
   // Write key:val pair to key package.
@@ -294,31 +300,42 @@ static void maybe_flush_stats()
 int handle_message(const rd_kafka_message_t *rkmessage,
                    const tsk_config_t *cfg)
 {
-  ssize_t len_read = 0;
   uint8_t version = 0;
   uint32_t time = 0;
   uint16_t chanlen = 0;
-  char *buf = rkmessage->payload;
-  ssize_t len = rkmessage->len;
+  uint8_t *buf = rkmessage->payload;
+  ssize_t remain, len;
+  remain = len = rkmessage->len;
+
+  if (len < HEADER_LEN) {
+    LOG_ERROR("Truncated message received, skipping (%d bytes)\n", len);
+    return 0;
+  }
 
   // Skip the string "TSKBATCH".
-  len_read += HEADER_MAGIC_LEN;
   buf += HEADER_MAGIC_LEN;
 
-  // Extract version (1 byte), time (4 bytes), and chanlen (2 bytes).
-  DESERIALIZE_VAL(buf, len, len_read, version);
-  if (version != TSKBATCH_VERSION) {
+  // Check version (1 byte)
+  if (*(buf++) != TSKBATCH_VERSION) {
     LOG_ERROR("Expected version %d but got %d.\n", TSKBATCH_VERSION, version);
     return 0;
   }
-  DESERIALIZE_VAL(buf, len, len_read, time);
+  // Extract time (4 bytes, network byte-order)
+  memcpy(&time, buf, sizeof(time));
+  buf += sizeof(time);
   time = ntohl(time);
-  DESERIALIZE_VAL(buf, len, len_read, chanlen);
+  // and chanlen (2 bytes, network byte-order)
+  memcpy(&chanlen, buf, sizeof(chanlen));
+  buf += sizeof(chanlen);
   chanlen = ntohs(chanlen);
 
-  // Make sure that there are enough bytes left to read.
-  if ((len - len_read) < chanlen) {
-    LOG_ERROR("Not enough bytes left to read chanlen (%"PRIu16").", chanlen);
+  // count the header as read
+  remain -= HEADER_LEN;
+
+  // Make sure that there are enough bytes left to read the channel name
+  if (remain < chanlen) {
+    LOG_ERROR("Not enough bytes left to read channel name "
+              "(%"PRIu16" needed, but only %d remain).\n", chanlen, remain);
     return 0;
   }
 
@@ -330,7 +347,7 @@ int handle_message(const rd_kafka_message_t *rkmessage,
     return 0;
   }
   buf += chanlen;
-  len_read += chanlen;
+  remain -= chanlen;
 
   if (maybe_flush(time) != 0) {
     return -1;
@@ -338,8 +355,8 @@ int handle_message(const rd_kafka_message_t *rkmessage,
   inc_stat("messages_cnt", 1);
   inc_stat("messages_bytes", len);
 
-  while (len_read < len) {
-    if (parse_key_value(&buf, &len_read, len) != 0) {
+  while (remain > 0) {
+    if (parse_key_value(&buf, &remain) != 0) {
       // this is an error, but not a fatal one
       return 0;
     }
