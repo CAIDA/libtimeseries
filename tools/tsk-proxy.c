@@ -549,8 +549,9 @@ int run(rd_kafka_t *kafka, const tsk_config_t *cfg)
           break;
         }
       } else {
-        LOG_ERROR("%s\n", rd_kafka_message_errstr(rkmessage));
-        shutdown_proxy++;
+        LOG_INFO("%s\n", rd_kafka_message_errstr(rkmessage));
+        // attempt to carry on
+        // TODO: are there some errors that we should treat as fatal?
       }
       rd_kafka_message_destroy(rkmessage);
 
