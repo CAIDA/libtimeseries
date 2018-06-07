@@ -294,7 +294,7 @@ static void maybe_flush_stats()
 int handle_message(const rd_kafka_message_t *rkmessage,
                    const tsk_config_t *cfg)
 {
-  size_t len_read = 0;
+  ssize_t len_read = 0;
   uint8_t version = 0;
   uint32_t time = 0;
   uint16_t chanlen = 0;
