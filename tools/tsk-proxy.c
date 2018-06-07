@@ -51,12 +51,12 @@
   do {                                                                         \
     if (((len) - (read)) < sizeof(to)) {                                       \
       LOG_ERROR("Not enough bytes left to read.");                             \
-      break;                                                                   \
+      return 0;                                                                \
     }                                                                          \
     memcpy(&(to), (buf), sizeof(to));                                          \
     read += sizeof(to);                                                        \
     buf += sizeof(to);                                                         \
-} while (0)
+  } while (0)
 
 /** Convenience macro for DEBUG log messages.
  */
@@ -299,24 +299,25 @@ int handle_message(const rd_kafka_message_t *rkmessage,
   uint32_t time = 0;
   uint16_t chanlen = 0;
   char *buf = rkmessage->payload;
+  ssize_t len = rkmessage->len;
 
   // Skip the string "TSKBATCH".
   len_read += HEADER_MAGIC_LEN;
   buf += HEADER_MAGIC_LEN;
 
   // Extract version (1 byte), time (4 bytes), and chanlen (2 bytes).
-  DESERIALIZE_VAL(buf, rkmessage->len, len_read, version);
+  DESERIALIZE_VAL(buf, len, len_read, version);
   if (version != TSKBATCH_VERSION) {
     LOG_ERROR("Expected version %d but got %d.\n", TSKBATCH_VERSION, version);
     return 0;
   }
-  DESERIALIZE_VAL(buf, rkmessage->len, len_read, time);
+  DESERIALIZE_VAL(buf, len, len_read, time);
   time = ntohl(time);
-  DESERIALIZE_VAL(buf, rkmessage->len, len_read, chanlen);
+  DESERIALIZE_VAL(buf, len, len_read, chanlen);
   chanlen = ntohs(chanlen);
 
   // Make sure that there are enough bytes left to read.
-  if ((rkmessage->len - len_read) < chanlen) {
+  if ((len - len_read) < chanlen) {
     LOG_ERROR("Not enough bytes left to read chanlen (%"PRIu16").", chanlen);
     return 0;
   }
@@ -335,10 +336,10 @@ int handle_message(const rd_kafka_message_t *rkmessage,
     return -1;
   }
   inc_stat("messages_cnt", 1);
-  inc_stat("messages_bytes", rkmessage->len);
+  inc_stat("messages_bytes", len);
 
-  while (len_read < rkmessage->len) {
-    if (parse_key_value(&buf, &len_read, rkmessage->len) != 0) {
+  while (len_read < len) {
+    if (parse_key_value(&buf, &len_read, len) != 0) {
       // this is an error, but not a fatal one
       return 0;
     }
