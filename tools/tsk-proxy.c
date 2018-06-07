@@ -212,7 +212,7 @@ void inc_stat(const char *stats_key_suffix, const int value)
   free(stats_key);
 }
 
-int parse_key_value(char **buf, size_t *len_read, const int buflen)
+int parse_key_value(char **buf, ssize_t *len_read, const int buflen)
 {
   uint16_t keylen = 0;
   uint64_t value = 0;
