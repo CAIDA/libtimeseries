@@ -79,7 +79,7 @@
 #define SEND_MSG(partition, buf, written, time, ptr, len)                      \
   do {                                                                         \
     int success = 0;                                                           \
-    while (success == 0) {                                                     \
+    while (written > 0 && success == 0) {                                      \
       if (rd_kafka_produce(state->rkt, (partition), RD_KAFKA_MSG_F_COPY,       \
                            (buf), (written), &(time), sizeof(time),            \
                            NULL) == -1) {                                      \
@@ -94,6 +94,7 @@
             rd_kafka_topic_name(state->rkt), (partition),                      \
             rd_kafka_err2str(rd_kafka_last_error()));                          \
           rd_kafka_poll(state->rdk_conn, 0);                                   \
+          RESET_BUF(buf, ptr, written);                                        \
           goto err;                                                            \
         }                                                                      \
       } else {                                                                 \
