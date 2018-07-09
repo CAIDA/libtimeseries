@@ -94,6 +94,7 @@
             rd_kafka_topic_name(state->rkt), (partition),                      \
             rd_kafka_err2str(rd_kafka_last_error()));                          \
           rd_kafka_poll(state->rdk_conn, 0);                                   \
+          RESET_BUF(buf, ptr, written);                                        \
           goto err;                                                            \
         }                                                                      \
       } else {                                                                 \
