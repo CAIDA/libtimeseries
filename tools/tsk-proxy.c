@@ -172,6 +172,39 @@ void log_msg(const char *format, ...)
   va_end(args);
 }
 
+/* asprintf(3) is a GNU/BSD extension and not part of C or POSIX.  To avoid
+ * portability issues, we implement it ourselves.
+ */
+int my_asprintf(char **strp, const char *fmt, ...)
+{
+  va_list ap;
+  int str_len;
+  size_t buflen;
+
+  /* Use vsnprintf to determine string length. */
+  va_start(ap, fmt);
+  str_len = vsnprintf(NULL, 0, fmt, ap);
+  va_end(ap);
+  if (str_len < 0) {
+    return -1;
+  }
+  buflen = (size_t) str_len + 1;
+
+  if ((*strp = malloc(buflen)) == NULL) {
+    return -1;
+  }
+
+  va_start(ap, fmt);
+  str_len = vsnprintf(*strp, buflen, fmt, ap);
+  va_end(ap);
+  if (str_len < 0) {
+    free(*strp);
+    return -1;
+  }
+
+  return str_len;
+}
+
 /** Handles SIGINT gracefully and shuts down */
 static void catch_sigint(int sig)
 {
@@ -205,7 +238,7 @@ void inc_stat(const char *stats_key_suffix, const int value)
 
   assert(value > 0);
 
-  asprintf(&stats_key, "%s.%s", stats_key_prefix, stats_key_suffix);
+  my_asprintf(&stats_key, "%s.%s", stats_key_prefix, stats_key_suffix);
 
   if ((key_id = timeseries_kp_get_key(stats_kp, stats_key)) == -1) {
     key_id = timeseries_kp_add_key(stats_kp, stats_key);
@@ -377,8 +410,8 @@ rd_kafka_t *init_kafka(tsk_config_t *cfg)
 
   LOG_INFO("Initializing kafka.\n");
 
-  asprintf(&topic_name, "%s.%s", cfg->kafka_topic_prefix, cfg->kafka_channel);
-  asprintf(&group_id, "%s.%s", cfg->kafka_consumer_group, topic_name);
+  my_asprintf(&topic_name, "%s.%s", cfg->kafka_topic_prefix, cfg->kafka_channel);
+  my_asprintf(&group_id, "%s.%s", cfg->kafka_consumer_group, topic_name);
   LOG_DEBUG("Using kafka topic name \"%s\".\n", topic_name);
   LOG_DEBUG("Using Kafka group id \"%s\".\n", group_id);
 
@@ -577,8 +610,8 @@ void create_stats_prefix(tsk_config_t *cfg)
   char *channel = graphite_safe_node(strdup(cfg->kafka_channel));
 
   // Create key prefix for our kp statistics.
-  asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
-           consumer_group, topic_prefix, channel);
+  my_asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
+              consumer_group, topic_prefix, channel);
 
   free(consumer_group);
   free(topic_prefix);
