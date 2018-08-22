@@ -391,6 +391,14 @@ int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key)
   return kh_val(kp->key_id_hash, k);
 }
 
+const char *timeseries_kp_get_key_name(timeseries_kp_t *kp, uint32_t key)
+{
+  if (key >= kp->key_infos_cnt) {
+    return NULL;
+  }
+  return kp->key_infos[key].key;
+}
+
 void timeseries_kp_disable_key(timeseries_kp_t *kp, uint32_t key)
 {
   if (kp->key_infos[key].disabled == 0) {

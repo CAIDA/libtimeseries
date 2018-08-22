@@ -121,6 +121,15 @@ int timeseries_kp_add_key(timeseries_kp_t *kp, const char *key);
  */
 int timeseries_kp_get_key(timeseries_kp_t *kp, const char *key);
 
+/** Get the key name for the given key ID
+ *
+ * @param kp            The Key Package to search
+ * @param key           The key ID to look for
+ * @return a borrowed pointer to the key name for the given key ID if it exists,
+ * NULL otherwise.
+ */
+const char *timeseries_kp_get_key_name(timeseries_kp_t *kp, uint32_t key);
+
 /** Disable the given key in a Key Package
  *
  * @param kp            Pointer to the KP
