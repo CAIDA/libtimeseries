@@ -25,6 +25,7 @@
 AC_PREREQ([2.68])
 
 AC_INIT([libtimeseries], [0.2.0], [corsaro-info@caida.org])
+AM_INIT_AUTOMAKE([foreign])
 
 LIBTIMESERIES_MAJOR_VERSION=0
 LIBTIMESERIES_MID_VERSION=2
@@ -110,7 +111,7 @@ AC_ARG_WITH([dbats],
 	[AS_HELP_STRING([--without-dbats],
 	  [do not compile the DBATS backend])],
 	  [],
-	  [with_dbats=yes])
+	  [with_dbats=no])
 AC_MSG_RESULT([$with_dbats])
 
 AM_CONDITIONAL([WITH_DBATS], [test "x$with_dbats" != xno])
