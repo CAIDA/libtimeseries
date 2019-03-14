@@ -25,6 +25,7 @@
 AC_PREREQ([2.68])
 
 AC_INIT([libtimeseries], [0.2.0], [corsaro-info@caida.org])
+AM_INIT_AUTOMAKE([foreign])
 
 LIBTIMESERIES_MAJOR_VERSION=0
 LIBTIMESERIES_MID_VERSION=2
@@ -93,11 +94,8 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 
 # Checks for libraries.
-# we use libwandio for threaded IO
-AC_SEARCH_LIBS([wandio_create], [wandio trace], ,[AC_MSG_ERROR(
-		 [libwandio required (included with libtrace since 3.0.15)]
-		 )])
-AM_CONDITIONAL([WITH_WANDIO], [test "x" == x])
+AC_CHECK_LIB([wandio], [wandio_fgets], ,[AC_MSG_ERROR(
+                [libwandio (>=4.1.0) required])])
 
 AC_SEARCH_LIBS([yaml_parser_initialize], [yaml], ,[AC_MSG_ERROR(
 		[libyaml required]
@@ -110,7 +108,7 @@ AC_ARG_WITH([dbats],
 	[AS_HELP_STRING([--without-dbats],
 	  [do not compile the DBATS backend])],
 	  [],
-	  [with_dbats=yes])
+	  [with_dbats=no])
 AC_MSG_RESULT([$with_dbats])
 
 AM_CONDITIONAL([WITH_DBATS], [test "x$with_dbats" != xno])
@@ -124,25 +122,6 @@ AC_CHECK_DECLS([DB_LOCK_DEADLOCK], , AC_MSG_ERROR(
 				   ), [[#include <db.h>]])
 
 AC_DEFINE([WITH_DBATS],[1],[Building with DBATS backend])
-fi
-
-# shall we build with support for tsmq?
-#  -- this will enable both the tsmq-* tools and the tsmq backend
-AC_MSG_CHECKING([whether to build tsmq backend])
-AC_ARG_WITH([tsmq],
-	[AS_HELP_STRING([--without-tsmq],
-	  [do not compile the tsmq backend])],
-	  [],
-	  [with_tsmq=no])
-AC_MSG_RESULT([$with_tsmq])
-
-AM_CONDITIONAL([WITH_TSMQ], [test "x$with_tsmq" != xno])
-
-if test x"$with_tsmq" = xyes; then
-AC_CHECK_LIB([czmq], [zctx_new], ,[AC_MSG_ERROR(
-		      [CZMQ is required for tsmq (--without-tsmq to disable)])])
-
-AC_DEFINE([WITH_TSMQ],[1],[Building tsmq backend])
 fi
 
 # shall we build with support for kafka?
@@ -188,7 +167,6 @@ AC_CONFIG_FILES([Makefile
                 common/libjsmn/Makefile
 		lib/Makefile
 		lib/backends/Makefile
-                lib/backends/libtsmq/Makefile
 		tools/Makefile
 		])
 AC_OUTPUT

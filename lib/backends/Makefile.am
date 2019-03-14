@@ -47,16 +47,6 @@ BACKEND_SRCS += \
 	timeseries_backend_dbats.h
 endif
 
-# TSMQ Backend
-if WITH_TSMQ
-SUBDIRS += libtsmq
-AM_CPPFLAGS += -I$(top_srcdir)/lib/backends/libtsmq
-BACKEND_SRCS += \
-	timeseries_backend_tsmq.c \
-	timeseries_backend_tsmq.h
-BACKEND_LIBS += $(top_builddir)/lib/backends/libtsmq/libtsmq.la
-endif
-
 # Kafka Backend
 if WITH_KAFKA
 BACKEND_SRCS += \

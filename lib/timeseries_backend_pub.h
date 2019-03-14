@@ -70,11 +70,8 @@ typedef enum timeseries_backend_id {
   /** Write timeseries metrics into a DBATS database */
   TIMESERIES_BACKEND_ID_DBATS = 2,
 
-  /** Write timeseries metrics to a remote libtimeseries database */
-  TIMESERIES_BACKEND_ID_TSMQ = 3,
-
   /** Write timeseries metrics to an Apache Kafka cluster */
-  TIMESERIES_BACKEND_ID_KAFKA = 4,
+  TIMESERIES_BACKEND_ID_KAFKA = 3,
 
   /** Lowest numbered timeseries backend ID */
   TIMESERIES_BACKEND_ID_FIRST = TIMESERIES_BACKEND_ID_ASCII,

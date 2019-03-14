@@ -177,8 +177,7 @@ struct timeseries_backend {
    * @return 0 if state was updated successfully, -1 otherwise
    *
    * For example: the DBATS backend needs to ask DBATS what the internal key id
-   * is for the string key. Also, the tsmq backend needs to send a query over
-   * the network to find the server and backend key id.
+   * is for the string key.
    *
    * Backends should use the TIMESERIES_KP_FOREACH_KI macro to iterate over all
    * KIs in the KP and then use the timeseries_kp_get_ki and

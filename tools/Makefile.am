@@ -44,26 +44,6 @@ timeseries_insert_SOURCES = \
 timeseries_insert_LDADD = -ltimeseries
 timeseries_insert_LDFLAGS = -L$(top_builddir)/lib
 
-if WITH_TSMQ
-AM_CPPFLAGS += -I$(top_srcdir)/lib/backends/libtsmq
-bin_PROGRAMS += tsmq-server tsmq-broker tsmq-test-client
-
-tsmq_broker_SOURCES = \
-	tsmq-broker.c
-tsmq_broker_LDADD = -ltimeseries
-tsmq_broker_LDFLAGS = -L$(top_builddir)/lib
-
-tsmq_test_client_SOURCES = \
-	tsmq-test-client.c
-tsmq_test_client_LDADD = -ltimeseries
-tsmq_test_client_LDFLAGS = -L$(top_builddir)/lib
-
-tsmq_server_SOURCES = \
-	tsmq-server.c
-tsmq_server_LDADD = -ltimeseries
-tsmq_server_LDFLAGS = -L$(top_builddir)/lib
-endif
-
 ACLOCAL_AMFLAGS = -I m4
 
 CLEANFILES = *~

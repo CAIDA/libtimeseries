@@ -29,7 +29,6 @@
 #include "timeseries_log_int.h"
 #include "config.h"
 #include "utils.h"
-#include "wandio_utils.h"
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
