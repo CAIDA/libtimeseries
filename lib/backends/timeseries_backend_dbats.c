@@ -36,7 +36,6 @@
 #include <dbats.h>
 
 #include "utils.h"
-#include "wandio_utils.h"
 
 #include "timeseries_backend_int.h"
 #include "timeseries_kp_int.h"

@@ -94,11 +94,8 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 
 # Checks for libraries.
-# we use libwandio for threaded IO
-AC_SEARCH_LIBS([wandio_create], [wandio trace], ,[AC_MSG_ERROR(
-		 [libwandio required (included with libtrace since 3.0.15)]
-		 )])
-AM_CONDITIONAL([WITH_WANDIO], [test "x" == x])
+AC_CHECK_LIB([wandio], [wandio_fgets], ,[AC_MSG_ERROR(
+                [libwandio (>=4.1.0) required])])
 
 AC_SEARCH_LIBS([yaml_parser_initialize], [yaml], ,[AC_MSG_ERROR(
 		[libyaml required]

@@ -33,7 +33,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <wandio_utils.h>
 #include <wandio.h>
 
 #include "timeseries.h"
