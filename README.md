@@ -28,7 +28,7 @@ implementation.
 Currently supported backends are:
  - Graphite ASCII format (`ascii`)
  - DBATS: DataBase of Aggregated Time Series (`dbats`)
- - TSMQ: Time Series Message Queue
+ - TSK: Time Series Kafka (`kafka`)
 
 ### ASCII Backend
 The ASCII backend simply writes the time series data to `stdout` in the Graphite
@@ -52,57 +52,18 @@ app.foo.my_timer 100 1472669180
 The DBATS backend uses `libdbats` (http://www.caida.org/tools/utilities/dbats)
 to write time series data to a DBATS database. Note that to use this backend,
 the DBATS database must be on a locally-accessible file-system, and as such this
-backend is normally used in conjunction with TSMQ (see below).
+backend is normally used in conjunction with TSK to handle time series
+transport.
 
-### TSMQ Backend
+### Kafka Backend
 
-The TSMQ backend uses `libtsmq` (included in this release) to transmit time
-series data to a (remote) server (`tsmq-server`) via a broker service
-(`tsmq-broker`). TSMQ uses CZMQ (http://czmq.zeromq.org/) to provide distributed
-messaging, normally via TCP.
-
-#### tsmq-broker
-
-The TSMQ broker (`tools/tsmq-broker`) is a service that uses CZMQ to listen for
-clients on one port, a server on another, and then simply proxies messages
-between the clients and the server. If multiple clients are connected, it will
-read from each in a round-robin fashion. Note: currently only **one** server is
-supported. Connecting additional servers will trigger an exception.
-
-#### tsmq-server
-
-The TSMQ server (`tools/tsmq-server`) uses CZMQ to connect to a broker service,
-and then using libtimeseries writes timeseries data to configured
-backend(s). A common usage configuration for TSMQ is as follows:
-
-```
---------------------------------------------------[Analysis Machine]
-                  <analysis-tool>
-             libtimeseries (tsmq backend)
---------------------------------------------------
-                       [TCP]
---------------------------------------------------[Broker Machine]
-                     tsmq-broker
---------------------------------------------------
-                       [TCP]
---------------------------------------------------[DB Machine]
-   tsmq-server + libtimeseries (dbats backend)
-                      DBATS DB
---------------------------------------------------
-```
-
-#### Caveats
-
-Because the version of TSMQ included is an early alpha release, there must be a
-one-to-one relationship between `tsmq-server` and `tsmq-broker`. Also, the
-`tsmq-server` process *must* be started before the `tsmq-broker` process.
-
+TODO
 
 ## Requirements
 
  - wandio (http://research.wand.net.nz/software/libwandio.php)
  - DBATS (http://www.caida.org/tools/utilities/dbats)
- - ZMQ/CZMQ (http://czmq.zeromq.org/)
+ - librdkafka (https://github.com/edenhill/librdkafka)
 
 ## Building
 
@@ -132,9 +93,10 @@ Run any program with the `-?` option for a list of options.
     Simple command-line tool to write time series data (input should be in the
     Graphite format described above).
 
- - `tsmq-broker`, `tsmq-server`
-    See the description of TSMQ above.
-
+ - `tsk-proxy`
+    Server to proxy time series data from a TSK instance to any
+    libtimeseries backend. This is usually used to write data from TSK
+    into a DBATS database.
 
 ## License
 

@@ -168,11 +168,11 @@ void timeseries_kp_set(timeseries_kp_t *kp, uint32_t key, uint64_t value);
  * @param kp            Pointer to the KP to resolve keys for
  * @return 0 if the keys were resolved successfully, -1 otherwise.
  *
- * This can be helpful when creating a key package with a large number of keys
- * and using a backend that is slow to resolve keys (e.g. TSMQ+DBATS). Rather
- * than blocking when performing the first flush, the caller can choose to
- * resolve the keys after initialization and before entering time-critical
- * processing.
+ * This can be helpful when creating a key package with a large number
+ * of keys and using a backend that is slow to resolve keys
+ * (e.g. DBATS). Rather than blocking when performing the first flush,
+ * the caller can choose to resolve the keys after initialization and
+ * before entering time-critical processing.
  */
 int timeseries_kp_resolve(timeseries_kp_t *kp);
 

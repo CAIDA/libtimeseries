@@ -47,11 +47,6 @@
 #include "timeseries_backend_dbats.h"
 #endif
 
-/* TSMQ */
-#ifdef WITH_TSMQ
-#include "timeseries_backend_tsmq.h"
-#endif
-
 /* Kafka */
 #ifdef WITH_KAFKA
 #include "timeseries_backend_kafka.h"
@@ -75,14 +70,6 @@ static const backend_alloc_func_t backend_alloc_functions[] = {
     otherwise a NULL pointer to indicate the backend is unavailable */
 #ifdef WITH_DBATS
   timeseries_backend_dbats_alloc,
-#else
-  NULL,
-#endif
-
-/** If we are building with TSMQ support, point to the tsmq alloc function,
-    otherwise a NULL pointer to indicate the backend is unavailable */
-#ifdef WITH_TSMQ
-  timeseries_backend_tsmq_alloc,
 #else
   NULL,
 #endif

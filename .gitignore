@@ -27,9 +27,6 @@ TAGS
 *.tar.gz
 ChangeLog
 tools/timeseries-insert
-tools/tsmq-test-client
-tools/tsmq-broker
-tools/tsmq-server
 tools/tsk-proxy
 
 # Autotools files

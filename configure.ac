@@ -124,25 +124,6 @@ AC_CHECK_DECLS([DB_LOCK_DEADLOCK], , AC_MSG_ERROR(
 AC_DEFINE([WITH_DBATS],[1],[Building with DBATS backend])
 fi
 
-# shall we build with support for tsmq?
-#  -- this will enable both the tsmq-* tools and the tsmq backend
-AC_MSG_CHECKING([whether to build tsmq backend])
-AC_ARG_WITH([tsmq],
-	[AS_HELP_STRING([--without-tsmq],
-	  [do not compile the tsmq backend])],
-	  [],
-	  [with_tsmq=no])
-AC_MSG_RESULT([$with_tsmq])
-
-AM_CONDITIONAL([WITH_TSMQ], [test "x$with_tsmq" != xno])
-
-if test x"$with_tsmq" = xyes; then
-AC_CHECK_LIB([czmq], [zctx_new], ,[AC_MSG_ERROR(
-		      [CZMQ is required for tsmq (--without-tsmq to disable)])])
-
-AC_DEFINE([WITH_TSMQ],[1],[Building tsmq backend])
-fi
-
 # shall we build with support for kafka?
 AC_MSG_CHECKING([whether to build kafka backend])
 AC_ARG_WITH([kafka],
@@ -186,7 +167,6 @@ AC_CONFIG_FILES([Makefile
                 common/libjsmn/Makefile
 		lib/Makefile
 		lib/backends/Makefile
-                lib/backends/libtsmq/Makefile
 		tools/Makefile
 		])
 AC_OUTPUT
