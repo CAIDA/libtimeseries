@@ -122,8 +122,9 @@ int timeseries_backend_init(timeseries_backend_t *backend, int argc,
 
   /* if it has already been initialized, then we simply return */
   if (backend->enabled != 0) {
-    timeseries_log(__func__, "WARNING: backend (%s) is already initialized, "
-                             "ignoring new settings",
+    timeseries_log(__func__,
+                   "WARNING: backend (%s) is already initialized, "
+                   "ignoring new settings",
                    backend->name);
     return 0;
   }

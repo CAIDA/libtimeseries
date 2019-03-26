@@ -189,8 +189,8 @@ static void usage(timeseries_backend_t *backend)
           "       -c <channel>       metric channel to publish to (required)\n"
           "       -C <compression>   compression codec to use (default: %s)\n"
           "       -p <topic-prefix>  topic prefix to use (default: %s)\n",
-          backend->name, //
-          DEFAULT_COMPRESSION,
+          backend->name,       //
+          DEFAULT_COMPRESSION, //
           DEFAULT_TOPIC);
 }
 
@@ -294,10 +294,10 @@ static int32_t time_partitioner(const rd_kafka_topic_t *rkt, const void *key,
                                 void *opaque, void *msg_opaque)
 {
   assert(keylen == sizeof(uint32_t));
-  uint32_t time = ntohl(*(uint32_t*)key);
+  uint32_t time = ntohl(*(uint32_t *)key);
   // truncate time to # minutes since epoch
   // NB: the partition count MUST not be a multiple of the step (in minutes)
-  return (time/60) % partition_cnt;
+  return (time / 60) % partition_cnt;
 }
 
 static int topic_connect(timeseries_backend_t *backend)
@@ -316,8 +316,7 @@ static int topic_connect(timeseries_backend_t *backend)
   }
 
   // topic key is KP time, so route all identical times to the same partition
-  rd_kafka_topic_conf_set_partitioner_cb(topic_conf,
-                                         time_partitioner);
+  rd_kafka_topic_conf_set_partitioner_cb(topic_conf, time_partitioner);
 
   // connect to kafka
   if (state->rkt == NULL) {
@@ -428,8 +427,8 @@ static int kafka_connect(timeseries_backend_t *backend)
   return 0;
 }
 
-static int write_header(uint8_t *buf, size_t len, uint32_t time,
-                        char *channel, uint16_t channel_len)
+static int write_header(uint8_t *buf, size_t len, uint32_t time, char *channel,
+                        uint16_t channel_len)
 {
   // this function can be a bit sub-optimal because it isn't called a zillion
   // times
@@ -628,8 +627,8 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
     if (state->buffer_written == 0) {
       // new message, so write the header
       if ((s = write_header(ptr, (len - state->buffer_written), time,
-                            state->channel_name,
-                            state->channel_name_len)) <= 0) {
+                            state->channel_name, state->channel_name_len)) <=
+          0) {
         goto err;
       }
       state->buffer_written += s;

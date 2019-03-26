@@ -63,7 +63,7 @@ typedef struct timeseries_kp timeseries_kp_t;
 
 enum {
   /** Zero values for all keys after a flush */
-  TIMESERIES_KP_RESET      = 0x1,
+  TIMESERIES_KP_RESET = 0x1,
 
   /** Deactivate all keys after a flush */
   TIMESERIES_KP_DISABLE = 0x2,

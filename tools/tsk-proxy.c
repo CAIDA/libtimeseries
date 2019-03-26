@@ -32,19 +32,19 @@
 
 #include "config.h"
 
-#include <stdarg.h>
-#include <assert.h>
-#include <string.h>
-#include <unistd.h>
-#include <ctype.h>
 #include <arpa/inet.h>
-#include <time.h>
-#include <signal.h>
-#include <yaml.h>
+#include <assert.h>
+#include <ctype.h>
 #include <librdkafka/rdkafka.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+#include <yaml.h>
 
-#include "utils.h"
 #include "timeseries.h"
+#include "utils.h"
 
 /** Convenience macro to deserialize a simple variable from a byte array.
  *
@@ -98,9 +98,8 @@
   } while (0)
 
 // Macros related to our key package statistics.
-#define STATS_METRIC_PREFIX      "systems.services.tsk"
-#define STATS_INTERVAL_NOW       ((time(NULL) / stats_interval) *              \
-                                  stats_interval)
+#define STATS_METRIC_PREFIX "systems.services.tsk"
+#define STATS_INTERVAL_NOW ((time(NULL) / stats_interval) * stats_interval)
 
 // When passed as an argument to maybe_flush(), it forces the function to flush.
 #define FORCE_FLUSH 0
@@ -122,7 +121,7 @@
 
 // Log levels.  DEBUG is the most verbose and ERROR the most silent.
 #define LOG_LEVEL_ERROR 0
-#define LOG_LEVEL_INFO  1
+#define LOG_LEVEL_INFO 1
 #define LOG_LEVEL_DEBUG 2
 
 // Represents the configuration of TSK proxy.
@@ -273,8 +272,8 @@ int maybe_flush(const int flush_time)
   } else if (flush_time == 0 || flush_time != current_time) {
     assert(!(flush_time == FORCE_FLUSH && current_time == 0));
     LOG_INFO("%sFlushing key packages at %d with %d keys enabled (%d total).\n",
-        (flush_time == FORCE_FLUSH) ? "(Force-)" : "",
-        current_time, timeseries_kp_enabled_size(kp), timeseries_kp_size(kp));
+             (flush_time == FORCE_FLUSH) ? "(Force-)" : "", current_time,
+             timeseries_kp_enabled_size(kp), timeseries_kp_size(kp));
     inc_stat("flush_cnt", 1);
     inc_stat("flushed_key_cnt", timeseries_kp_enabled_size(kp));
 
@@ -304,8 +303,7 @@ static void maybe_flush_stats()
   }
 }
 
-int handle_message(const rd_kafka_message_t *rkmessage,
-                   const tsk_config_t *cfg)
+int handle_message(const rd_kafka_message_t *rkmessage, const tsk_config_t *cfg)
 {
   uint8_t version = 0;
   uint32_t time = 0;
@@ -342,7 +340,8 @@ int handle_message(const rd_kafka_message_t *rkmessage,
   // Make sure that there are enough bytes left to read the channel name
   if (remain < chanlen) {
     LOG_ERROR("Not enough bytes left to read channel name "
-              "(%"PRIu16" needed, but only %d remain).\n", chanlen, remain);
+              "(%" PRIu16 " needed, but only %d remain).\n",
+              chanlen, remain);
     return 0;
   }
 
@@ -395,22 +394,22 @@ rd_kafka_t *init_kafka(tsk_config_t *cfg)
 
   // Configure the initial log offset.
   conf = rd_kafka_conf_new();
-  if (rd_kafka_conf_set(conf, "auto.offset.reset", cfg->kafka_offset,
-                        errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+  if (rd_kafka_conf_set(conf, "auto.offset.reset", cfg->kafka_offset, errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     LOG_ERROR("Could not set log offset because: %s\n", errstr);
     goto error;
   }
 
   // Set our group ID.
-  if (rd_kafka_conf_set(conf, "group.id", group_id,
-                        errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+  if (rd_kafka_conf_set(conf, "group.id", group_id, errstr, sizeof(errstr)) !=
+      RD_KAFKA_CONF_OK) {
     LOG_ERROR("Could not set group ID because: %s\n", errstr);
     goto error;
   }
 
   // Create our kafka instance.
-  if ((kafka = rd_kafka_new(RD_KAFKA_CONSUMER, conf,
-                            errstr, sizeof(errstr))) == NULL) {
+  if ((kafka = rd_kafka_new(RD_KAFKA_CONSUMER, conf, errstr, sizeof(errstr))) ==
+      NULL) {
     LOG_ERROR("Could not create handle because: %s\n", errstr);
     goto error;
   }
@@ -454,9 +453,8 @@ int init_timeseries(const tsk_config_t *cfg)
     return 1;
   }
 
-  if ((backend = timeseries_get_backend_by_name(timeseries,
-                                                cfg->timeseries_backend)) ==
-                                                NULL) {
+  if ((backend = timeseries_get_backend_by_name(
+         timeseries, cfg->timeseries_backend)) == NULL) {
     LOG_ERROR("Invalid timeseries backend name.\n");
     return 1;
   }
@@ -487,9 +485,8 @@ int init_stats_timeseries(const tsk_config_t *cfg)
     return 1;
   }
 
-  if ((backend = timeseries_get_backend_by_name(stats_timeseries,
-                                                cfg->stats_ts_backend))
-                                                == NULL) {
+  if ((backend = timeseries_get_backend_by_name(
+         stats_timeseries, cfg->stats_ts_backend)) == NULL) {
     LOG_ERROR("Invalid stats timeseries backend name.\n");
     return 1;
   }
@@ -500,8 +497,8 @@ int init_stats_timeseries(const tsk_config_t *cfg)
     return 1;
   }
 
-  if ((stats_kp = timeseries_kp_init(stats_timeseries,
-                                     TIMESERIES_KP_RESET)) == NULL) {
+  if ((stats_kp = timeseries_kp_init(stats_timeseries, TIMESERIES_KP_RESET)) ==
+      NULL) {
     LOG_ERROR("Could not create stats key packages.\n");
     return 1;
   }
@@ -595,7 +592,7 @@ void create_stats_prefix(tsk_config_t *cfg)
 tsk_config_t *parse_config_file(const char *filename)
 {
   FILE *fh = NULL;
-  char* tk;
+  char *tk;
   char **textp = NULL;
   int *intp = NULL;
   int state = 0;
@@ -631,60 +628,60 @@ tsk_config_t *parse_config_file(const char *filename)
    */
   do {
     yaml_parser_scan(&parser, &token);
-    switch(token.type) {
-      case YAML_KEY_TOKEN:
-        state = 0;
-        break;
-      case YAML_VALUE_TOKEN:
-        state = 1;
-        break;
-      case YAML_SCALAR_TOKEN:
-        tk = (char *) token.data.scalar.value;
-        if (state == 0) {
-          // General section.
-          if (strcmp(tk, "log-level") == 0) {
-            intp = &log_level;
+    switch (token.type) {
+    case YAML_KEY_TOKEN:
+      state = 0;
+      break;
+    case YAML_VALUE_TOKEN:
+      state = 1;
+      break;
+    case YAML_SCALAR_TOKEN:
+      tk = (char *)token.data.scalar.value;
+      if (state == 0) {
+        // General section.
+        if (strcmp(tk, "log-level") == 0) {
+          intp = &log_level;
           // Timeseries section.
-          } else if (strcmp(tk, "timeseries-backend") == 0) {
-            textp = &(tsk_cfg->timeseries_backend);
-          } else if (strcmp(tk, "timeseries-dbats-opts") == 0) {
-            textp = &(tsk_cfg->timeseries_dbats_opts);
+        } else if (strcmp(tk, "timeseries-backend") == 0) {
+          textp = &(tsk_cfg->timeseries_backend);
+        } else if (strcmp(tk, "timeseries-dbats-opts") == 0) {
+          textp = &(tsk_cfg->timeseries_dbats_opts);
           // Kafka section.
-          } else if (strcmp(tk, "kafka-brokers") == 0) {
-            textp = &(tsk_cfg->kafka_brokers);
-          } else if (strcmp(tk, "kafka-topic-prefix") == 0) {
-            textp = &(tsk_cfg->kafka_topic_prefix);
-          } else if (strcmp(tk, "kafka-channel") == 0) {
-            textp = &(tsk_cfg->kafka_channel);
-          } else if (strcmp(tk, "kafka-consumer-group") == 0) {
-            textp = &(tsk_cfg->kafka_consumer_group);
-          } else if (strcmp(tk, "kafka-offset") == 0) {
-            textp = &(tsk_cfg->kafka_offset);
+        } else if (strcmp(tk, "kafka-brokers") == 0) {
+          textp = &(tsk_cfg->kafka_brokers);
+        } else if (strcmp(tk, "kafka-topic-prefix") == 0) {
+          textp = &(tsk_cfg->kafka_topic_prefix);
+        } else if (strcmp(tk, "kafka-channel") == 0) {
+          textp = &(tsk_cfg->kafka_channel);
+        } else if (strcmp(tk, "kafka-consumer-group") == 0) {
+          textp = &(tsk_cfg->kafka_consumer_group);
+        } else if (strcmp(tk, "kafka-offset") == 0) {
+          textp = &(tsk_cfg->kafka_offset);
           // Stats section.
-          } else if (strcmp(tk, "stats-interval") == 0) {
-            intp = &stats_interval;
-          } else if (strcmp(tk, "stats-ts-backend") == 0) {
-            textp = &(tsk_cfg->stats_ts_backend);
-          } else if (strcmp(tk, "stats-ts-opts") == 0) {
-            textp = &(tsk_cfg->stats_ts_opts);
-          } else {
-            LOG_ERROR("Ignoring unsupported config key \"%s\".\n", tk);
-          }
-        } else if (textp && (state == 1)) {
-          *textp = strdup(tk);
-          textp = NULL;
-        } else if (intp && (state == 1)) {
-          *intp = atoi(tk);
-          intp = NULL;
+        } else if (strcmp(tk, "stats-interval") == 0) {
+          intp = &stats_interval;
+        } else if (strcmp(tk, "stats-ts-backend") == 0) {
+          textp = &(tsk_cfg->stats_ts_backend);
+        } else if (strcmp(tk, "stats-ts-opts") == 0) {
+          textp = &(tsk_cfg->stats_ts_opts);
+        } else {
+          LOG_ERROR("Ignoring unsupported config key \"%s\".\n", tk);
         }
-        break;
-      default:
-        break;
+      } else if (textp && (state == 1)) {
+        *textp = strdup(tk);
+        textp = NULL;
+      } else if (intp && (state == 1)) {
+        *intp = atoi(tk);
+        intp = NULL;
+      }
+      break;
+    default:
+      break;
     }
     if (token.type != YAML_STREAM_END_TOKEN) {
       yaml_token_delete(&token);
     }
-  } while(token.type != YAML_STREAM_END_TOKEN);
+  } while (token.type != YAML_STREAM_END_TOKEN);
   yaml_token_delete(&token);
 
   yaml_parser_delete(&parser);
@@ -697,7 +694,8 @@ tsk_config_t *parse_config_file(const char *filename)
   return tsk_cfg;
 }
 
-int is_valid_config(const tsk_config_t *c) {
+int is_valid_config(const tsk_config_t *c)
+{
 
   LOG_DEBUG("Checking if our configuration file is missing anything.\n");
 
