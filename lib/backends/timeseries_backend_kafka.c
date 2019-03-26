@@ -6,20 +6,27 @@
  *
  * Copyright (C) 2012 The Regents of the University of California.
  *
- * This file is part of libtimeseries.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * libtimeseries is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
  *
- * libtimeseries is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
  *
- * You should have received a copy of the GNU General Public License
- * along with libtimeseries.  If not, see <http://www.gnu.org/licenses/>.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  *
  */
 
@@ -182,8 +189,8 @@ static void usage(timeseries_backend_t *backend)
           "       -c <channel>       metric channel to publish to (required)\n"
           "       -C <compression>   compression codec to use (default: %s)\n"
           "       -p <topic-prefix>  topic prefix to use (default: %s)\n",
-          backend->name, //
-          DEFAULT_COMPRESSION,
+          backend->name,       //
+          DEFAULT_COMPRESSION, //
           DEFAULT_TOPIC);
 }
 
@@ -287,10 +294,10 @@ static int32_t time_partitioner(const rd_kafka_topic_t *rkt, const void *key,
                                 void *opaque, void *msg_opaque)
 {
   assert(keylen == sizeof(uint32_t));
-  uint32_t time = ntohl(*(uint32_t*)key);
+  uint32_t time = ntohl(*(uint32_t *)key);
   // truncate time to # minutes since epoch
   // NB: the partition count MUST not be a multiple of the step (in minutes)
-  return (time/60) % partition_cnt;
+  return (time / 60) % partition_cnt;
 }
 
 static int topic_connect(timeseries_backend_t *backend)
@@ -309,8 +316,7 @@ static int topic_connect(timeseries_backend_t *backend)
   }
 
   // topic key is KP time, so route all identical times to the same partition
-  rd_kafka_topic_conf_set_partitioner_cb(topic_conf,
-                                         time_partitioner);
+  rd_kafka_topic_conf_set_partitioner_cb(topic_conf, time_partitioner);
 
   // connect to kafka
   if (state->rkt == NULL) {
@@ -421,8 +427,8 @@ static int kafka_connect(timeseries_backend_t *backend)
   return 0;
 }
 
-static int write_header(uint8_t *buf, size_t len, uint32_t time,
-                        char *channel, uint16_t channel_len)
+static int write_header(uint8_t *buf, size_t len, uint32_t time, char *channel,
+                        uint16_t channel_len)
 {
   // this function can be a bit sub-optimal because it isn't called a zillion
   // times
@@ -621,8 +627,8 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
     if (state->buffer_written == 0) {
       // new message, so write the header
       if ((s = write_header(ptr, (len - state->buffer_written), time,
-                            state->channel_name,
-                            state->channel_name_len)) <= 0) {
+                            state->channel_name, state->channel_name_len)) <=
+          0) {
         goto err;
       }
       state->buffer_written += s;

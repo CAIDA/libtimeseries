@@ -74,8 +74,8 @@ make
 make install
 ```
 
-Most of the GNU standard configure options and make targets are also
-available.
+If you cloned libtimeseries from GitHub, you will need to run
+`./autogen.sh` before `./configure`.
 
 ## API Documentation
 
@@ -98,7 +98,38 @@ Run any program with the `-?` option for a list of options.
     libtimeseries backend. This is usually used to write data from TSK
     into a DBATS database.
 
-## License
+## Copyright and Open Source Software
 
-libtimeseries is released under the GPL v3 license (see `COPYING` for more
-information)
+Unless otherwise specified (below or in file headers) libtimeseries is
+Copyright The Regents of the University of California and released
+under a BSD license. See the [LICENSE](LICENSE) file for details.
+
+### Embedded Code
+
+Below is a list of third-party code distributed as part of the libBGPStream
+package. While we make every effort to keep this list current, license
+information in file headers should be considered authoritative.
+
+ - [common/](https://github.com/caida/cc-common) - the common
+   submodule contains code released under multiple licenses (BSD, MIT,
+   LGPL). See https://github.com/caida/cc-common#copyright for more
+   details. Note that while libtimeseries currently links against all
+   of the sub-libraries in this module, it does not require many of
+   them for normal operation. At some point we plan to modify the
+   libtimeseries build process to only link against required
+   libraries.
+
+### External Dependencies
+
+#### Required
+
+ - [libwandio](https://research.wand.net.nz/software/libwandio.php) is released
+   under an LGPL v3 license.
+
+#### Optional
+
+ - [librdkafka](https://github.com/edenhill/librdkafka) is
+   [released under BSD and compatible licenses](https://github.com/edenhill/librdkafka/blob/master/LICENSES.txt).
+
+ - [libdbats](https://www.caida.org/tools/utilities/dbats/) is
+   released under a GPL v3 license.
