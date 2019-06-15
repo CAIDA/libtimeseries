@@ -34,7 +34,7 @@ AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common \
 	-I$(top_srcdir)/lib \
 	-I$(top_srcdir)/lib/backends
 
-EXTRA_DIST =
+EXTRA_DIST=LICENSE
 
 ACLOCAL_AMFLAGS = -I m4
 
