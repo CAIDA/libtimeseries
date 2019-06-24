@@ -514,6 +514,7 @@ int run(rd_kafka_t *kafka, const tsk_config_t *cfg)
   uint32_t msg_cnt = 0;
   int eof_since_data = 0;
   rd_kafka_message_t *rkmessage = NULL;
+  int rc = -1;
 
   LOG_INFO("Starting C TSK Proxy.\n");
   unix_ts = time(NULL);
@@ -525,6 +526,7 @@ int run(rd_kafka_t *kafka, const tsk_config_t *cfg)
 
     if (shutdown_proxy) {
       LOG_INFO("Shutting down C TSK Proxy.\n");
+      rc = 0;
       goto cleanup;
     }
 
@@ -570,7 +572,7 @@ int run(rd_kafka_t *kafka, const tsk_config_t *cfg)
 cleanup:
   maybe_flush(FORCE_FLUSH); // we're shutting down anyway, so ignore failures
   LOG_INFO("Shutdown complete.\n");
-  return 0;
+  return rc;
 }
 
 void create_stats_prefix(tsk_config_t *cfg)
@@ -771,36 +773,36 @@ int main(int argc, char **argv)
 
   if (argc != 2) {
     fprintf(stderr, "Usage: %s CONFIG_FILE\n", argv[0]);
-    return 1;
+    return -1;
   }
 
   if ((cfg = parse_config_file(argv[1])) == NULL) {
     LOG_ERROR("Could not parse config file.\n");
-    return 1;
+    return -1;
   }
   if (is_valid_config(cfg) != 0) {
     LOG_ERROR("Missing keys in configuration file.\n");
-    return 1;
+    return -1;
   }
   create_stats_prefix(cfg);
 
   // Initialize kafka, our data source.
   if ((kafka = init_kafka(cfg)) == NULL) {
-    return 1;
+    return -1;
   }
 
   // Initialize our two timeseries.
   if (init_timeseries(cfg) != 0) {
     LOG_ERROR("Could not initialize timeseries.\n");
-    return 1;
+    return -1;
   }
   if (init_stats_timeseries(cfg) != 0) {
     LOG_ERROR("Could not initialize stats timeseries.\n");
-    return 1;
+    return -1;
   }
 
   // Start main processing loop.
-  run(kafka, cfg);
+  int rc = run(kafka, cfg);
 
   LOG_DEBUG("Freeing resources.\n");
   rd_kafka_destroy(kafka);
@@ -812,5 +814,5 @@ int main(int argc, char **argv)
   free(stats_key_prefix);
   LOG_INFO("Shutting down.\n");
 
-  return 0;
+  return rc;
 }
