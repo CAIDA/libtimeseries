@@ -1,0 +1,48 @@
+Source: libtimeseries0
+Section: libs
+Priority: optional
+Maintainer: CAIDA Software Maintainer <software@caida.org>
+Build-Depends: debhelper (>= 10), autotools-dev,
+ libyaml-dev, libwandio1 (>=4.2.0), librdkafka1 (>=0.11.3)
+Standards-Version: 4.1.2
+Homepage: https://github.com/CAIDA/libtimeseries
+
+Package: libtimeseries
+Architecture: any
+Section: libdevel
+Depends: libtimeseries0-tools (=${binary:Version}),
+ libtimeseries0-dev (=${binary:Version}), ${misc:Depends}
+Description: Meta package to install latest libtimeseries tools and libraries.
+ Meta package with libtimeseries library, tools, and development environment.
+ .
+ libTimeSeries: High-performance library for writing time series data to a
+ variety of time series databases.
+
+Package: libtimeseries0-tools
+Architecture: any
+Section: libs
+Depends: libtimeseries0 (=${binary:Version}), libwandio1 (>=4.2.0),
+ librdkafka1 (>=0.11.3), ${shlibs:Depends}, ${misc:Depends}
+Description: Command line tools for writing time series data to time series DBs
+ libTimeSeries: High-performance library for writing time series data to a
+ variety of time series databases.
+
+Package: libtimeseries0
+Architecture: any
+Section: libs
+Depends: libwandio1 (>=4.2.0), librdkafka1 (>=0.11.3),
+ ${shlibs:Depends}, ${misc:Depends}
+Description: Library for writing time series data
+ High-performance library for writing time series data to a variety of time
+ series databases.
+ .
+ libTimeSeries: High-performance library for writing time series data to a
+ variety of time series databases.
+
+Package: libtimeseries0-dev
+Architecture: any
+Section: libdevel
+Depends: libtimeseries0 (=${binary:Version}), ${misc:Depends}
+Description: Development headers and shared libraries for libtimeseries0
+ libTimeSeries: High-performance library for writing time series data to a
+ variety of time series databases.
