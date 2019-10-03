@@ -3,7 +3,7 @@ Section: libs
 Priority: optional
 Maintainer: CAIDA Software Maintainer <software@caida.org>
 Build-Depends: debhelper (>= 10), autotools-dev,
- libyaml-dev, libwandio1 (>=4.2.0), librdkafka1 (>=0.11.3)
+ libyaml-dev, libwandio1-dev (>=4.2.0), librdkafka1-dev (>=0.11.3)
 Standards-Version: 4.1.2
 Homepage: https://github.com/CAIDA/libtimeseries
 
