@@ -1,3 +1,9 @@
+libtimeseries0 (0.2.0-1) unstable; urgency=medium
+
+  * Fix build-time dependency on libwandio and librdkafka
+
+ -- Alistair King <software@caida.org>  Thu, 03 Oct 2019 11:48:44 -0700
+
 libtimeseries0 (0.2.0) unstable; urgency=medium
 
   * First packaged release of libtimeseries.
