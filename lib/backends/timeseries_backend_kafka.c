@@ -340,8 +340,11 @@ static int topic_connect(timeseries_backend_t *backend)
     return -1;
   }
 
-  // topic key is KP time, so route all identical times to the same partition
-  rd_kafka_topic_conf_set_partitioner_cb(topic_conf, time_partitioner);
+  if (state->format == FORMAT_TSK) {
+    // route all identical times to the same partition
+    rd_kafka_topic_conf_set_partitioner_cb(topic_conf, time_partitioner);
+  }
+  // else: just round-robin the ascii-formatted data
 
   // connect to kafka
   if (state->rkt == NULL) {
