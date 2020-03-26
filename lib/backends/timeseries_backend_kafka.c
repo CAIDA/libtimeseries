@@ -645,7 +645,7 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
 
   uint8_t *ptr = state->buffer;
   size_t len = BUFFER_LEN;
-  ssize_t s;
+  ssize_t s = 0;
   assert(state->buffer_written == 0);
 
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
@@ -705,7 +705,7 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
 
   uint8_t *ptr = state->buffer;
   size_t len = BUFFER_LEN;
-  ssize_t s;
+  ssize_t s = 0;
   assert(state->buffer_written == 0);
 
   switch (state->format) {
