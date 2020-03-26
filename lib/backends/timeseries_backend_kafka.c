@@ -52,6 +52,8 @@
 
 #define DEFAULT_COMPRESSION "snappy"
 
+#define DEFAULT_FORMAT "tsk"
+
 #define DEFAULT_TOPIC "tsk-production"
 
 #define HEADER_MAGIC "TSKBATCH"
@@ -71,6 +73,11 @@
 #define IDENTITY_MAX_LEN 1024
 
 #define STATE(provname) (TIMESERIES_BACKEND_STATE(kafka, provname))
+
+typedef enum {
+  FORMAT_ASCII, //
+  FORMAT_TSK,   //
+} format_t;
 
 #define SERIALIZE_VAL(buf, len, written, from)                                 \
   do {                                                                         \
@@ -146,6 +153,9 @@ typedef struct timeseries_backend_kafka_state {
   /** Cached length of the channel name */
   int channel_name_len;
 
+  /** Output format */
+  format_t format;
+
   /** Name of the kafka topic to produce to */
   char *topic_prefix;
 
@@ -188,9 +198,12 @@ static void usage(timeseries_backend_t *backend)
           "       -b <broker-uri>    kafka broker URI (required)\n"
           "       -c <channel>       metric channel to publish to (required)\n"
           "       -C <compression>   compression codec to use (default: %s)\n"
+          "       -f <format>        output format ('ascii', or 'tsk') "
+          "(default: %s)\n"
           "       -p <topic-prefix>  topic prefix to use (default: %s)\n",
           backend->name,       //
           DEFAULT_COMPRESSION, //
+          DEFAULT_FORMAT,      //
           DEFAULT_TOPIC);
 }
 
@@ -207,7 +220,7 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
   /* remember the argv strings DO NOT belong to us */
 
-  while ((opt = getopt(argc, argv, ":b:c:C:p:?")) >= 0) {
+  while ((opt = getopt(argc, argv, ":b:c:C:f:p:?")) >= 0) {
     switch (opt) {
     case 'b':
       state->broker_uri = strdup(optarg);
@@ -221,6 +234,18 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
     case 'C':
       free(state->compression_codec);
       state->compression_codec = strdup(optarg);
+      break;
+
+    case 'f':
+      if (strcmp(optarg, "ascii") == 0) {
+        state->format = FORMAT_ASCII;
+      } else if (strcmp(optarg, "tsk") == 0) {
+        state->format = FORMAT_TSK;
+      } else {
+        fprintf(stderr, "ERROR: Format must be one of 'ascii' or 'tsk'\n");
+        usage(backend);
+        return -1;
+      }
       break;
 
     case 'p':
@@ -445,6 +470,7 @@ static int write_header(uint8_t *buf, size_t len, uint32_t time, char *channel,
   SERIALIZE_VAL(buf, len, written, version);
 
   // the time of this batch
+  time = htonl(time);
   SERIALIZE_VAL(buf, len, written, time);
 
   // the name of the channel (to allow a single consumer to handle info from
@@ -481,6 +507,12 @@ static int write_kv(uint8_t *buf, size_t len, const char *key, uint64_t value)
   SERIALIZE_VAL(buf, len, written, value);
 
   return written;
+}
+
+static int write_ascii(uint8_t *buf, size_t len, const char *key,
+                       uint64_t value, uint32_t time)
+{
+  return snprintf((char*)buf, len, "%s %" PRIu64 " %" PRIu32 "\n", key, value, time);
 }
 
 /* ===== PUBLIC FUNCTIONS BELOW THIS POINT ===== */
@@ -615,30 +647,38 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
   ssize_t s;
   assert(state->buffer_written == 0);
 
-  // flip the time around
-  time = htonl(time);
-
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
   {
     if (timeseries_kp_ki_enabled(ki) == 0) {
       continue;
     }
 
-    if (state->buffer_written == 0) {
-      // new message, so write the header
-      if ((s = write_header(ptr, (len - state->buffer_written), time,
-                            state->channel_name, state->channel_name_len)) <=
-          0) {
+    switch (state->format) {
+    case FORMAT_ASCII:
+      if ((s = write_ascii(ptr, (len - state->buffer_written),
+                           timeseries_kp_ki_get_key(ki),
+                           timeseries_kp_ki_get_value(ki), time)) <= 0) {
         goto err;
       }
-      state->buffer_written += s;
-      ptr += s;
-    }
+      break;
 
-    if ((s = write_kv(ptr, (len - state->buffer_written),
-                      timeseries_kp_ki_get_key(ki),
-                      timeseries_kp_ki_get_value(ki))) <= 0) {
-      goto err;
+    case FORMAT_TSK:
+      if (state->buffer_written == 0) {
+        // new message, so write the header
+        if ((s = write_header(ptr, (len - state->buffer_written), time,
+                              state->channel_name, state->channel_name_len)) <=
+            0) {
+          goto err;
+        }
+        state->buffer_written += s;
+        ptr += s;
+      }
+
+      if ((s = write_kv(ptr, (len - state->buffer_written),
+                        timeseries_kp_ki_get_key(ki),
+                        timeseries_kp_ki_get_value(ki))) <= 0) {
+        goto err;
+      }
     }
     state->buffer_written += s;
     ptr += s;
@@ -667,18 +707,25 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
   ssize_t s;
   assert(state->buffer_written == 0);
 
-  // flip the time around
-  time = htonl(time);
+  switch (state->format) {
+  case FORMAT_ASCII:
+    if ((s = write_ascii(ptr, (len - state->buffer_written), key, value, time)) <= 0) {
+      goto err;
+    }
+    break;
 
-  if ((s = write_header(ptr, (len - state->buffer_written), time,
-                        state->channel_name, state->channel_name_len)) <= 0) {
-    goto err;
-  }
-  state->buffer_written += s;
-  ptr += s;
+  case FORMAT_TSK:
+    if ((s = write_header(ptr, (len - state->buffer_written), time,
+                          state->channel_name, state->channel_name_len)) <= 0) {
+      goto err;
+    }
+    state->buffer_written += s;
+    ptr += s;
 
-  if ((s = write_kv(ptr, (len - state->buffer_written), key, value)) <= 0) {
-    goto err;
+    if ((s = write_kv(ptr, (len - state->buffer_written), key, value)) <= 0) {
+      goto err;
+    }
+    break;
   }
   state->buffer_written += s;
   ptr += s;
