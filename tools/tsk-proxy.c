@@ -114,7 +114,7 @@
 #define HEADER_LEN (HEADER_MAGIC_LEN + 1 + 4 + 2)
 
 // Timeout for kafka consumer poll in milliseconds.
-#define KAFKA_POLL_TIMEOUT 10 * 1000
+#define KAFKA_POLL_TIMEOUT 1 * 1000
 
 // Buffer length to hold key package keys.
 #define KEY_BUF_LEN 1024
@@ -550,7 +550,7 @@ int run(rd_kafka_t *kafka, const tsk_config_t *cfg)
         eof_since_data = 0;
       } else if (rkmessage->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
         LOG_DEBUG("Reached end of partition.\n");
-        if (++eof_since_data >= 10) {
+        if (shutdown_proxy || ++eof_since_data >= 10) {
           rd_kafka_message_destroy(rkmessage);
           break;
         }

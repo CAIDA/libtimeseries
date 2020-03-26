@@ -565,6 +565,7 @@ void timeseries_backend_kafka_free(timeseries_backend_t *backend)
 
   if (state->rdk_conn != NULL) {
     int drain_wait_cnt = 12;
+    rd_kafka_poll(state->rdk_conn, 0);
     while (rd_kafka_outq_len(state->rdk_conn) > 0 && drain_wait_cnt > 0) {
       timeseries_log(
         __func__,
