@@ -321,7 +321,7 @@ int handle_message(const rd_kafka_message_t *rkmessage, const tsk_config_t *cfg)
   buf += HEADER_MAGIC_LEN;
 
   // Check version (1 byte)
-  if (*(buf++) != TSKBATCH_VERSION) {
+  if ((version = *(buf++)) != TSKBATCH_VERSION) {
     LOG_ERROR("Expected version %d but got %d.\n", TSKBATCH_VERSION, version);
     return 0;
   }
