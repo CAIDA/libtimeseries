@@ -52,8 +52,6 @@
 
 #define DEFAULT_COMPRESSION "snappy"
 
-#define DEFAULT_FORMAT "tsk"
-
 #define DEFAULT_TOPIC "tsk-production"
 
 #define HEADER_MAGIC "TSKBATCH"
@@ -78,6 +76,9 @@ typedef enum {
   FORMAT_ASCII, //
   FORMAT_TSK,   //
 } format_t;
+
+#define DEFAULT_FORMAT_STR "tsk"
+#define DEFAULT_FORMAT FORMAT_TSK
 
 #define SERIALIZE_VAL(buf, len, written, from)                                 \
   do {                                                                         \
@@ -203,7 +204,7 @@ static void usage(timeseries_backend_t *backend)
           "       -p <topic-prefix>  topic prefix to use (default: %s)\n",
           backend->name,       //
           DEFAULT_COMPRESSION, //
-          DEFAULT_FORMAT,      //
+          DEFAULT_FORMAT_STR,  //
           DEFAULT_TOPIC);
 }
 
@@ -539,6 +540,7 @@ int timeseries_backend_kafka_init(timeseries_backend_t *backend, int argc,
   timeseries_backend_register_state(backend, state);
 
   state->compression_codec = strdup(DEFAULT_COMPRESSION);
+  state->format = DEFAULT_FORMAT;
 
   /* parse the command line args */
   if (parse_args(backend, argc, argv) != 0) {
