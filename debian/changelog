@@ -1,3 +1,9 @@
+libtimeseries0 (1.0.0-2) unstable; urgency=medium
+
+  * Fix bug where kafka output defaulted to ASCII.
+
+ -- Alistair King <software@caida.org>  Mon, 13 Apr 2020 21:19:59 +0000
+
 libtimeseries0 (1.0.0-1) unstable; urgency=medium
 
   * Minor change to kafka partitioner
