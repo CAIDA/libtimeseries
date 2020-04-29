@@ -1,3 +1,9 @@
+libtimeseries0 (1.0.0-3) unstable; urgency=medium
+
+  * Add prefix filter support to tsk-proxy
+
+ -- Alistair King <software@caida.org>  Wed, 29 Apr 2020 00:17:56 +0000
+
 libtimeseries0 (1.0.0-2) unstable; urgency=medium
 
   * Fix bug where kafka output defaulted to ASCII.
