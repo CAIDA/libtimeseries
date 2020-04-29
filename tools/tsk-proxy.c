@@ -124,10 +124,16 @@
 #define LOG_LEVEL_INFO 1
 #define LOG_LEVEL_DEBUG 2
 
+#define MAX_FILTERS 1024
+
 // Represents the configuration of TSK proxy.
 typedef struct tsk_config {
   char *timeseries_backend;
   char *timeseries_dbats_opts;
+
+  char *filters[MAX_FILTERS];
+  int filter_lens[MAX_FILTERS];
+  int filters_cnt;
 
   char *kafka_brokers;
   char *kafka_topic_prefix;
@@ -223,12 +229,14 @@ void inc_stat(const char *stats_key_suffix, const int value)
   free(stats_key);
 }
 
-int parse_key_value(uint8_t **buf, ssize_t *remain)
+int parse_key_value(const tsk_config_t *cfg, uint8_t **buf, ssize_t *remain)
 {
   uint16_t keylen = 0;
   uint64_t value = 0;
   int key_id = 0;
   char key[KEY_BUF_LEN];
+  int match;
+  int i;
 
   // Get 2-byte key length (network byte-ordered).
   DESERIALIZE_VAL(*buf, *remain, keylen);
@@ -251,6 +259,21 @@ int parse_key_value(uint8_t **buf, ssize_t *remain)
   DESERIALIZE_VAL(*buf, *remain, value);
   value = ntohll(value);
 
+  // If we have filters enabled, check if this key matches a filter
+  if (cfg->filters_cnt) {
+    match = 0;
+    for (i = 0; i < cfg->filters_cnt; i++) {
+      if (keylen >= cfg->filter_lens[i] &&
+          strncmp(cfg->filters[i], key, cfg->filter_lens[i]) == 0) {
+        match = 1;
+        break;
+      }
+    }
+    if (!match) {
+      return 0;
+    }
+  }
+
   // Write key:val pair to key package.
   if ((key_id = timeseries_kp_get_key(kp, key)) == -1) {
     key_id = timeseries_kp_add_key(kp, key);
@@ -271,18 +294,21 @@ int maybe_flush(const int flush_time)
     current_time = flush_time;
   } else if (flush_time == 0 || flush_time != current_time) {
     assert(!(flush_time == FORCE_FLUSH && current_time == 0));
-    LOG_INFO("%sFlushing key packages at %d with %d keys enabled (%d total).\n",
-             (flush_time == FORCE_FLUSH) ? "(Force-)" : "", current_time,
-             timeseries_kp_enabled_size(kp), timeseries_kp_size(kp));
-    inc_stat("flush_cnt", 1);
-    inc_stat("flushed_key_cnt", timeseries_kp_enabled_size(kp));
 
-    if (timeseries_kp_flush(kp, current_time) == -1) {
-      LOG_ERROR("Could not flush key package.\n");
-      return -1;
+    if (timeseries_kp_enabled_size(kp) > 0) {
+      LOG_INFO("%sFlushing key packages at %d with %d keys enabled (%d total).\n",
+               (flush_time == FORCE_FLUSH) ? "(Force-)" : "", current_time,
+               timeseries_kp_enabled_size(kp), timeseries_kp_size(kp));
+      inc_stat("flush_cnt", 1);
+      inc_stat("flushed_key_cnt", timeseries_kp_enabled_size(kp));
+
+      if (timeseries_kp_flush(kp, current_time) == -1) {
+        LOG_ERROR("Could not flush key package.\n");
+        return -1;
+      }
+
+      assert(timeseries_kp_enabled_size(kp) == 0);
     }
-
-    assert(timeseries_kp_enabled_size(kp) == 0);
     current_time = flush_time;
   }
 
@@ -362,7 +388,7 @@ int handle_message(const rd_kafka_message_t *rkmessage, const tsk_config_t *cfg)
   inc_stat("messages_bytes", len);
 
   while (remain > 0) {
-    if (parse_key_value(&buf, &remain) != 0) {
+    if (parse_key_value(cfg, &buf, &remain) != 0) {
       // this is an error, but not a fatal one
       return 0;
     }
@@ -601,6 +627,7 @@ tsk_config_t *parse_config_file(const char *filename)
   yaml_parser_t parser;
   yaml_token_t token;
   tsk_config_t *tsk_cfg = NULL;
+  int i;
 
   LOG_INFO("Parsing config file \"%s\".\n", filename);
 
@@ -643,6 +670,9 @@ tsk_config_t *parse_config_file(const char *filename)
         // General section.
         if (strcmp(tk, "log-level") == 0) {
           intp = &log_level;
+        } else if (strcmp(tk, "filter-prefix") == 0) {
+          assert(tsk_cfg->filters_cnt < MAX_FILTERS);
+          textp = &(tsk_cfg->filters[tsk_cfg->filters_cnt++]);
           // Timeseries section.
         } else if (strcmp(tk, "timeseries-backend") == 0) {
           textp = &(tsk_cfg->timeseries_backend);
@@ -691,6 +721,9 @@ tsk_config_t *parse_config_file(const char *filename)
 
   if (tsk_cfg->kafka_channel) {
     tsk_cfg->kafka_chanlen = strlen(tsk_cfg->kafka_channel);
+  }
+  for (i = 0; i < tsk_cfg->filters_cnt; i++) {
+    tsk_cfg->filter_lens[i] = strlen(tsk_cfg->filters[i]);
   }
 
   return tsk_cfg;
