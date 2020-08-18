@@ -31,7 +31,7 @@
 
 AC_PREREQ([2.68])
 
-AC_INIT([libtimeseries], [1.0.0], [corsaro-info@caida.org])
+AC_INIT([libtimeseries], [1.0.1], [corsaro-info@caida.org])
 AM_INIT_AUTOMAKE([foreign])
 
 LIBTIMESERIES_MAJOR_VERSION=1
