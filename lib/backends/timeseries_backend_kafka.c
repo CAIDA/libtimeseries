@@ -93,9 +93,10 @@ typedef enum {
 #define SEND_MSG(partition, buf, written, time, ptr, len)                      \
   do {                                                                         \
     int success = 0;                                                           \
+    uint32_t swaptime = htonl(time);                                           \
     while (written > 0 && success == 0) {                                      \
       if (rd_kafka_produce(state->rkt, (partition), RD_KAFKA_MSG_F_COPY,       \
-                           (buf), (written), &(time), sizeof(time),            \
+                           (buf), (written), &(swaptime), sizeof(swaptime),    \
                            NULL) == -1) {                                      \
         if (rd_kafka_last_error() == RD_KAFKA_RESP_ERR__QUEUE_FULL) {          \
           timeseries_log(__func__, "WARN: producer queue full, retrying...");  \
@@ -261,7 +262,7 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
 
   if (state->broker_uri == NULL) {
     fprintf(stderr, "ERROR: Kafka Broker URI(s) must be specified using -b\n");
-    usage(backend);
+    usage(backend); 
     return -1;
   }
 
