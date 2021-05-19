@@ -36,7 +36,7 @@ AM_INIT_AUTOMAKE([foreign])
 
 LIBTIMESERIES_MAJOR_VERSION=1
 LIBTIMESERIES_MID_VERSION=0
-LIBTIMESERIES_MINOR_VERSION=2
+LIBTIMESERIES_MINOR_VERSION=0
 
 # since libtimeseries is only a library, the version numbers are only used to
 # set the libtool library verson numbers. This means that the numbering is
