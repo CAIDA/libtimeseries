@@ -75,6 +75,7 @@
 typedef enum {
   FORMAT_ASCII, //
   FORMAT_TSK,   //
+  FORMAT_TSK_KEYPART,   //
 } format_t;
 
 #define DEFAULT_FORMAT_STR "tsk"
@@ -241,8 +242,10 @@ static int parse_args(timeseries_backend_t *backend, int argc, char **argv)
         state->format = FORMAT_ASCII;
       } else if (strcmp(optarg, "tsk") == 0) {
         state->format = FORMAT_TSK;
+      } else if (strcmp(optarg, "tskkey") == 0) {
+        state->format = FORMAT_TSK_KEYPART;
       } else {
-        fprintf(stderr, "ERROR: Format must be one of 'ascii' or 'tsk'\n");
+        fprintf(stderr, "ERROR: Format must be one of 'ascii', 'tsk', or 'tskkey'\n");
         usage(backend);
         return -1;
       }
@@ -340,7 +343,11 @@ static int topic_connect(timeseries_backend_t *backend)
     return -1;
   }
 
-  if (state->format == FORMAT_TSK) {
+  /* NOTE: we recycle the time_partitioner here for key-based partitioning.
+   * This works because the key string actually gets evaluated as a 32-bit hash
+   * so it all looks the same to the partitioner.
+   */
+  if (state->format == FORMAT_TSK || state->format == FORMAT_TSK_KEYPART) {
     // route all identical times to the same partition
     rd_kafka_topic_conf_set_partitioner_cb(topic_conf, time_partitioner);
   }
@@ -640,6 +647,16 @@ void timeseries_backend_kafka_kp_ki_free(timeseries_backend_t *backend,
   return;
 }
 
+uint32_t keyhash(const char *key) {
+  uint32_t hash = 5381;
+  int c;
+
+  while (c = *key++) {
+    hash = ((hash << 5) + hash) + c;
+  }
+  return hash;
+}
+
 int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
                                       timeseries_kp_t *kp, uint32_t time)
 {
@@ -650,7 +667,12 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
   uint8_t *ptr = state->buffer;
   size_t len = BUFFER_LEN;
   ssize_t s = 0;
+  uint32_t thishash = 0, lasthash = 0, msgkey = 0;
+  const char *key = NULL;
+  char *keydup, *sptr;
+
   assert(state->buffer_written == 0);
+
 
   TIMESERIES_KP_FOREACH_KI(kp, ki, id)
   {
@@ -665,6 +687,7 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
                            timeseries_kp_ki_get_value(ki), time)) <= 0) {
         goto err;
       }
+      msgkey = time;
       break;
 
     case FORMAT_TSK:
@@ -684,15 +707,65 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
                         timeseries_kp_ki_get_value(ki))) <= 0) {
         goto err;
       }
+      msgkey = time;
+      break;
+
+    case FORMAT_TSK_KEYPART:
+      key = timeseries_kp_ki_get_key(ki);
+      /* Strip the last term from the key if possible -- the last term is
+       * typically the exact metric being reported and it probably makes
+       * sense for similar metrics to be on the same partition.
+       *
+       * Example: consider the following keys...
+       *    geo.netacuity.SA.BR.pkt_cnt
+       *    geo.netacuity.SA.BR.ip_len
+       *    geo.netacuity.SA.BR.uniq_src_asn
+       *
+       * This stripping strategy will put all 3 keys on the same partition,
+       * which may be handy if our consumer wants to an analysis of
+       * traffic from Brazil.
+       */
+      sptr = strrchr(key, '.');
+      if (sptr != NULL) {
+        *sptr = '\0';
+        thishash = keyhash(key);
+        *sptr = '.';
+      } else {
+        thishash = keyhash(key);
+      }
+
+      if (thishash != lasthash && state->buffer_written > 0) {
+        SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written,
+                 lasthash, ptr, len);
+      }
+
+      if (state->buffer_written == 0) {
+        // new message, so write the header
+        if ((s = write_header(ptr, (len - state->buffer_written), time,
+                              state->channel_name, state->channel_name_len)) <=
+            0) {
+          goto err;
+        }
+        state->buffer_written += s;
+        ptr += s;
+      }
+
+      if ((s = write_kv(ptr, (len - state->buffer_written), key,
+                        timeseries_kp_ki_get_value(ki))) <= 0) {
+        goto err;
+      }
+      lasthash = thishash;
+      msgkey = thishash;
+      break;
     }
     state->buffer_written += s;
     ptr += s;
 
-    SEND_IF_FULL(DEFAULT_PARTITION, state->buffer, state->buffer_written, time,
-                 ptr, len);
+    SEND_IF_FULL(DEFAULT_PARTITION, state->buffer, state->buffer_written,
+                 msgkey, ptr, len);
   }
 
-  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written, time, ptr,
+  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written, msgkey, ptr,
            len);
 
   return 0;
