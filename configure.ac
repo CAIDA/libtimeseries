@@ -38,6 +38,7 @@ LIBTIMESERIES_MAJOR_VERSION=1
 LIBTIMESERIES_MID_VERSION=0
 LIBTIMESERIES_MINOR_VERSION=3
 
+
 # since libtimeseries is only a library, the version numbers are only used to
 # set the libtool library verson numbers. This means that the numbering is
 # slightly different than semantic versioning. For more info, see
