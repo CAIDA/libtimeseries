@@ -669,7 +669,7 @@ int timeseries_backend_kafka_kp_flush(timeseries_backend_t *backend,
   ssize_t s = 0;
   uint32_t thishash = 0, lasthash = 0, msgkey = 0;
   const char *key = NULL;
-  char *keydup, *sptr;
+  char *sptr;
 
   assert(state->buffer_written == 0);
 
