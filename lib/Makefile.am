@@ -64,7 +64,7 @@ libtimeseries_la_LIBADD = 			\
 	$(top_builddir)/common/libcccommon.la 	\
 	$(top_builddir)/lib/backends/libtimeseries_backends.la
 
-libtimeseries_la_LDFLAGS = -version-info @LIBTIMESERIES_MAJOR_VERSION@:@LIBTIMESERIES_MID_VERSION@:@LIBTIMESERIES_MINOR_VERSION@
+libtimeseries_la_LDFLAGS = -version-info 1:1:0
 
 ACLOCAL_AMFLAGS = -I m4
 
