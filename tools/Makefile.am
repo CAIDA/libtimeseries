@@ -32,6 +32,7 @@
 AM_CPPFLAGS = 	-I$(top_srcdir) 	\
 		-I$(top_srcdir)/common 	\
 		-I$(top_srcdir)/lib 	\
+                -Wall -Werror           \
 		-I$(top_srcdir)/lib/backends
 
 dist_bin_SCRIPTS =

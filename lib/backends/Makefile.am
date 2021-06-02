@@ -33,7 +33,8 @@ SUBDIRS =
 
 AM_CPPFLAGS = 	-I$(top_srcdir)		\
 		-I$(top_srcdir)/common 	\
-		-I$(top_srcdir)/lib
+		-I$(top_srcdir)/lib     \
+                -Wall -Werror
 
 noinst_LTLIBRARIES = libtimeseries_backends.la
 

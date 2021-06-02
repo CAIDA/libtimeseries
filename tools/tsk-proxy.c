@@ -217,7 +217,10 @@ void inc_stat(const char *stats_key_suffix, const int value)
 
   assert(value > 0);
 
-  asprintf(&stats_key, "%s.%s", stats_key_prefix, stats_key_suffix);
+  if (asprintf(&stats_key, "%s.%s", stats_key_prefix, stats_key_suffix) < 0) {
+    // error -- should log and return an error code XXX
+    return;
+  }
 
   if ((key_id = timeseries_kp_get_key(stats_kp, stats_key)) == -1) {
     key_id = timeseries_kp_add_key(stats_kp, stats_key);
@@ -409,8 +412,17 @@ rd_kafka_t *init_kafka(tsk_config_t *cfg)
 
   LOG_INFO("Initializing kafka.\n");
 
-  asprintf(&topic_name, "%s.%s", cfg->kafka_topic_prefix, cfg->kafka_channel);
-  asprintf(&group_id, "%s.%s", cfg->kafka_consumer_group, topic_name);
+  if (asprintf(&topic_name, "%s.%s", cfg->kafka_topic_prefix,
+                cfg->kafka_channel) < 0) {
+    LOG_ERROR("Could not construct topic name for %s,%s\n",
+                cfg->kafka_topic_prefix, cfg->kafka_channel);
+    goto error;
+  }
+  if (asprintf(&group_id, "%s.%s", cfg->kafka_consumer_group, topic_name) < 0) {
+    LOG_ERROR("Could not construct group ID for %s,%s\n",
+                cfg->kafka_consumer_group, topic_name);
+    goto error;
+  }
   LOG_DEBUG("Using kafka topic name \"%s\".\n", topic_name);
   LOG_DEBUG("Using Kafka group id \"%s\".\n", group_id);
 
@@ -609,8 +621,11 @@ void create_stats_prefix(tsk_config_t *cfg)
   char *channel = graphite_safe_node(strdup(cfg->kafka_channel));
 
   // Create key prefix for our kp statistics.
-  asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
-           consumer_group, topic_prefix, channel);
+  if (asprintf(&stats_key_prefix, "%s.%s.%s.%s", STATS_METRIC_PREFIX,
+           consumer_group, topic_prefix, channel) < 0) {
+     LOG_ERROR("Could not create stats key prefix %s,%s,%s\n",
+                consumer_group, topic_prefix, channel);
+  }
 
   free(consumer_group);
   free(topic_prefix);
