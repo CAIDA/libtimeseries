@@ -30,7 +30,7 @@
 #
 
 SUBDIRS = common lib tools
-AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common \
+AM_CPPFLAGS = -Wall -Werror -I$(top_srcdir) -I$(top_srcdir)/common \
 	-I$(top_srcdir)/lib \
 	-I$(top_srcdir)/lib/backends
 

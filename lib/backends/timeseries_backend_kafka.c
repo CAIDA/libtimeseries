@@ -651,7 +651,7 @@ uint32_t keyhash(const char *key) {
   uint32_t hash = 5381;
   int c;
 
-  while (c = *key++) {
+  while ((c = *key++)) {
     hash = ((hash << 5) + hash) + c;
   }
   return hash;
@@ -783,6 +783,8 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
   uint8_t *ptr = state->buffer;
   size_t len = BUFFER_LEN;
   ssize_t s = 0;
+  uint32_t msgkey = time;
+  char *sptr;
   assert(state->buffer_written == 0);
 
   switch (state->format) {
@@ -792,6 +794,16 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
     }
     break;
 
+  case FORMAT_TSK_KEYPART:
+    sptr = strrchr(key, '.');
+    if (sptr != NULL) {
+      *sptr = '\0';
+      msgkey = keyhash(key);
+      *sptr = '.';
+    } else {
+      msgkey = keyhash(key);
+    }
+    /* FALL THROUGH */
   case FORMAT_TSK:
     if ((s = write_header(ptr, (len - state->buffer_written), time,
                           state->channel_name, state->channel_name_len)) <= 0) {
@@ -804,11 +816,13 @@ int timeseries_backend_kafka_set_single(timeseries_backend_t *backend,
       goto err;
     }
     break;
+
   }
+
   state->buffer_written += s;
   ptr += s;
 
-  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written, time, ptr,
+  SEND_MSG(DEFAULT_PARTITION, state->buffer, state->buffer_written, msgkey, ptr,
            len);
 
   return 0;
