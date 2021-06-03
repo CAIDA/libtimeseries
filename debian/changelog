@@ -1,3 +1,11 @@
+libtimeseries0 (1.0.4) unstable; urgency=medium
+
+  * Fix bad error message in timeseries-insert tool
+  * Fix bug where 'tskkey' was not supported in the set_single
+    callback for kafka.
+
+ -- Shane Alcock <software@caida.org>  Thu, 03 Jun 2021 13:51:50 +1200
+
 libtimeseries0 (1.0.3) unstable; urgency=medium
 
   * Add new kafka format: 'tskkey', which will partition data based
