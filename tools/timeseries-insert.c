@@ -75,7 +75,7 @@ static int insert(char *line)
   /* get the key string */
   if ((key = strsep(&line, " ")) == NULL) {
     /* malformed line */
-    fprintf(stderr, "ERROR: Malformed metric record (missing key): %s\n", key);
+    fprintf(stderr, "ERROR: Malformed metric record (missing key): %s\n", line);
     return 0;
   }
 
