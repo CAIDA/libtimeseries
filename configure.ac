@@ -31,12 +31,12 @@
 
 AC_PREREQ([2.68])
 
-AC_INIT([libtimeseries], [1.0.3], [corsaro-info@caida.org])
+AC_INIT([libtimeseries], [1.0.4], [corsaro-info@caida.org])
 AM_INIT_AUTOMAKE([foreign])
 
 LIBTIMESERIES_MAJOR_VERSION=1
 LIBTIMESERIES_MID_VERSION=0
-LIBTIMESERIES_MINOR_VERSION=3
+LIBTIMESERIES_MINOR_VERSION=4
 
 
 # since libtimeseries is only a library, the version numbers are only used to
